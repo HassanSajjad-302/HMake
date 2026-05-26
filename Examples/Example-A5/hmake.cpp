@@ -4,7 +4,8 @@ struct OurTarget : BTarget
 {
     string name;
     bool error = false;
-    explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
+    explicit OurTarget(const string &name_, const bool error_ = false)
+        : BTarget(name_, false, BTargetType::UNKNOWN), name{name_}, error(error_)
     {
     }
 
@@ -34,8 +35,8 @@ void buildSpecification()
     OurTarget *f = new OurTarget("XMake");
     OurTarget *g = new OurTarget("build2", true);
     OurTarget *h = new OurTarget("Boost");
-    d->addDep<0>(*e);
-    h->addDep<0>(*g);
+    d->addDep<0>(e);
+    h->addDep<0>(g);
 }
 
 MAIN_FUNCTION

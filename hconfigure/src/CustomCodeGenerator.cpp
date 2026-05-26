@@ -17,14 +17,14 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
     {
         realBTargets[0].addDep<BTargetType::LOAT, RelationType::FULL>(&codeGenerator->realBTargets[0]);
 
-        const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
         {
             uint32_t bytesRead = 0;
             // reading config-cache
             myBuildDir = readHalfNode(configCache.data(), bytesRead);
             sourceNode = readHalfNode(configCache.data(), bytesRead);
-            sourceNode->toBeChecked = true;
+            sourceNode->doStatFile = true;
             outputHeader = readHalfNode(configCache.data(), bytesRead);
 
             command = codeGenerator->outputFileNode->filePath;
@@ -53,7 +53,7 @@ bool HeaderGen::isEventRegistered(Builder &builder)
         setFileStatus();
     }
 
-    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
+    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
         if (realBTargets[0].launchTime > sourceNode->lastWriteTime)
         {

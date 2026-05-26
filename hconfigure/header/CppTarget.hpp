@@ -18,8 +18,11 @@ using std::same_as;
 /// that already hold a Node* skip the getNodeNonNormalized lookup entirely.
 struct NodeOrStr
 {
+    /// Pre-resolved node when the caller already has a `Node*` (skips path normalization lookup).
     Node       *node_ = nullptr;
+    /// Path string used when `hasNode_` is false.
     string_view str_;
+    /// If true, use `node_`; otherwise resolve `str_` via `Node::getNodeNonNormalized()`.
     bool        hasNode_;
 
     NodeOrStr(Node *n)           : node_(n),  hasNode_(true)  {}

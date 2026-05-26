@@ -1,3 +1,5 @@
+/// \file
+/// Defines `ObjectFile`, the base class for compile outputs (.o / .obj) referenced by link targets.
 
 #ifndef OBJECTFILE_HPP
 #define OBJECTFILE_HPP

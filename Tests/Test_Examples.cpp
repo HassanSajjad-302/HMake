@@ -221,7 +221,7 @@ TEST(AExamplesTest, Example_A7)
     int exitStatus;
     ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
     ASSERT_EQ(exitStatus, EXIT_FAILURE);
-    string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0\n";
+    string str = "Cycle found: b -> c -> b\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }

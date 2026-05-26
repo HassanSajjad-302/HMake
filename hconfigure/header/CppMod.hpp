@@ -27,6 +27,7 @@ struct CompareCppSrc
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
 };
 
+/// Language of a `CppSrc` translation unit, inferred from the file extension.
 enum class SourceType : uint8_t
 {
     C,
@@ -49,11 +50,14 @@ class CppSrc : public ObjectFile
     /// Node pointer to the source-file
     const Node *node;
 
+    /// Hash of the compile command for this file (flags, defines, includes, etc.). Set in `CppTarget::setCommandHashes()`.
+    /// Combined with source/header content hashes to form `RealBTarget::cumulativeHash`.
     uint64_t commandHash;
 
     /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
     SourceType sourceType = SourceType::CPP;
 
+    /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setFileStatus()`.
     span<const uint32_t> cachedHeaderFiles;
 
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
@@ -63,7 +67,7 @@ class CppSrc : public ObjectFile
     /// MSVC prints header-files with the compilation output. This function parses them out from that output.
     void parseDepsFromMSVCTextOutput(string &output, bool isClang);
     /// GCC outputs header-files in a .d file. This function parses that
-    void parseDepsFromGCCDepsOutput(Builder &builder);
+    void parseHeadersFromGccDepsOutput(Builder &builder);
     /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
     void parseHeaderDeps(string &output, Builder &builder);
     /// This compares lastWrite of source-node with object-node and header-files
@@ -143,8 +147,12 @@ struct CppModWithDirectEqual
 class CppMod : public CppSrc
 {
   public:
+    /// Transitive module/hu dependencies (direct and indirect), populated by `populateAllDeps()`.
+    /// The `isDirect` bit marks edges that are persisted: only direct deps are written to the build-cache
+    /// (`writeBuildCacheAtBuildTime()`); transitive entries are recomputed from `cachedDeps` at build-time.
     flat_hash_set<CppModWithDirect, CppModWithDirectHash, CppModWithDirectEqual> allCppModDeps;
 
+    /// `cacheIndex` values of direct module/hu dependencies, read from the build-cache at build-time.
     span<const uint32_t> cachedDeps;
 
     /// Used only if configuration->evaluate(DuplicationWarning::YES). Otherwise, CppSrc::headerFiles is used.
@@ -161,6 +169,8 @@ class CppMod : public CppSrc
     /// module, logicalNames[0] is the exportName of the module.
     vector<string> logicalNames;
 
+    /// Snapshot of `realBTargets[0].launchTime` taken when IPC compilation starts; used to detect header changes that
+    /// occurred after launch when writing the cumulative-hash to the build-cache.
     uint64_t originalLaunchTime;
 
     /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
@@ -173,8 +183,10 @@ class CppMod : public CppSrc
     /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
 
+    /// Size in bytes of `interfaceNode` after memory-mapping; sent to the compiler in IPC messages.
     uint32_t interfaceFileSize;
 
+    /// Kind of translation unit: source, primary/partition export, header-unit, or primary implementation.
     CppModType type;
 
     /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
@@ -183,13 +195,17 @@ class CppMod : public CppSrc
     /// Following is used only at config-time. Describes whether hu is interface hu of the CppTarget.
     bool isUseReqHu = false;
 
-    /// Composing headers are only sent with the first message. This keeps tracks of that
+    /// Composing headers are only sent with the first IPC message. This keeps tracks of that
     bool firstMessageSent = false;
 
+    /// True after `makeMemoryFileMapping()` has mapped `interfaceNode` and recorded `interfaceFileSize`.
     bool memoryMappingCompleted = false;
 
+    /// With `realBTargets[0].insertionIndex`, allows one bring-to-front per dependency: while it is already in
+    /// `updateBTargets` but `isEventRegistered` has not run and it has not yet been moved to the head (`!isScheduled`).
     bool isScheduled = false;
-    bool calledOnce = false;
+
+    /// True after `populateAllDeps()` has filled `allCppModDeps` from `cachedDeps` and transitive closure.
     bool isAllDepsPopulated = false;
 
     CppMod(CppTarget *target_, const Node *node_, CppModType cppModType);
@@ -245,8 +261,8 @@ class CppMod : public CppSrc
 
     /// Used to generate the script for standalone hu/module compilation. Generates a batch file on Windows and a bash
     /// file on Linux.
-    void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents,
-                              const string &scriptDir) override;
+    void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir,
+                              bool direct) override;
 
     void writeConfigCacheAtConfigTime(string &buffer) override;
     void writeBuildCacheAtConfigTime(string &buffer) override;

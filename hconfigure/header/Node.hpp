@@ -35,7 +35,7 @@ struct NodeHash
 /// Most callers should obtain instances via `getNode*`/`getHalfNode*` helpers, not by direct construction.
 ///
 /// `performSystemCheck()` is intentionally cached because filesystem metadata calls are slow.
-/// Build steps mark interesting nodes via `toBeChecked`; `Builder::checkNodes()` refreshes those.
+/// Build steps mark interesting nodes via `doStatFile` / `doHashFile`; `Builder::checkNodes()` refreshes those.
 ///
 /// Each `Node` has a stable 32-bit id (`myId`) used by build/config caches instead of writing full paths.
 class Node
@@ -49,11 +49,13 @@ class Node
     /// Cached last-write timestamp, assigned by `performSystemCheck()`.
     uint64_t lastWriteTime = -1;
 
-    uint64_t fileSize = 0; // populated by performSystemCheck
+    /// File size in bytes, populated by `performSystemCheck()` for regular files.
+    uint64_t fileSize = 0;
 
+    /// rapidhash of file contents, populated by `performContentHash()` when `doHashFile` is set.
     uint64_t contentHash = 0;
 
-    /// Total number of created nodes.
+    /// Total number of `Node` instances constructed so far (next id to assign).
     inline static uint32_t idCount = 0;
 
     /// Stable index in `nodeIndices`.
@@ -63,14 +65,17 @@ class Node
     file_type fileType;
 
     /// True after filesystem metadata has been fetched at least once.
-    bool systemCheckCompleted{false};
+    bool statCompleted{false};
 
-    /// Marks this node for refresh in the pre-round-0 node-check phase.
-    bool toBeChecked :1 = false;
+    /// When true, `Builder::checkNodes()` will call `performSystemCheck()` to refresh `fileType`, `fileSize`, and
+    /// `lastWriteTime`.
+    bool doStatFile : 1 = false;
 
-    bool checkHashing :1= false;
+    /// When true, `Builder::checkNodes()` will call `performContentHash()` to refresh `contentHash`.
+    bool doHashFile : 1 = false;
 
-    bool fileHashingDone :1 = false;
+    /// True after `performContentHash()` has run at least once for this node.
+    bool hashCompleted : 1 = false;
 
     explicit Node(string_view filePath_);
     /// Returns basename (characters after final path separator).

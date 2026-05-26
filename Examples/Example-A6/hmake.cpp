@@ -3,8 +3,8 @@
 struct OurTarget : BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(const unsigned short low_, const unsigned short high_)
-        : BTarget(true, false), low(low_), high(high_)
+    explicit OurTarget(const string &str, const unsigned short low_, const unsigned short high_)
+        : BTarget(str, false, BTargetType::UNKNOWN, false, false, false, false), low(low_), high(high_)
     {
     }
 
@@ -22,15 +22,20 @@ OurTarget *a, *b, *c;
 
 struct OurTarget2 : BTarget
 {
+    explicit OurTarget2(const string &str) : BTarget(str, false, BTargetType::UNKNOWN)
+    {
+        a = new OurTarget("a", 10, 40);
+        b = new OurTarget("b", 50, 80);
+        c = new OurTarget("c", 800, 1000);
+    }
+
     bool isEventRegistered(Builder &builder) override
     {
-        a = new OurTarget(10, 40);
-        b = new OurTarget(50, 80);
-        c = new OurTarget(800, 1000);
-        a->addDep<0>(*c);
-        b->addDep<0>(*c);
+        a->addDep<0>(c);
+        b->addDep<0>(c);
 
-        builder.updateBTargets.emplace(&c->realBTargets[0]);
+        uint32_t insertionIndex;
+        builder.updateBTargets.emplace(&c->realBTargets[0], insertionIndex);
         builder.updateBTargetsSizeGoal += 3;
         return false;
     }
@@ -38,7 +43,7 @@ struct OurTarget2 : BTarget
 
 void buildSpecification()
 {
-    OurTarget2 *target2 = new OurTarget2();
+    OurTarget2 *target2 = new OurTarget2("target2");
 }
 
 MAIN_FUNCTION

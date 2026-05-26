@@ -73,11 +73,14 @@ void LOAT::setOutputName(string str)
 void LOAT::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+        return;
+    }
 
     if (outputFileNode->fileType == file_type::not_found)
     {
-        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
         return;
     }
 
@@ -89,8 +92,8 @@ void LOAT::completeRoundOne()
     PLOAT::completeRoundOne();
     if constexpr (bsMode == BSMode::BUILD)
     {
-        myBuildDir = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
-        if (fileTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
+        myBuildDir = readHalfNode(bTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+        if (bTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
         {
             HMAKE_HMAKE_INTERNAL_ERROR
         }
@@ -125,11 +128,17 @@ void LOAT::completeRoundOne()
             }
         }
 
+        {
+            STACK_PMR_STRING(linkWithTargets, 64 * 1024)
+            setLinkOrArchiveCommands(linkWithTargets, true);
+            rb.cumulativeHash = rapidhash(linkWithTargets.data(), linkWithTargets.size());
+        }
+
         if constexpr (os == OS::NT)
         {
             if (linkTargetType == TargetType::EXECUTABLE &&
                 config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
-                rb.updateStatus == UpdateStatus::UPDATED_NEEDED)
+                rb.updateStatus == UpdateStatus::UPDATE_NEEDED)
             {
                 flat_hash_set<PLOAT *> checked;
                 // TODO:
@@ -138,7 +147,7 @@ void LOAT::completeRoundOne()
 
                 for (const uint32_t index : reqDepsVecIndices)
                 {
-                    PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+                    PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
                     checked.emplace(reqDep);
                     allDeps.emplace(reqDep);
                 }
@@ -164,7 +173,7 @@ void LOAT::completeRoundOne()
                     }
                     for (const uint32_t index : ploat->reqDepsVecIndices)
                     {
-                        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+                        PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
                         if (checked.emplace(reqDep).second)
                         {
                             allDeps.emplace(reqDep);
@@ -194,7 +203,7 @@ string LOAT::getPrintName() const
     return str + " " + configureNode->filePath + slashc + name;
 }
 
-void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const bool returnAfterSettingCommandHash) const
+void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const bool returnWithoutTargets) const
 {
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
@@ -206,10 +215,31 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     }
 
     linkWithTargets += outputFileNode->filePath + "\" ";
-    if (returnAfterSettingCommandHash)
+
+    const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
+    if (linkTargetType != TargetType::LIBRARY_STATIC)
+    {
+        for (const LibDirNode &libDirNode : reqLibraryDirs)
+        {
+            if (linkerFamily == BTFamily::MSVC)
+            {
+                linkWithTargets += "/LIBPATH:\"";
+            }
+            else if (linkerFamily == BTFamily::GCC)
+            {
+
+                linkWithTargets += "-L\"";
+            }
+            linkWithTargets += libDirNode.node->filePath;
+            linkWithTargets += "\" ";
+        }
+    }
+
+    if (returnWithoutTargets)
     {
         return;
     }
+
     for (const ObjectFile *objectFile : objectFiles)
     {
         linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";
@@ -220,8 +250,6 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         return;
     }
 
-    BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
-
     if (linkTargetType == TargetType::LIBRARY_SHARED)
     {
         linkWithTargets += linkerFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
@@ -229,7 +257,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
 
     for (const uint32_t index : reqDepsVecIndices)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+        PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
         if (reqDep->bTargetType == BTargetType::LOAT && static_cast<LOAT *>(reqDep)->objectFiles.empty())
         {
             continue;
@@ -252,27 +280,12 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         }
     }
 
-    for (const LibDirNode &libDirNode : reqLibraryDirs)
-    {
-        if (linkerFamily == BTFamily::MSVC)
-        {
-            linkWithTargets += "/LIBPATH:\"";
-        }
-        else if (linkerFamily == BTFamily::GCC)
-        {
-
-            linkWithTargets += "-L\"";
-        }
-        linkWithTargets += libDirNode.node->filePath;
-        linkWithTargets += "\" ";
-    }
-
     if (linkerFamily == BTFamily::GCC)
     {
         for (const uint32_t index : reqDepsVecIndices)
         {
-            if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
-                reqDep->evaluate(TargetType::LIBRARY_SHARED))
+            if (const PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
+                reqDep->evaluate(TargetType::LIBRARY_SHARED) || reqDep->evaluate(TargetType::PLIBRARY_SHARED))
             {
                 if (os != OS::NT)
                 {
@@ -289,8 +302,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         {
             for (const uint32_t index : reqDepsVecIndices)
             {
-                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
-                    reqDep->evaluate(TargetType::LIBRARY_SHARED))
+                if (const PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
+                    reqDep->evaluate(TargetType::LIBRARY_SHARED) || reqDep->evaluate(TargetType::PLIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
                 }
@@ -307,18 +320,14 @@ bool LOAT::isEventRegistered(Builder &builder)
     }
     RealBTarget &rb = realBTargets[0];
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    string output2;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string linkWithTargets(&alloc);
-    setLinkOrArchiveCommands(linkWithTargets);
+    STACK_PMR_STRING(linkWithTargets, 64 * 1024)
+    setLinkOrArchiveCommands(linkWithTargets, false);
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
         setFileStatus();
     }
 
-    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
+    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
         return false;
     }
@@ -338,12 +347,8 @@ bool LOAT::isEventRegistered(Builder &builder)
 
 bool LOAT::isEventCompleted(Builder &builder, string_view)
 {
-    constexpr uint32_t stackSize = 64 * 1024;
-    string output2;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string linkWithTargets(&alloc);
-    setLinkOrArchiveCommands(linkWithTargets);
+    STACK_PMR_STRING(linkWithTargets, 64 * 1024)
+    setLinkOrArchiveCommands(linkWithTargets, false);
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {

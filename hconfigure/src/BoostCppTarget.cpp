@@ -77,7 +77,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                                                         false, true, false);
         }
 
-        string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        string_view configCache = bTargetCaches[cacheIndex].configCache;
         uint32_t bytesRead = 0;
         uint32_t count = readUint32(configCache.data(), bytesRead);
         for (uint64_t i = 0; i < count; ++i)
@@ -196,6 +196,6 @@ void BoostCppTarget::copyConfigCache()
     {
         const auto ptr = reinterpret_cast<const char *>(&testsOrExamplesCount);
         configBuffer.insert(configBuffer.begin(), ptr, ptr + sizeof(testsOrExamplesCount));
-        fileTargetCaches[cacheIndex].configCache = string_view(configBuffer.data(), configBuffer.size());
+        bTargetCaches[cacheIndex].configCache = string_view(configBuffer.data(), configBuffer.size());
     }
 }

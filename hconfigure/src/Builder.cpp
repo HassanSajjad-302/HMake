@@ -104,7 +104,7 @@ void Builder::executeRoundOne()
 static void checkDepsChanged(RealBTarget &rb)
 {
     const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
-    FileTargetCache &fc = fileTargetCaches[cacheIdx];
+    BTargetCache &fc = bTargetCaches[cacheIdx];
 
     string *const newDeps = new string();
     newDeps->reserve(4 + 4 * rb.dependenciesSize);
@@ -139,17 +139,30 @@ void Builder::executeRoundZero()
                 // We need to check if our rb.dependenciesSize == 0, because it may have one in the deps-cache
                 if (rb.checkDepsChanged())
                 {
-                    checkDepsChanged(rb);
-                    rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+                    const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
+                    BTargetCache &fc = bTargetCaches[cacheIdx];
 
-                    for (const RBTWithType &rbt : rb.dependencies)
+                    string *const newDeps = new string();
+                    newDeps->reserve(4 + 4 * rb.dependenciesSize);
+                    writeUint32(*newDeps, rb.dependenciesSize);
+                    rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+
+                    for (const auto &rbt : rb.dependencies)
                     {
-                        if (rbt.getRelationType() == RelationType::FULL ||
-                            rbt.getRelationType() == RelationType::SELECTIVE)
+                        const RelationType relationType = rbt.getRelationType();
+                        BTarget *dep = rbt.getPointer()->getBTarget();
+
+                        if (relationType == RelationType::FULL || relationType == RelationType::SELECTIVE)
                         {
-                            rbt.getPointer()->getBTarget()->selectiveBuild = true;
+                            dep->selectiveBuild = true;
+                        }
+
+                        if (relationType == RelationType::FULL || relationType == RelationType::WAIT)
+                        {
+                            writeUint32(*newDeps, dep->cacheIndex);
                         }
                     }
+                    fc.depsCache = *newDeps;
                 }
                 else
                 {
@@ -537,16 +550,14 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v, uint16_t n)
+template <typename T> void divideInChunk(std::pmr::vector<std::span<T>> &result, std::pmr::vector<T> &v, uint16_t n)
 {
 
-    std::vector<std::span<T>> result;
-    result.reserve(n);
     // If n is 1, return vector containing one span of the entire vector
     if (n == 1)
     {
         result.emplace_back(std::span<T>(v.data(), v.size()));
-        return result;
+        return;
     }
 
     // If n is greater than vector size, create n spans where first v.size() spans
@@ -566,12 +577,12 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
             result.emplace_back();
         }
 
-        return result;
+        return;
     }
 
     // Normal case: divide vector into n chunks
-    size_t chunk_size = v.size() / n;
-    size_t remainder = v.size() % n;
+    const size_t chunk_size = v.size() / n;
+    const size_t remainder = v.size() % n;
     size_t start_pos = 0;
 
     for (uint16_t i = 0; i < n; ++i)
@@ -582,28 +593,23 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
         result.emplace_back(v.data() + start_pos, current_chunk_size);
         start_pos += current_chunk_size;
     }
-
-    return result;
 }
 
 void Builder::checkNodes(const bool isFirstTime)
 {
-    // maybe pmr
-    vector<Node *> statNodes;
-    vector<Node *> hashNodes;
-    statNodes.reserve(Node::idCount);
-    hashNodes.reserve(Node::idCount);
+    STACK_PMR_VECTOR(Node *, statNodes, 256 * 1024)
+    STACK_PMR_VECTOR(Node *, hashNodes, 256 * 1024)
 
     if (isFirstTime)
     {
         for (uint32_t i = 0; i < Node::idCount; ++i)
         {
             Node *node = nodeIndices[i];
-            if (node->toBeChecked || node->checkHashing)
+            if (node->doStatFile || node->doHashFile)
             {
                 statNodes.emplace_back(node);
             }
-            if (node->checkHashing)
+            if (node->doHashFile)
             {
                 hashNodes.emplace_back(node);
             }
@@ -617,7 +623,7 @@ void Builder::checkNodes(const bool isFirstTime)
 
         for (uint32_t i = 0; i < Node::idCount; ++i)
         {
-            if (Node *node = nodeIndices[i]; node->checkHashing && !node->fileHashingDone)
+            if (Node *node = nodeIndices[i]; node->doHashFile && !node->hashCompleted)
             {
                 statNodes.emplace_back(node);
                 hashNodes.emplace_back(node);
@@ -636,8 +642,9 @@ void Builder::checkNodes(const bool isFirstTime)
         return;
     }
     {
+        STACK_PMR_VECTOR(std::span<Node *>, chunks, 4 * 1024)
         const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
-        const auto chunks = divideInChunk(statNodes, workerCount);
+        divideInChunk(chunks, statNodes, workerCount);
 
         vector<thread> workers;
         workers.reserve(workerCount - 1);
@@ -744,7 +751,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
         errorHappenedInRoundMode = true;
     }
 
-    const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATED_NEEDED;
+    const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATE_NEEDED;
     rb.isCompleted = true;
 
     for (const RBTWithType rbt : rb.dependents)
@@ -754,7 +761,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
             RealBTarget *dependent = rbt.getPointer();
             if (setToNeedsUpdate)
             {
-                dependent->updateStatus = UpdateStatus::UPDATED_NEEDED;
+                dependent->updateStatus = UpdateStatus::UPDATE_NEEDED;
             }
             if (rb.exitStatus != EXIT_SUCCESS)
             {

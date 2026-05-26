@@ -35,12 +35,12 @@ struct LlvmHeaderGen : BTarget
             const Node *node = Node::getNode(filePath, true, false);
             string *configBuffer = new string{};
             writeNode(*configBuffer, node);
-            fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
+            bTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
         }
         else
         {
             uint32_t bytesRead = 0;
-            sourceNode = readHalfNode(fileTargetCaches[cacheIndex].getBuildCache().data(), bytesRead);
+            sourceNode = readHalfNode(bTargetCaches[cacheIndex].getBuildCache().data(), bytesRead);
         }
     }
 };

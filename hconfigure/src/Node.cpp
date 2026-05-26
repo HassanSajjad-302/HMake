@@ -112,11 +112,11 @@ void Node::performSystemCheck()
     // In build-mode, this function can be called only once.
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (systemCheckCompleted)
+        if (statCompleted)
         {
             return;
         }
-        systemCheckCompleted = true;
+        statCompleted = true;
     }
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
@@ -230,11 +230,11 @@ void Node::performContentHash()
         return;
     }
 
-    if (fileHashingDone)
+    if (hashCompleted)
     {
         return;
     }
-    fileHashingDone = true;
+    hashCompleted = true;
 
 #ifdef _WIN32
     HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,

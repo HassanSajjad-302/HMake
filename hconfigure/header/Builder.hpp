@@ -47,30 +47,44 @@ GLOBAL_VARIABLE(vector<uint64_t>, unusedOutputIndices)
 /// Next unused slot in `processOutputs` indices.
 inline uint32_t currentIndexOutput = 0;
 
-/// Implements HMake scheduling and execution across both rounds.
+/// Schedules and executes the dependency graph in two rounds: round 1 first, then round 0 (build mode only).
 ///
-/// High-level flow:
-/// 1. Build dependency graph for a round. It is built in `buildSpecification` function and during the BTarget
-/// execution.
-/// 2. Seed `updateBTargets` with ready RealBTarget.Those whose `dependenciesSize == 0`.
-/// 3. Execute each of these RealBTarget. By calling `BTarget::completeRoundOne` in round1 and,
-/// `BTarget::isEventRegistered` and then maybe `BTarget::isEventCompleted` for round0.
-/// 4. Decrement unresolved dependency counters of dependents. That is `RealBTarget::dependenciesSize`.
-/// 5. Enqueue newly ready dependents and continue until complete.
+/// Startup (see `initializeCache()` / `configureOrBuild()` in `BuildSystemFunctions.cpp`):
+/// - `initializeCache()` loads `nodes` (paths only — stat/hash deferred), `config-cache`, and `build-cache` into
+///   `bTargetCaches` before `buildSpecification()` constructs live `BTarget`s.
+/// - The `Builder` constructor runs round 1, then (build mode) `checkNodes(true)` in parallel, then round 0.
+/// - After the build, `configureOrBuild()` may call `getBuildCache()`, which runs `checkNodes(false)` on any nodes that
+///   gained `doHashFile` during the build (e.g. headers discovered while compiling) before rewriting cache entries marked
+///   `buildCacheUpdated` / `buildFooterUpdated`.
 ///
-/// Round 1:
-/// - Executes synchronous work via `BTarget::completeRoundOne`.
-/// - In configure mode, execution ends after this round.
+/// Graph and queue (both rounds):
+/// - Each `BTarget` owns `realBTargets[0]` and `realBTargets[1]`. Edges are declared with `addDep<round>()` in
+///   `buildSpecification()` and may be added while targets run.
+/// - `RealBTarget::sortGraph()` topologically sorts the active round; cycles are reported using `getPrintName()`.
+/// - `dependenciesSize` is the number of outstanding FULL/WAIT predecessors. When it reaches zero, the bTarget is ready.
+/// - Ready bTargets live in `updateBTargets`. `decrementFromDependents()` runs when a bTarget finishes; it decrements
+///   dependents and enqueues any that become ready. Round-0 dependency lists are persisted in each target's
+///   `BTargetCache::depsCache` when the build cache is written.
 ///
-/// Round 0 (build mode only):
-/// - Performs async work using an event loop (`epoll` on Linux, IOCP on Windows).
-/// - Calls `BTarget::isEventRegistered` to start/attach work.
-/// - Calls `BTarget::isEventCompleted` on process/message events.
-/// - Marks targets complete when one of these functions return false.
+/// Round 1 — `executeRoundOne()` (synchronous work):
+/// - Walks ready bTargets in topological order and calls `BTarget::completeRoundOne()`.
+/// - Configure mode stops after this round; `configureOrBuild()` then writes `nodes`, `config-cache`, and `build-cache`.
+///
+/// Round 0 — `executeRoundZero()` (async processes, `epoll` on Linux / IOCP on Windows):
+/// - After `checkNodes(true)`, targets call `setFileStatus()` (see incremental builds below).
+/// - `isEventRegistered()` starts work or finishes synchronously; the event loop invokes `isEventCompleted()` on IPC
+///   traffic or process exit. Returning `false` completes the bTarget and unblocks dependents.
+/// - `CppMod` bring-to-front: if a module/hu is already in `updateBTargets` but `isEventRegistered()` has not run, and
+///   compilations are blocked on it, the consumer nulls the old slot at `insertionIndex` and re-enqueues the dependency
+///   at the head. That prioritizes work with known waiters and lowers peak memory (fewer idle compiler processes).
+///
+/// Incremental builds: `checkNodes()` fills `Node::contentHash` (rapidhash of file contents). `setFileStatus()` compares
+/// those hashes plus cached `cumulativeHash` / `launchTime` in the build-cache footer — not file mtimes alone.
 class Builder
 {
   public:
-    /// Ready queue containing nodes with `dependenciesSize == 0`.
+    /// Ready queue for nodes with `dependenciesSize == 0`. `CppMod` can promote a blocked-on dependency to the front
+    /// via `RealBTarget::insertionIndex` (see that field).
     PointerArrayList<RealBTarget> updateBTargets;
 
     /// Round-0 termination goal: number of nodes expected to be consumed.
@@ -125,7 +139,9 @@ class Builder
     void executeRoundOne();
     /// Executes round 0 setup and async event loop.
     void executeRoundZero();
-    /// Performs pending `Node::performSystemCheck()` calls.
+    /// Parallel stat (`doStatFile`) and content-hash (`doHashFile`) pass over `nodeIndices`.
+    /// `isFirstTime == true` at round-0 start (all flagged nodes); `false` from `getBuildCache()` before persisting
+    /// nodes that were marked during the build (e.g. dynamically discovered headers).
     static void checkNodes(bool isFirstTime);
     /// Core round-1 loop over `updateBTargets`.
     void execute();

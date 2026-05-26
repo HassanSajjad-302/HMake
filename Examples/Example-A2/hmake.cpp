@@ -3,7 +3,7 @@
 struct OurTarget : BTarget
 {
     string message;
-    explicit OurTarget(string str) : message{std::move(str)}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN), message{str}
     {
     }
 
@@ -24,8 +24,8 @@ void buildSpecification()
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
 
-    b->addDep<0>(*a);
-    a->addDep<1>(*b);
+    b->addDep<0>(a);
+    a->addDep<1>(b);
 }
 
 MAIN_FUNCTION

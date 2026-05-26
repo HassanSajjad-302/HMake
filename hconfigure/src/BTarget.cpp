@@ -1,5 +1,6 @@
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "CppMod.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <utility>
@@ -28,67 +29,70 @@ void RealBTarget::sortGraph()
         return;
     }
 
-    const uint32_t n = static_cast<uint32_t>(graphEdges.size());
-
-    // Borrow indexInTopologicalSort as a scratch dependents-counter for Kahn's algorithm.
-    // Safe: the caller writes the real index from sorted[] after this function returns.
-    // The cycle-error path terminates inside printErrorMessage, so no cleanup needed there.
-    //
-    // Bit layout while this function runs:
-    //   bits 0–18 : remaining dependents count  (max 512 K − 1 fits in 19 bits)
-    //   bit  19   : DFS visited flag
-    //   bit  20   : DFS on-stack flag
-    static constexpr uint32_t kCountMask = (1u << 19) - 1;
-    static constexpr uint32_t kVisited = 1u << 19;
-    static constexpr uint32_t kOnStack = 1u << 20;
-
     vector<RealBTarget *> noEdges;
-    noEdges.reserve(n); // avoid ~log₂(n) reallocations
     uint32_t noEdgesCount = 0;
 
     sorted.clear();
-    sorted.resize(n);
+    sorted.resize(graphEdges.size());
     cycleExists = false;
 
+    uint32_t edgesCount = 0;
+    uint32_t index = graphEdges.size() - 1;
     for (RealBTarget *r : graphEdges)
     {
-        r->indexInTopologicalSort = static_cast<uint32_t>(r->dependents.size());
+        r->indexInTopologicalSort = r->dependents.size();
         if (!r->indexInTopologicalSort)
-            noEdges.push_back(r);
+        {
+            noEdges.emplace_back(r);
+        }
+        edgesCount += r->indexInTopologicalSort;
     }
 
-    uint32_t index = n - 1;
-    while (noEdgesCount != static_cast<uint32_t>(noEdges.size()))
+    while (noEdges.size() != noEdgesCount)
     {
-        RealBTarget *rb = noEdges[noEdgesCount++];
-        sorted[index--] = rb;
+        RealBTarget *rb = noEdges[noEdgesCount];
+        sorted[index] = rb;
+        --index;
         for (const RBTWithType &rbt : rb->dependencies)
         {
+            --edgesCount;
             if (!--rbt.getPointer()->indexInTopologicalSort)
-                noEdges.push_back(rbt.getPointer());
+            {
+                noEdges.emplace_back(rbt.getPointer());
+            }
         }
+        ++noEdgesCount;
     }
 
-    if (noEdgesCount != n) // not all nodes processed → cycle; replaces edgesCount check
+    if (edgesCount)
     {
         cycleExists = true;
 
+        // Find all nodes that are part of cycles
+        // These are nodes that still have dependentsCount > 0
         for (RealBTarget *r : graphEdges)
         {
-            if (r->indexInTopologicalSort & kCountMask)
+            if (r->indexInTopologicalSort > 0)
+            {
                 cycle.emplace_back(r);
+            }
         }
 
         string errorString;
+
+        // This function finds actual cycles using DFS from nodes still in the graph
+        flat_hash_set<RealBTarget *> visited;
+        flat_hash_set<RealBTarget *> recursionStack;
         vector<RealBTarget *> currentPath;
-        currentPath.reserve(cycle.size());
 
         for (RealBTarget *node : cycle)
         {
-            if (!(node->indexInTopologicalSort & kVisited))
+            if (visited.find(node) == visited.end())
             {
-                if (findCycleDFS(node, currentPath, errorString))
-                    break;
+                if (findCycleDFS(node, visited, recursionStack, currentPath, errorString))
+                {
+                    break; // Found one cycle, that's enough for error reporting
+                }
             }
         }
 
@@ -96,43 +100,47 @@ void RealBTarget::sortGraph()
     }
 }
 
-bool RealBTarget::findCycleDFS(RealBTarget *node, vector<RealBTarget *> &currentPath, string &errorString)
+bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &visited,
+                               flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
+                               string &errorString)
 {
-    static constexpr uint32_t kCountMask = (1u << 19) - 1;
-    static constexpr uint32_t kVisited = 1u << 19;
-    static constexpr uint32_t kOnStack = 1u << 20;
-
-    node->indexInTopologicalSort |= kVisited | kOnStack;
+    visited.insert(node);
+    recursionStack.insert(node);
     currentPath.push_back(node);
 
+    // Only consider dependencies that are still part of the cycle
     for (const RBTWithType &rbt : node->dependencies)
     {
-        RealBTarget *dep = rbt.getPointer();
-        if (dep->indexInTopologicalSort & kCountMask) // cycle participant
+        // Only follow edges to nodes that are part of the cycle
+        if (rbt.getPointer()->indexInTopologicalSort > 0)
         {
-            if (dep->indexInTopologicalSort & kOnStack)
+            if (recursionStack.find(rbt.getPointer()) != recursionStack.end())
             {
-                if (auto cycleStart = std::find(currentPath.begin(), currentPath.end(), dep);
+                // Found a cycle! Print the path from dependency back to current node
+                if (auto cycleStart = find(currentPath.begin(), currentPath.end(), rbt.getPointer());
                     cycleStart != currentPath.end())
                 {
                     errorString += "Cycle found: ";
                     for (auto it = cycleStart; it != currentPath.end(); ++it)
+                    {
                         errorString += (*it)->getBTarget()->getPrintName() + " -> ";
-                    errorString += dep->getBTarget()->getPrintName() + "\n";
-                    // no cleanup needed: printErrorMessage terminates
+                    }
+                    errorString += rbt.getPointer()->getBTarget()->getPrintName() + "\n";
                     return true;
                 }
             }
-            else if (!(dep->indexInTopologicalSort & kVisited))
+            else if (visited.find(rbt.getPointer()) == visited.end())
             {
-                if (findCycleDFS(dep, currentPath, errorString))
+                if (findCycleDFS(rbt.getPointer(), visited, recursionStack, currentPath, errorString))
+                {
                     return true;
+                }
             }
         }
     }
 
+    recursionStack.erase(node);
     currentPath.pop_back();
-    node->indexInTopologicalSort &= ~kOnStack;
     return false;
 }
 
@@ -164,7 +172,7 @@ RealBTarget::RealBTarget(const unsigned short round_, const bool add) : round(ro
 
 bool RealBTarget::checkDepsChanged() const
 {
-    const char *ptr = fileTargetCaches[getBTarget()->cacheIndex].depsCache.data();
+    const char *ptr = bTargetCaches[getBTarget()->cacheIndex].depsCache.data();
     uint32_t bytesRead = 0;
     const uint32_t cachedCount = readUint32(ptr, bytesRead);
 
@@ -175,7 +183,7 @@ bool RealBTarget::checkDepsChanged() const
 
     for (uint32_t i = 0; i < cachedCount; ++i)
     {
-        BTarget *bt = fileTargetCaches[readUint32(ptr, bytesRead)].bTarget;
+        BTarget *bt = bTargetCaches[readUint32(ptr, bytesRead)].bTarget;
         if (!bt || !dependencies.contains(&bt->realBTargets[0]))
         {
             return true;
@@ -183,6 +191,22 @@ bool RealBTarget::checkDepsChanged() const
     }
 
     return false;
+}
+
+void RealBTarget::getAllWaitDepsTopological(
+    btree_set<BTarget *, IndexInTopologicalSortComparatorRoundZero> &allDepsTransitive)
+{
+    for (const RBTWithType &rbt : dependencies)
+    {
+        if (rbt.getRelationType() == RelationType::FULL || rbt.getRelationType() == RelationType::WAIT)
+        {
+            BTarget *bt = rbt.getPointer()->getBTarget();
+            if (allDepsTransitive.emplace(bt).second)
+            {
+                rbt.getPointer()->getAllWaitDepsTopological(allDepsTransitive);
+            }
+        }
+    }
 }
 
 static string lowerCase(string str)
@@ -227,21 +251,13 @@ void BTarget::initializeBTarget(bool makeDirectory)
     {
         if (it == nameToIndexMap.end())
         {
-            cacheIndex = fileTargetCaches.size();
-            fileTargetCaches.emplace_back().name = cacheName;
+            cacheIndex = bTargetCaches.size();
+            bTargetCaches.emplace_back().name = cacheName;
             newlyAdded = true;
         }
         else
         {
             cacheIndex = it->second;
-            /*char *ptr = const_cast<char *>(fileTargetCaches[cacheIndex].depsCache.data());
-            // claude is this correct? how do I extract
-            if (const bool launchesProcessCached = *ptr; launchesProcessCached != launchesProcess)
-            {
-                printErrorMessage(FORMAT("Target\nname: {}\ncacheName: {}\n has different current launchesProcess "
-                                         "value then the cached one. {} vs {}\n",
-                                         cacheName, name, launchesProcess, launchesProcessCached));
-            }*/
         }
 
         checkForSameTargetName(this, cacheName);
@@ -252,19 +268,19 @@ void BTarget::initializeBTarget(bool makeDirectory)
         {
             printErrorMessage(FORMAT("Target\nname: {}\ncacheName: {}\n not found in config-cache.\nMaybe you need to "
                                      "run hhelper first to update the target-cache.\n",
-                                     cacheName, name));
+                                     name, cacheName));
         }
         cacheIndex = it->second;
 
         if (launchesProcess)
         {
             RealBTarget &rb = realBTargets[0];
-            const char *ptr = fileTargetCaches[cacheIndex].getBuildFooter().data();
+            const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
             uint32_t bytesRead = 8;
             rb.launchTime = readUint64(ptr, bytesRead);
         }
     }
-    fileTargetCaches[cacheIndex].bTarget = this;
+    bTargetCaches[cacheIndex].bTarget = this;
 }
 
 BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType type_)
@@ -350,16 +366,19 @@ bool BTarget::isEventCompleted(Builder &builder, string_view message)
 void BTarget::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+       return;
+    }
 
     uint64_t highestTime;
     if (launchesProcess)
     {
         uint32_t bytesRead = 0;
-        const char *ptr = fileTargetCaches[cacheIndex].getBuildFooter().data();
+        const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
         if (const uint64_t compileHash = readUint64(ptr, bytesRead); compileHash != rb.cumulativeHash)
         {
-            rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+            rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
             return;
         }
         highestTime = rb.launchTime;
@@ -385,23 +404,19 @@ void BTarget::setFileStatus()
             depRb->getBTarget()->setFileStatus();
         }
 
-        if (depRb->updateStatus == UpdateStatus::UPDATED_NEEDED)
+        if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
-            rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+            rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
             return;
         }
 
-        // UPDATE_NOT_NEEDED
         if (depRb->launchTime > highestTime)
         {
-            // if we do launch the process
             if (launchesProcess)
             {
-                rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+                rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
                 return;
             }
-
-            // if we don't (the default)
             highestTime = depRb->launchTime;
         }
     }
@@ -419,14 +434,13 @@ void BTarget::generateStandAloneCommand()
 {
 }
 
-void BTarget::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir)
+void BTarget::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir,
+                                   bool direct)
 {
 }
 
 void BTarget::writeConfigCacheAtConfigTime(string &buffer)
 {
-    const string_view buildCache = fileTargetCaches[cacheIndex].configCache;
-    buffer.append(buildCache.begin(), buildCache.end());
 }
 
 void BTarget::writeBuildCacheAtBuildTime(string &buffer)

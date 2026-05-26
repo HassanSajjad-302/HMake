@@ -1,3 +1,6 @@
+/// \file
+/// Defines `LOAT` (link-or-archive target) for executables, shared libraries, and static libraries.
+
 #ifndef HMAKE_LOAT_HPP
 #define HMAKE_LOAT_HPP
 #include "Features.hpp"
@@ -8,23 +11,23 @@
 
 using std::stack, std::filesystem::create_directories, std::shared_ptr;
 
-// LinkOrArchiveTarget
+/// Link-or-archive target: links object files into an executable or shared library, or archives them into a static lib.
 class LOAT : public PLOAT
 {
     using BaseType = PLOAT;
 
-    bool recurrentCall = false;
-
   public:
+    /// Object files collected from `ObjectFileProducer` dependencies in `completeRoundOne()`.
     vector<const ObjectFile *> objectFiles;
-    vector<PLOAT *> dllsToBeCopied;
-    // Needed for pdb files.
-    Node *myBuildDir = nullptr;
-    uint64_t commandWithoutTargets;
 
-    bool archiving = false;
-    bool archived = false;
-    bool recurent = false;
+    /// Shared libraries that must be copied beside the executable on Windows (`CopyDLLToExeDirOnNTOs::YES`).
+    vector<PLOAT *> dllsToBeCopied;
+
+    /// Build output directory for this target (object files, PDBs, etc.). Created at configure-time if unset.
+    Node *myBuildDir = nullptr;
+
+    /// Hash of the link/archive command template without object-file paths (intended for incremental caching).
+    uint64_t commandWithoutTargets;
 
     void makeBuildCacheFilesDirPathAtConfigTime();
     LOAT(Configuration &config_, const string &name_, TargetType targetType);
@@ -37,7 +40,7 @@ class LOAT : public PLOAT
     void completeRoundOne() override;
 
     string getPrintName() const override;
-    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnAfterSettingCommandHash = false) const;
+    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnWithoutTargets) const;
     template <typename T> bool evaluate(T property) const;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view) override;

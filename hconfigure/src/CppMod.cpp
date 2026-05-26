@@ -51,7 +51,7 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
         // reading config-cache.
 
         uint32_t bytesRead = 0;
-        const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        const string_view configCache = bTargetCaches[cacheIndex].configCache;
         objectNode = readHalfNode(configCache.data(), bytesRead);
 
         if (4 != configCache.size())
@@ -62,10 +62,10 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
 
     uint32_t bytesRead = 0;
 
-    const string_view buildCache = fileTargetCaches[cacheIndex].getBuildCache();
+    const string_view buildCache = bTargetCaches[cacheIndex].getBuildCache();
     const char *ptr = buildCache.data();
 
-    const_cast<Node *>(node)->checkHashing = true;
+    const_cast<Node *>(node)->doHashFile = true;
 
     const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
 
@@ -73,7 +73,7 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
     for (uint32_t i = 0; i < headerFilesSize; ++i)
     {
         Node *headerNode = readHalfNode(ptr, bytesRead);
-        headerNode->checkHashing = true;
+        headerNode->doHashFile = true;
     }
 
     if (bytesRead != buildCache.size())
@@ -81,7 +81,7 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
         HMAKE_HMAKE_INTERNAL_ERROR
     }
 
-    objectNode->toBeChecked = true;
+    objectNode->doStatFile = true;
 }
 
 string CppSrc::getPrintName() const
@@ -158,12 +158,7 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     uint64_t lineEnd;
     string_view line;
 
-    constexpr uint32_t stackSize = 128 * 1024;
-    char buffer[stackSize];
-
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string treatedOutput(&alloc);
-    treatedOutput.reserve(stackSize);
+    STACK_PMR_STRING(treatedOutput, 128 * 1024)
 
     if (!isClang)
     {
@@ -253,18 +248,13 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     }
 }
 
-void CppSrc::parseDepsFromGCCDepsOutput(Builder &builder)
+void CppSrc::parseHeadersFromGccDepsOutput(Builder &builder)
 {
     string headerDepsFile = objectNode->filePath;
     // replacing .o ext with .d
     headerDepsFile[headerDepsFile.size() - 1] = 'd';
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string headerFileDeps(&alloc);
-    headerFileDeps.reserve(stackSize);
+    STACK_PMR_STRING(headerFileDeps, 128 * 1024)
     fileToString(headerDepsFile, headerFileDeps);
 
     const vector<string_view> headerDeps = split(headerFileDeps, '\n');
@@ -300,7 +290,7 @@ void CppSrc::parseHeaderDeps(string &output, Builder &builder)
         // in-case of MSVC header-deps are parsed even in case of compilation failure to clean the std output.
         if (realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
-            parseDepsFromGCCDepsOutput(builder);
+            parseHeadersFromGccDepsOutput(builder);
         }
     }
 }
@@ -323,7 +313,10 @@ bool pathContainsFile(string_view dir, const string_view file)
 void CppSrc::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+       return;
+    }
 
     if (node->fileType == file_type::not_found)
     {
@@ -332,13 +325,12 @@ void CppSrc::setFileStatus()
 
     if (objectNode->fileType == file_type::not_found)
     {
-        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
         return;
     }
 
-    // pmr
-    std::vector<uint64_t> contentHashes;
-    contentHashes.reserve(1 + 1 + cachedHeaderFiles.size());
+    // command-hash + source-hash + cacheHeaderFiles. 8 for uint64_t
+    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() * 8 + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -361,17 +353,12 @@ bool CppSrc::isEventRegistered(Builder &builder)
     {
         setFileStatus();
     }
-    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
+    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
         return false;
     }
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string cppFullCompileCommand(&alloc);
-    cppFullCompileCommand.reserve(stackSize);
+    STACK_PMR_STRING(cppFullCompileCommand, 64 * 1024)
     getCompileCommand(cppFullCompileCommand);
     if (dryRun)
     {
@@ -396,19 +383,13 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         // maybe move to where these are parsed
         for (Node *headerNode : headerFiles)
         {
-            headerNode->checkHashing = true;
+            headerNode->doHashFile = true;
         }
         buildCacheUpdated = true;
         buildFooterUpdated = true;
     }
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string cppFullCompileCommand(&alloc);
-    std::pmr::string &outputStr = cppFullCompileCommand;
-    alloc.release();
+    STACK_PMR_STRING(outputStr, 64 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(ColorIndex::cyan);
@@ -456,9 +437,8 @@ void CppSrc::writeBuildCacheAtConfigTime(string &buffer)
 void CppSrc::writeBuildCacheAtBuildTime(string &buffer)
 {
     RealBTarget &rb = realBTargets[0];
-    // pmr
-    std::vector<uint64_t> contentHashes;
-    contentHashes.reserve(1 + 1 + headerFiles.size()); // headerFiles, not cachedHeaderFiles
+    // command-hash + source-hash + headerFiles. 8 for uint64_t
+    STACK_PMR_VECTOR(uint64_t, contentHashes, headerFiles.size() * 8 + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const Node *headerNode : headerFiles) // headerFiles, not cachedHeaderFiles
@@ -585,7 +565,7 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
 
     {
         uint32_t bytesRead = 0;
-        const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        const string_view configCache = bTargetCaches[cacheIndex].configCache;
         const char *ptr = configCache.data();
 
         if (!isImpl)
@@ -672,16 +652,16 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
 
     uint32_t bytesRead = 0;
 
-    const string_view buildCache = fileTargetCaches[cacheIndex].getBuildCache();
+    const string_view buildCache = bTargetCaches[cacheIndex].getBuildCache();
     const char *ptr = buildCache.data();
 
     // headerStatusChanged
     if (readBool(ptr, bytesRead))
     {
-        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
     }
 
-    const_cast<Node *>(node)->checkHashing = true;
+    const_cast<Node *>(node)->doHashFile = true;
 
     const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
 
@@ -689,7 +669,7 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
     for (uint32_t i = 0; i < headerFilesSize; ++i)
     {
         Node *headerNode = readHalfNode(ptr, bytesRead);
-        headerNode->checkHashing = true;
+        headerNode->doHashFile = true;
     }
 
     const uint32_t cachedDepsSize = readUint32(ptr, bytesRead);
@@ -704,12 +684,12 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
 
     if (!isImpl)
     {
-        interfaceNode->toBeChecked = true;
+        interfaceNode->doStatFile = true;
     }
 
     if (!isHU)
     {
-        objectNode->toBeChecked = true;
+        objectNode->doStatFile = true;
     }
 }
 
@@ -740,7 +720,7 @@ void CppMod::populateAllDeps()
 
     isAllDepsPopulated = true;
 
-    if (realBTargets[0].updateStatus == UpdateStatus::UPDATED_NEEDED)
+    if (realBTargets[0].updateStatus == UpdateStatus::UPDATE_NEEDED)
     {
         for (const CppModWithDirect &depWithDirect : allCppModDeps)
         {
@@ -759,7 +739,7 @@ void CppMod::populateAllDeps()
     {
         for (const uint32_t &dep : cachedDeps)
         {
-            if (CppMod *cppMod = static_cast<CppMod *>(fileTargetCaches[dep].bTarget);
+            if (CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[dep].bTarget);
                 allCppModDeps.emplace(CppModWithDirect(cppMod, false)).second)
             {
                 cppMod->populateAllDeps();
@@ -919,10 +899,7 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     hu.makeMemoryFileMapping();
     hu.populateAllDeps();
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string toBeSend(&alloc);
+    STACK_PMR_STRING(toBeSend, 64 * 1024)
 
     // BTCNonModule::isHeaderUnit
     writeBool(toBeSend, true);
@@ -1097,15 +1074,12 @@ bool CppMod::isEventRegistered(Builder &builder)
     {
         setFileStatus();
     }
-    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
+    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
         return false;
     }
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string cppFullCompileCommand(&alloc);
+    STACK_PMR_STRING(cppFullCompileCommand, 64 * 1024)
     getCompileCommand(cppFullCompileCommand, target->useIPC ? CommandType::USE_IPC : CommandType::CONVENTIONAL, "");
     if (dryRun)
     {
@@ -1150,7 +1124,7 @@ void CppMod::completeModuleCompilation(const Builder &builder)
         // maybe move to where these are parsed
         for (auto &[str, headerFile] : composingHeaders)
         {
-            headerFile->checkHashing = true;
+            headerFile->doHashFile = true;
         }
     }
     else
@@ -1307,10 +1281,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
                                          headerName, node->filePath, target->name));
             }
 
-            constexpr uint32_t stackSize = 64 * 1024;
-            char buffer[stackSize];
-            std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-            std::pmr::string toBeSend(&alloc);
+            STACK_PMR_STRING(toBeSend, 64 * 1024)
 
             // BTCNonModule::isHeaderUnit
             writeBool(toBeSend, false);
@@ -1408,7 +1379,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
         // This is the only place where dependency-relationship is being added dynamically. We are sure that
         // decrementFromDependents has not been called for our dependency.
+
         foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
+        rb.dependencies.emplace(&foundRb, RelationType::FULL, BTargetType::CPP_MOD);
         ++rb.dependenciesSize;
 
         // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
@@ -1426,6 +1399,13 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         ++builder.idleCount;
         --builder.activeEventCount;
         return true;
+    }
+
+    if (target->configuration->evaluate(StandAloneCommand::YES))
+    {
+        // insertion is expensive so it is in if condition
+        foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
+        rb.dependencies.emplace(&foundRb, RelationType::FULL, BTargetType::CPP_MOD);
     }
 
     if (foundRb.exitStatus != EXIT_SUCCESS)
@@ -1450,10 +1430,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
 void CppMod::print(const Builder &builder, const string &output) const
 {
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string outputStr(&alloc);
+    STACK_PMR_STRING(outputStr, 64 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(type == CppModType::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
@@ -1594,7 +1571,10 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
 void CppMod::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+       return;
+    }
 
     if (node->fileType == file_type::not_found)
     {
@@ -1615,7 +1595,7 @@ void CppMod::setFileStatus()
         printErrorMessage(FORMAT("{} {}\n of target {}\n not found.\n", str, node->filePath, target->name));
     }
 
-    rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+    rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
 
     if (type == CppModType::HEADER_UNIT)
     {
@@ -1641,7 +1621,7 @@ void CppMod::setFileStatus()
 
     for (const uint32_t depIndex : cachedDeps)
     {
-        CppMod *cppMod = static_cast<CppMod *>(fileTargetCaches[depIndex].bTarget);
+        CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[depIndex].bTarget);
 
         // Can happen because the export-name or the include-name got mapped to a different file in the same target.
         if (!cppMod)
@@ -1655,7 +1635,7 @@ void CppMod::setFileStatus()
             cppMod->setFileStatus();
         }
 
-        if (depRb->updateStatus == UpdateStatus::UPDATED_NEEDED)
+        if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
             return;
         }
@@ -1668,9 +1648,8 @@ void CppMod::setFileStatus()
 
     rb.updateStatus = UpdateStatus::UNCHECKED;
 
-    // pmr
-    std::vector<uint64_t> contentHashes;
-    contentHashes.reserve(1 + 1 + cachedHeaderFiles.size());
+    // command-hash + source-hash + cachedHeaderFiles. 8 for uint64_t
+    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() * 8 + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -1686,9 +1665,7 @@ void CppMod::generateStandAloneCommand()
 {
     if (target->configuration->evaluate(StandAloneCommand::YES))
     {
-        /*if (const RealBTarget &rb = realBTargets[0];
-            rb.updateStatus == UpdateStatus::UPDATED ||
-            (rb.updateStatus == UpdateStatus::UPDATED_WITHOUT_BUILDING && rb.exitStatus != EXIT_SUCCESS))
+        if (const RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
             path scriptDirectory = target->myBuildDir->filePath;
             scriptDirectory /= node->getFileName() + toString(node->myId);
@@ -1698,35 +1675,32 @@ void CppMod::generateStandAloneCommand()
                        "name as current build-dir.\n\n",
                        node->filePath);
             flat_hash_set<string> createdDirs;
-            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory.string());
+            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory.string(), true);
             std::ofstream(scriptDirectory / "script.sh") << scriptContents;
-        }*/
+        }
     }
 }
 
-void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir)
+void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir,
+                                  bool direct)
 {
-    btree_set<BTarget *, IndexInTopologicalSortComparatorRoundTwo> allDeps;
-
-    for (const RBTWithType &rbt : realBTargets[0].dependencies)
+    if (node->filePath.contains("one"))
     {
-        allDeps.emplace(rbt.getPointer()->getBTarget());
+        bool breakpoint = true;
     }
-
-    FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
+    if (direct)
     {
-        allDeps.emplace(cppMod);
-        for (const RBTWithType &rbt : cppMod->realBTargets[0].dependencies)
+        uint32_t a = realBTargets[0].dependencies.size();
+        btree_set<BTarget *, IndexInTopologicalSortComparatorRoundZero> allTransitiveDeps;
+        realBTargets[0].getAllWaitDepsTopological(allTransitiveDeps);
+        uint32_t b = allTransitiveDeps.size();
+
+        // We call for every BTarget so if there are custom code generation steps, then those could be added to the
+        // script file as well.
+        for (auto it = allTransitiveDeps.rbegin(); it != allTransitiveDeps.rend(); ++it)
         {
-            allDeps.emplace(rbt.getPointer()->getBTarget());
+            (*it)->cppStandAloneCommand(createdDirs, scriptContents, scriptDir, false);
         }
-    }
-
-    // This step is done so that if there are custom code generation steps, then those could be added to the script file
-    // as well.
-    for (auto it = allDeps.rbegin(); it != allDeps.rend(); ++it)
-    {
-        (*it)->cppStandAloneCommand(createdDirs, scriptContents, scriptDir);
     }
 
     if (createdDirs.emplace(target->configuration->name).second)
@@ -1741,11 +1715,7 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
 
     if (!target->useIPC)
     {
-        constexpr uint32_t stackSize = 64 * 1024;
-        char buffer[stackSize];
-        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-        std::pmr::string cppFullCompileCommand(&alloc);
-
+        STACK_PMR_STRING(cppFullCompileCommand, 64 * 1024)
         getCompileCommand(cppFullCompileCommand,
                           target->useIPC ? CommandType::USE_IPC_MOCK_FILE : CommandType::CONVENTIONAL, "");
 
@@ -1757,22 +1727,16 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
     const string mockFilePath = (path(scriptDir) / FORMAT("mock-file{}.bin", id)).string();
     {
         // New scope for mock-file.bin
-        constexpr uint32_t stackSize = 256 * 1024;
-        char buffer[stackSize];
-        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-        std::pmr::string mockFileContents(&alloc);
+        STACK_PMR_STRING(mockFileContents, 256 * 1024)
 
         flat_hash_set<string> ignoreNames;
 
         uint32_t count = 0;
         writeUint32(mockFileContents, count);
 
-        FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
+        for (const CppModWithDirect &cppModWithDirect : allCppModDeps)
         {
-            if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
-            {
-                continue;
-            }
+            CppMod *cppMod = cppModWithDirect.getPointer();
             for (const string &logicalName : cppMod->logicalNames)
             {
                 ignoreNames.emplace(logicalName);
@@ -1811,11 +1775,7 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         std::ofstream(mockFilePath) << mockFileContents;
     }
 
-    constexpr uint32_t stackSize = 64 * 1024;
-    char buffer[stackSize];
-    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-    std::pmr::string cppFullCompileCommand(&alloc);
-
+    STACK_PMR_STRING(cppFullCompileCommand, 64 * 1024)
     getCompileCommand(cppFullCompileCommand,
                       target->useIPC ? CommandType::USE_IPC_MOCK_FILE : CommandType::CONVENTIONAL, mockFilePath);
 
@@ -2032,9 +1992,8 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
 {
     RealBTarget &rb = realBTargets[0];
 
-    // pmr
-    std::vector<uint64_t> contentHashes;
-    contentHashes.reserve(1 + 1 + (target->useIPC ? composingHeaders.size() : headerFiles.size()));
+    // command-hash + source-hash + container-size. 8 for uint64_t
+    STACK_PMR_VECTOR(uint64_t, contentHashes, (target->useIPC ? composingHeaders.size() : headerFiles.size()) * 8 + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
 
@@ -2095,8 +2054,6 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
     // placeholder for direct-deps count;
     writeUint32(buffer, 0);
 
-    // make this pmr string
-    string cacheBuffer;
     for (const CppModWithDirect &cppModDirect : allCppModDeps)
     {
         if (cppModDirect.isDirect())

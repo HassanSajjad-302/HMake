@@ -499,7 +499,7 @@ template <typename T> struct TPointerLess
     char Name_##_buf_[sizeof(Type_) * (StackCap_) + alignof(Type_) - 1];                                               \
     std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
     std::pmr::vector<Type_> Name_(&Name_##_res_);                                                                      \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(Type_) + 1) / sizeof(Type_))
+    Name_.reserve((sizeof(Name_##_buf_) - alignof(Type_) + 1) / sizeof(Type_));
 
 // Stack-backed pmr::string. Same semantics as STACK_PMR_VECTOR.
 // StackCap_ is in bytes (chars), not elements.
@@ -507,6 +507,6 @@ template <typename T> struct TPointerLess
     char Name_##_buf_[(StackCap_) + alignof(char) - 1];                                                                \
     std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
     std::pmr::string Name_(&Name_##_res_);                                                                             \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(char) + 1) / sizeof(char))
+    Name_.reserve((sizeof(Name_##_buf_) - alignof(char) + 1) / sizeof(char));
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

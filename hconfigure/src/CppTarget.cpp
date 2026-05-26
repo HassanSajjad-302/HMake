@@ -254,7 +254,7 @@ void CppTarget::populateTransitiveProperties()
     {
         for (const uint32_t targetIndex : cachedReqDeps)
         {
-            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[targetIndex].bTarget);
+            CppTarget *req = static_cast<CppTarget *>(bTargetCaches[targetIndex].bTarget);
 
             if (configuration->evaluate(IsCppMod::NO) || !useIPC)
             {
@@ -1272,21 +1272,13 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
 
 void CppTarget::setCommandHashes()
 {
-    constexpr uint32_t stackSize = 64 * 3 * 1024;
-    char cppBuffer[stackSize];
-    char cBuffer[stackSize];
-    char assemblyBuffer[stackSize];
-    std::pmr::monotonic_buffer_resource cppAlloc(cppBuffer, stackSize);
-    std::pmr::monotonic_buffer_resource cAlloc(cBuffer, stackSize);
-    std::pmr::monotonic_buffer_resource assemblyAlloc(assemblyBuffer, stackSize);
     uint64_t cppHash = 0, cHash = 0, assemblyHash = 0;
     bool cppDone = false, cDone = false, assemblyDone = false;
-    auto hashCommand = [&](std::pmr::monotonic_buffer_resource &alloc, const string &baseCommand, uint64_t &hash,
-                           bool &done) -> uint64_t {
+
+    auto hashCommand = [&](const string &baseCommand, uint64_t &hash, bool &done) -> uint64_t {
         if (!done)
         {
-            std::pmr::string cmd(&alloc);
-            cmd.reserve(63 * 1024);
+            STACK_PMR_STRING(cmd, 64 * 1024);
             cmd = baseCommand;
             setCompileCommand(cmd);
             hash = rapidhash(cmd.data(), cmd.size());
@@ -1294,17 +1286,19 @@ void CppTarget::setCommandHashes()
         }
         return hash;
     };
+
     auto getHash = [&](const SourceType sourceType) -> uint64_t {
         if (sourceType == SourceType::CPP)
         {
-            return hashCommand(cppAlloc, configuration->cppCompileCommand, cppHash, cppDone);
+            return hashCommand(configuration->cppCompileCommand, cppHash, cppDone);
         }
         if (sourceType == SourceType::C)
         {
-            return hashCommand(cAlloc, configuration->cCompileCommand, cHash, cDone);
+            return hashCommand(configuration->cCompileCommand, cHash, cDone);
         }
-        return hashCommand(assemblyAlloc, configuration->assemblyCompileCommand, assemblyHash, assemblyDone);
+        return hashCommand(configuration->assemblyCompileCommand, assemblyHash, assemblyDone);
     };
+
     auto sourceTypeOf = [](const std::string_view path) -> SourceType {
         if (path.ends_with(".c"))
         {
@@ -1316,25 +1310,26 @@ void CppTarget::setCommandHashes()
         }
         return SourceType::CPP;
     };
-    for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
+
+    for (CppSrc *srcFileDep : srcFileDeps)
     {
-        srcFileDeps[i]->sourceType = sourceTypeOf(srcFileDeps[i]->node->filePath);
-        srcFileDeps[i]->commandHash = getHash(srcFileDeps[i]->sourceType);
+        srcFileDep->sourceType = sourceTypeOf(srcFileDep->node->filePath);
+        srcFileDep->commandHash = getHash(srcFileDep->sourceType);
     }
-    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
+    for (CppMod *modFileDep : modFileDeps)
     {
-        modFileDeps[i]->sourceType = sourceTypeOf(modFileDeps[i]->node->filePath);
-        modFileDeps[i]->commandHash = getHash(modFileDeps[i]->sourceType);
+        modFileDep->sourceType = sourceTypeOf(modFileDep->node->filePath);
+        modFileDep->commandHash = getHash(modFileDep->sourceType);
     }
-    for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+    for (CppMod *imodFileDep : imodFileDeps)
     {
-        imodFileDeps[i]->sourceType = SourceType::CPP;
-        imodFileDeps[i]->commandHash = getHash(SourceType::CPP);
+        imodFileDep->sourceType = SourceType::CPP;
+        imodFileDep->commandHash = getHash(SourceType::CPP);
     }
-    for (uint32_t i = 0; i < huDeps.size(); ++i)
+    for (CppMod *huDep : huDeps)
     {
-        huDeps[i]->sourceType = SourceType::CPP;
-        huDeps[i]->commandHash = getHash(SourceType::CPP);
+        huDep->sourceType = SourceType::CPP;
+        huDep->commandHash = getHash(SourceType::CPP);
     }
 }
 
@@ -1420,7 +1415,7 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
             return;
         }
 
-        char *ptr = const_cast<char *>(fileTargetCaches[cppMod.cacheIndex].getBuildCache().data());
+        char *ptr = const_cast<char *>(bTargetCaches[cppMod.cacheIndex].getBuildCache().data());
         if (calledFromConfiguration)
         {
             uint32_t bytesRead = 1; // (1 headerStatusChanged)
@@ -1513,7 +1508,7 @@ void CppTarget::writeBigHeaderUnits()
 
 void CppTarget::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+    const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
     uint32_t bytesRead = 0;
@@ -1840,7 +1835,7 @@ string CppTarget::getDependenciesString() const
     {
         for (const uint32_t targetIndex : cachedReqDeps)
         {
-            const CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[targetIndex].bTarget);
+            const CppTarget *req = static_cast<CppTarget *>(bTargetCaches[targetIndex].bTarget);
             deps += req->name + '\n';
         }
         return deps;

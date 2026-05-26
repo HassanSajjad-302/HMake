@@ -2,6 +2,9 @@
 
 struct Process : BTarget
 {
+    explicit Process(const string &name_) : BTarget(name_, false, BTargetType::UNKNOWN)
+    {
+    }
     static constexpr const char *cmd = "./a.out";
 
     bool isEventRegistered(Builder &builder) override
@@ -9,7 +12,7 @@ struct Process : BTarget
         // Pass true so HMake keeps the child's stdin pipe open — this process
         // sends a message to the build-system and then waits for a reply before
         // continuing.
-        run.startAsyncProcess(cmd, builder, this, /*keepStdinOpen=*/true);
+        run.startAsyncProcess(cmd, builder, this, /*haveWritePipe=*/true);
         // launched async process. would have returned false otherwise (e.g. a module-file was already updated).
         // HMake will call isEventCompleted when process exits or there is message for build-system.
         return true;
@@ -27,7 +30,7 @@ struct Process : BTarget
             string out = getColorCode(ok ? ColorIndex::light_green : ColorIndex::red);
             out += ok ? "./a.out finished successfully:\n" : "./a.out failed:\n";
             out += getColorCode(ColorIndex::reset);
-            out += run.output;
+            out += *run.output;
             printMessage(out);
 
             return false; // stop waiting; we are done with this target
@@ -60,7 +63,7 @@ struct Process : BTarget
 void buildSpecification()
 {
     // Any BTarget must have application life-time.
-    new Process();
+    new Process("Process");
 }
 
 MAIN_FUNCTION

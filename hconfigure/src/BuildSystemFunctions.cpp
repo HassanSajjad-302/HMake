@@ -145,309 +145,6 @@ void printErrorMessageNoReturn(const string &message)
 {
     std::print(stderr, "{}", message);
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// Build-cache verification
-//
-// Accepts the flat buffer that is about to be (or was just) written to disk,
-// rather than the stale string_view slices stored in fileTargetCaches.
-// The buffer layout mirrors getBuildCache / readBuildCache:
-//
-//   per entry:
-//     depsCache  : [uint32 count][uint32 idx₀]..[uint32 idxₙ]   (4 + 4·count bytes)
-//     buildCache : [uint32 payloadSize][payload bytes]
-//
-//   payload layout per BTargetType (all launchesProcess types begin with the
-//   automatic 16-byte header written by writeBuildCacheHeader):
-//     CPP_SRC  : uint64(commandHash) · uint64(launchTime)
-//                · uint32(hdrCount) · halfNode(hdr)…
-//     CPP_MOD  : uint64(commandHash) · uint64(launchTime)
-//                · bool(headerStatusChanged)
-//                · uint32(hdrCount) · halfNode(hdr)…
-//                · uint32(depsCount) · uint32(depIdx)…
-//     LOAT     : uint64(commandHash) · uint64(launchTime)
-//                · uint64(commandWithoutTargets)
-//                · uint64(updateTime) · uint32(objCount) · halfNode(obj)…
-//     CONFIGURATION / CPP_TARGET / PLOAT : empty payload
-//
-// If verbose == true the function also prints a human-readable dump of every
-// non-null entry.  Either way it validates byte-counts and index ranges and
-// reports every discrepancy via printErrorMessageNoReturn.
-// ─────────────────────────────────────────────────────────────────────────────
-void verifyBuildCache(const string &buildCacheBuffer, const bool verbose)
-{
-    const auto totalEntries = static_cast<uint32_t>(fileTargetCaches.size());
-    uint32_t verified = 0;
-    uint32_t errors = 0;
-
-    auto reportErr = [&](const string &msg) {
-        ++errors;
-        printErrorMessageNoReturn(msg);
-    };
-
-    auto readNodeVec = [&](const char *ptr, uint32_t &read, const uint32_t total) -> vector<Node *> {
-        vector<Node *> v;
-        if (read + 4 > total)
-        {
-            return v;
-        }
-        const uint32_t count = readUint32(ptr, read);
-        v.reserve(count);
-        for (uint32_t i = 0; i < count && read + 4 <= total; ++i)
-        {
-            v.push_back(readHalfNode(ptr, read));
-        }
-        return v;
-    };
-
-    const char *const bufBase = buildCacheBuffer.data();
-    const uint32_t bufTotal = static_cast<uint32_t>(buildCacheBuffer.size());
-    uint32_t bufRead = 0;
-
-    for (uint32_t idx = 0; idx < totalEntries; ++idx)
-    {
-        // ── slice depsCache ───────────────────────────────────────────────────
-        if (bufRead + 4 > bufTotal)
-        {
-            reportErr(FORMAT("[verifyBuildCache] entry[{}]: buffer truncated at depsCache header\n", idx));
-            break;
-        }
-        const uint32_t depsCacheStart = bufRead;
-        uint32_t depsCount;
-        memcpy(&depsCount, bufBase + bufRead, 4);
-        bufRead += 4;
-
-        if (bufRead + 4 * depsCount > bufTotal)
-        {
-            reportErr(
-                FORMAT("[verifyBuildCache] entry[{}]: buffer truncated in depsCache ({} indices)\n", idx, depsCount));
-            break;
-        }
-        bufRead += 4 * depsCount;
-        const string_view depsSlice{bufBase + depsCacheStart, bufRead - depsCacheStart};
-
-        // ── slice buildCache payload (size-prefixed) ──────────────────────────
-        if (bufRead + 4 > bufTotal)
-        {
-            reportErr(FORMAT("[verifyBuildCache] entry[{}]: buffer truncated at buildCache size prefix\n", idx));
-            break;
-        }
-        uint32_t buildCacheSize;
-        memcpy(&buildCacheSize, bufBase + bufRead, 4);
-        bufRead += 4;
-
-        if (bufRead + buildCacheSize > bufTotal)
-        {
-            reportErr(FORMAT("[verifyBuildCache] entry[{}]: buffer truncated in buildCache payload "
-                             "({} of {} bytes available)\n",
-                             idx, bufTotal - bufRead, buildCacheSize));
-            break;
-        }
-        const string_view buildCacheSlice{bufBase + bufRead, buildCacheSize};
-        bufRead += buildCacheSize;
-
-        const FileTargetCache &fc = fileTargetCaches[idx];
-        if (!fc.bTarget)
-        {
-            continue;
-        }
-
-        ++verified;
-        const BTargetType type = fc.bTarget->bTargetType;
-        const string printName = fc.bTarget->getPrintName();
-
-        // ── (1) depsCache ─────────────────────────────────────────────────────
-        {
-            const char *ptr = depsSlice.data() + 4; // skip the already-read count
-            uint32_t read = 0;
-
-            if (verbose)
-            {
-                string msg = FORMAT("  [{}] \"{}\"  deps({}):", idx, printName, depsCount);
-                for (uint32_t d = 0; d < depsCount; ++d)
-                {
-                    const uint32_t depIdx = readUint32(ptr, read);
-                    if (depIdx >= totalEntries)
-                    {
-                        msg += FORMAT("  INVALID({})", depIdx);
-                    }
-                    else if (fileTargetCaches[depIdx].bTarget)
-                    {
-                        msg += FORMAT("  \"{}\"", fileTargetCaches[depIdx].bTarget->getPrintName());
-                    }
-                    else
-                    {
-                        msg += FORMAT("  nullptr@{}", depIdx);
-                    }
-                }
-                msg += '\n';
-                printMessage(msg);
-            }
-            else
-            {
-                for (uint32_t d = 0; d < depsCount; ++d)
-                {
-                    const uint32_t depIdx = readUint32(ptr, read);
-                    if (depIdx >= totalEntries)
-                    {
-                        reportErr(FORMAT("[verifyBuildCache] entry[{}] \"{}\": "
-                                         "depsCache[{}] out-of-range index {}\n",
-                                         idx, printName, d, depIdx));
-                    }
-                }
-            }
-        }
-
-        // ── (2) buildCache payload ────────────────────────────────────────────
-        {
-            const char *ptr = buildCacheSlice.data();
-            uint32_t read = 0;
-            const uint32_t total = buildCacheSize;
-
-#define BC_NEED(field, needed)                                                                                         \
-    if (read + (needed) > total)                                                                                       \
-    {                                                                                                                  \
-        reportErr(FORMAT("[verifyBuildCache] entry[{}] type={} \"{}\": "                                               \
-                         "truncated at " field " (offset {}/{})\n",                                                    \
-                         idx, static_cast<int>(type), printName, read, total));                                        \
-        goto next_entry;                                                                                               \
-    }
-
-            switch (type)
-            {
-            case BTargetType::CPP_SRC: {
-                BC_NEED("commandHash", 8)
-                const uint64_t commandHash = readUint64(ptr, read);
-
-                BC_NEED("launchTime", 8)
-                const uint64_t launchTime = readUint64(ptr, read);
-
-                BC_NEED("headerFiles.count", 4)
-                const vector<Node *> headerFiles = readNodeVec(ptr, read, total);
-
-                if (verbose)
-                {
-                    string msg = FORMAT("  [{}] CPP_SRC \"{}\"  cmd={:#018x}  launch={}  headers({})\n", idx, printName,
-                                        commandHash, launchTime, headerFiles.size());
-                    for (const Node *h : headerFiles)
-                    {
-                        msg += FORMAT("      hdr: \"{}\"\n", h ? h->filePath : "<null>");
-                    }
-                    printMessage(msg);
-                }
-                break;
-            }
-
-            case BTargetType::CPP_MOD: {
-                // Bug fix: the automatic 16-byte header (commandHash + launchTime) is written
-                // first by writeBuildCacheHeader for all launchesProcess targets, so it must
-                // be consumed before the CPP_MOD-specific fields.
-                BC_NEED("commandHash", 8)
-                const uint64_t commandHash = readUint64(ptr, read);
-
-                BC_NEED("launchTime", 8)
-                const uint64_t launchTime = readUint64(ptr, read);
-
-                BC_NEED("headerStatusChanged", 1)
-                const bool headerStatusChanged = readBool(ptr, read);
-
-                BC_NEED("headerFiles.count", 4)
-                const vector<Node *> headerFiles = readNodeVec(ptr, read, total);
-
-                BC_NEED("depsArray.count", 4)
-                const uint32_t depsArrayCount = readUint32(ptr, read);
-
-                vector<uint32_t> depsArray;
-                depsArray.reserve(depsArrayCount);
-                for (uint32_t d = 0; d < depsArrayCount; ++d)
-                {
-                    BC_NEED("depsArray element", 4)
-                    depsArray.push_back(readUint32(ptr, read));
-                }
-
-                for (uint32_t d = 0; d < depsArray.size(); ++d)
-                {
-                    if (depsArray[d] >= totalEntries)
-                    {
-                        reportErr(FORMAT("[verifyBuildCache] entry[{}] CPP_MOD \"{}\": "
-                                         "depsArray[{}] out-of-range index {}\n",
-                                         idx, printName, d, depsArray[d]));
-                    }
-                }
-
-                if (verbose)
-                {
-                    string msg = FORMAT("  [{}] CPP_MOD \"{}\"  cmd={:#018x}  launch={}  "
-                                        "headers({})  depsArray({})  headerStatusChanged={}\n",
-                                        idx, printName, commandHash, launchTime, headerFiles.size(), depsArray.size(),
-                                        headerStatusChanged);
-                    for (const Node *h : headerFiles)
-                    {
-                        msg += FORMAT("      hdr: \"{}\"\n", h ? h->filePath : "<null>");
-                    }
-                    for (const uint32_t depIdx : depsArray)
-                    {
-                        if (depIdx < totalEntries && fileTargetCaches[depIdx].bTarget)
-                        {
-                            msg += FORMAT("      dep: [{}] \"{}\"\n", depIdx,
-                                          fileTargetCaches[depIdx].bTarget->getPrintName());
-                        }
-                        else
-                        {
-                            msg += FORMAT("      dep: [{}] <no bTarget>\n", depIdx);
-                        }
-                    }
-                    printMessage(msg);
-                }
-                break;
-            }
-
-            case BTargetType::LOAT: {
-                BC_NEED("commandHash", 8)
-                const uint64_t commandHash = readUint64(ptr, read);
-
-                BC_NEED("launchTime", 8)
-                const uint64_t launchTime = readUint64(ptr, read);
-
-                if (verbose)
-                {
-                    string msg = FORMAT("  [{}] LOAT \"{}\"  cmd={:#018x}  launch={}\n", idx, printName, commandHash,
-                                        launchTime);
-                    printMessage(msg);
-                }
-                break;
-            }
-
-            case BTargetType::CONFIGURATION:
-            case BTargetType::CPP_TARGET:
-            case BTargetType::PLOAT: // Bug fix: was missing, fell through to UNKNOWN silently
-            case BTargetType::UNKNOWN:
-                break;
-            }
-#undef BC_NEED
-
-            if (read != total)
-            {
-                reportErr(FORMAT("[verifyBuildCache] entry[{}] \"{}\" type={}: "
-                                 "consumed {}/{} buildCache bytes\n",
-                                 idx, printName, static_cast<int>(type), read, total));
-            }
-            else if (verbose)
-            {
-                printMessage(FORMAT("  [{}] \"{}\"  buildCache OK ({} bytes)\n", idx, printName, total));
-            }
-        }
-
-    next_entry:;
-    }
-
-    if (bufRead != bufTotal)
-    {
-        reportErr(FORMAT("[verifyBuildCache] {} trailing bytes remain in buffer after all {} entries\n",
-                         bufTotal - bufRead, totalEntries));
-    }
-
-    printMessage(FORMAT("[verifyBuildCache] {}/{} entries verified, {} error(s)\n", verified, totalEntries, errors));
-}
 
 bool configureOrBuild()
 {
@@ -463,7 +160,6 @@ bool configureOrBuild()
             writeNodesCacheIfNewNodesAdded();
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
                                         configCache);
-            // verifyBuildCache(buildCache, true);
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildCache);
         }
@@ -474,7 +170,6 @@ bool configureOrBuild()
         writeNodesCacheIfNewNodesAdded();
         if (!buildCache.empty())
         {
-            // verifyBuildCache(buildCache, true);
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildCache);
         }
@@ -693,12 +388,12 @@ void readConfigCache()
     const char *ptr = configCacheGlobal.data();
     while (bufferRead != bufferSize)
     {
-        FileTargetCache fileCacheTarget;
+        BTargetCache fileCacheTarget;
 
         fileCacheTarget.name = readUint64(ptr, bufferRead);
         fileCacheTarget.configCache = readStringView(ptr, bufferRead);
 
-        fileTargetCaches.emplace_back(fileCacheTarget);
+        bTargetCaches.emplace_back(fileCacheTarget);
         nameToIndexMap.emplace(fileCacheTarget.name, count);
 
         ++count;
@@ -716,7 +411,7 @@ void readBuildCache()
     uint32_t bytesRead = 0;
 
     const char *ptr = buildCacheGlobal.data();
-    for (FileTargetCache &fileCacheTarget : fileTargetCaches)
+    for (BTargetCache &fileCacheTarget : bTargetCaches)
     {
         // reading the deps-cache-inline
         const uint32_t offset = bytesRead;
@@ -762,7 +457,7 @@ void writeNodesCacheIfNewNodesAdded()
 string getConfigCache()
 {
     string configCache;
-    for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+    for (const BTargetCache &fileCacheTarget : bTargetCaches)
     {
         writeUint64(configCache, fileCacheTarget.name);
 
@@ -786,7 +481,7 @@ string getBuildCache()
     string buildCache;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+        for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
             if (fileCacheTarget.depsCache.empty())
             {
@@ -831,7 +526,7 @@ string getBuildCache()
     }
 
     bool cacheUpdated = false;
-    for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+    for (const BTargetCache &fileCacheTarget : bTargetCaches)
     {
         if (fileCacheTarget.bTarget)
         {
@@ -848,7 +543,7 @@ string getBuildCache()
     }
 
     Builder::checkNodes(false);
-    for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+    for (const BTargetCache &fileCacheTarget : bTargetCaches)
     {
         if (fileCacheTarget.depsCache.empty())
         {

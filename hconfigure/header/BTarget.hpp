@@ -15,7 +15,7 @@
 #include <vector>
 
 using std::size_t, std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string,
-    std::string_view;
+    std::string_view, gtl::btree_set;
 
 class BTarget;
 
@@ -168,19 +168,14 @@ struct RBTDepTypeEqual
     }
 };
 
-inline std::pmr::monotonic_buffer_resource pool(
-    2 * 1024 * 1024,
-    std::pmr::null_memory_resource() // throws std::bad_alloc instead of falling back to heap
-);
+using DepSet = flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual>;
 
-using DepSet =
-    flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual, std::pmr::polymorphic_allocator<RBTWithType>>;
-
+/// Incremental-build decision for a `RealBTarget` in round 0.
 enum class UpdateStatus : char
 {
-    UNCHECKED = 0,
-    UPDATED_NEEDED = 1,
-    UPDATE_NOT_NEEDED = 2,
+    UNCHECKED = 0,         ///< Not yet evaluated by `setFileStatus()`.
+    UPDATE_NEEDED = 1,     ///< Inputs or dependencies changed; this target must run.
+    UPDATE_NOT_NEEDED = 2, ///< Up to date; skip launching work.
 };
 
 /// Every BTarget has 2 of these so distinct dependency order can be specified for the 2 rounds.
@@ -193,7 +188,9 @@ class alignas(128) RealBTarget
     inline static bool cycleExists = false;
 
     /// DFS helper to report one concrete cycle path.
-    static bool findCycleDFS(RealBTarget *node, vector<RealBTarget *> &currentPath, string &errorString);
+    static bool findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &visited,
+                             flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
+                             string &errorString);
 
   public:
     /// Topologically sorted nodes produced by `sortGraph()`.
@@ -213,22 +210,43 @@ class alignas(128) RealBTarget
     /// Forward edges: "what I depend on".
     DepSet dependencies;
 
+    /// Content fingerprint for incremental builds when `BTarget::launchesProcess` is true.
+    ///
+    /// Subclasses (e.g. `CppSrc`, `CppMod`, `HeaderGen`) compute this in `setFileStatus()` — typically a rapidhash over
+    /// `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setFileStatus()`, which
+    /// compares the live value to the footer stored in `BTargetCache` (loaded by `readBuildCache()` / updated at end of
+    /// build via `getBuildCache()`). A mismatch sets `updateStatus` to `UpdateStatus::UPDATE_NEEDED`.
     uint64_t cumulativeHash = 0;
+
+    /// Timestamp of the last successful launch/build, in nanoseconds since the Unix epoch.
+    ///
+    /// When `BTarget::launchesProcess` is true:
+    ///   - Set to the wall-clock time immediately before the child process is started.
+    ///   - Restored from the build-cache footer in `initializeBTarget()`.
+    ///   - `BTarget::setFileStatus()` marks the target stale if any FULL/WAIT dependency has a greater `launchTime`
+    ///     (a dependency was rebuilt after this target last ran).
+    ///
+    /// When `BTarget::launchesProcess` is false:
+    ///   - Not read from the build-cache footer.
+    ///   - After recursively evaluating dependencies, `BTarget::setFileStatus()` sets this to the maximum
+    ///     `launchTime` among those dependencies so upstream targets can detect downstream rebuilds.
     uint64_t launchTime = -1;
 
     /// Once sorted the index of this RealBTarget in the topological sorted array. Used in sorting to provide static
     /// libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort : 29 = 0;
 
-    /// This is set to UpdateStatus::UPDATED in Builder::decrementFromDependents. This function also sets the value for
-    /// the dependents to UpdateStatus::NEEDS_UPDATE if ours was UpdateStatus::NEEDS_UPDATE.
-    UpdateStatus updateStatus : 3 = UpdateStatus::UNCHECKED;
+    /// Incremental-build state for round 0. Set by `setFileStatus()` and subclass overrides.
+    /// `Builder::decrementFromDependents()` marks this `RealBTarget` completed; if it finished with
+    /// `UpdateStatus::UPDATE_NEEDED`, FULL dependents are also marked `UpdateStatus::UPDATE_NEEDED`.
+    UpdateStatus updateStatus = UpdateStatus::UNCHECKED;
 
-    /// This is incremented whenever a full-dependency or wait-dependency is added.
-    /// It is decremented of the full-dependents or wait-dependents when the BTarget::completeRoundOne is completed
-    /// And if it is zero for any of those dependents, those are added in Builder::updateBTargets list.
+    /// Count of incoming FULL/WAIT edges. Incremented in `addDep()`; decremented in
+    /// `Builder::decrementFromDependents()` when this bTarget completes. When it reaches zero, the dependent is enqueued
+    /// in `Builder::updateBTargets`.
     uint32_t dependenciesSize : 30 = 0;
 
+    /// Set to true in `Builder::decrementFromDependents()` after round-0 work for this node finishes.
     bool isCompleted : 1 = false;
 
     /// Which element of BTarget::realBTargets[2] this instance occupies (0 or 1).
@@ -239,12 +257,19 @@ class alignas(128) RealBTarget
     //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
 
-    /// This describes the location where this RealBTarget was inserted in the Builder::updateBTargetsList. CppMod when
-    /// discovers a dependency sets the pointer on that index to nullptr and re-adds the dependency CppMod in the list
-    /// to prioritize the scheduling of that CppMod.
+    /// Which `Builder::updateBTargets` array cell holds this node (set by `PointerArrayList::emplace`).
+    ///
+    /// `CppMod` bring-to-front: a consumer that is blocked on this module/hu nulls `updateBTargets.array[insertionIndex].value`
+    /// and re-enqueues it at the head when it is already in the ready queue but `isEventRegistered` has not run yet
+    /// (`getItem()` skips the nulled slot).
+    ///
+    /// We prioritize work that already has waiters over other ready targets that may have none. Each waiter keeps a
+    /// compiler process alive until the dependency completes; starting it sooner ends those waits earlier and reduces peak
+    /// memory during the build.
     uint32_t insertionIndex = -1;
 
-    /// Exit code for this RealBTarget. Failures are propagated to dependents.
+    /// Process exit status for round 0 (`EXIT_SUCCESS` or `EXIT_FAILURE`). Set from `RunCommand::exitStatus` when an
+    /// async child exits; failures propagate to FULL dependents via `Builder::decrementFromDependents()`.
     bool exitStatus = EXIT_SUCCESS;
 
     /// \param round_ which slot in BTarget::realBTargets this occupies (0 or 1).
@@ -257,11 +282,15 @@ class alignas(128) RealBTarget
     bool checkDepsChanged() const;
 
     /// Adds dependency edge for a given round and dependency type.
-    template <BTargetType type, RelationType depType = RelationType::FULL> void addDep(RealBTarget *dep);
+    template <BTargetType bTargetType = BTargetType::UNKNOWN, RelationType depType = RelationType::FULL>
+    void addDep(RealBTarget *dep);
 
     /// Recovers the enclosing BTarget via compile-time offset arithmetic.
     /// Zero-cost: no stored pointer, no virtual dispatch.
     BTarget *getBTarget() const;
+
+    void getAllWaitDeps(flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual> &allDepsTransitive);
+    void getAllWaitDepsTopological(btree_set<BTarget *, IndexInTopologicalSortComparatorRoundZero> &allDepsTransitive);
 };
 
 static_assert(alignof(RealBTarget) >= 128,
@@ -269,7 +298,21 @@ static_assert(alignof(RealBTarget) >= 128,
 
 /// Base class for all build graph tasks.
 ///
-/// Derived classes override one or more execution hooks:
+/// Each instance is tied to persistent cache storage through `cacheIndex`, an index into `bTargetCaches`.
+/// `bTargetCaches[cacheIndex]` holds this target's `configCache` blob (configure-time) and build-cache slice (dependency
+/// prefix + body + optional 16-byte footer). Subclasses implement `writeConfigCacheAtConfigTime()` /
+/// `writeBuildCacheAtConfigTime()` / `writeBuildCacheAtBuildTime()` to fill those buffers; `initializeBTarget()` wires
+/// the live `BTarget` pointer after `readConfigCache()` / `readBuildCache()` in `initializeCache()`.
+///
+/// Lookup key is `cacheName` (`nameToIndexMap`). It must be unique across targets — two `BTarget`s with the same
+/// `cacheName` are rejected at configure-time (`checkForSameTargetName()`). Constructors that take only `name_` set
+/// `cacheName` to `rapidhash(name_)` (after lower-casing `name`); use the `cacheName_` overload when you need a stable
+/// key independent of the display name (e.g. `ObjectFile` with an empty `name`).
+///
+/// When `launchesProcess` is true, the build-cache entry always includes a footer (`cumulativeHash`, `launchTime`):
+/// written at configure-time for new targets and updated after a successful build via `writeBuildCacheHeaderAtBuildTime()`.
+///
+/// Derived classes override execution hooks:
 /// - `completeRoundOne()` for synchronous round-1 work
 /// - `isEventRegistered()` / `isEventCompleted()` for event-driven round-0 work
 ///
@@ -279,17 +322,14 @@ class BTarget // BTarget
     friend RealBTarget;
 
   public:
-    /// Per-round global storage of registered nodes.
-    /// Populated by `RealBTarget` constructors where `add == true`.
+    /// Per-round global storage of all `RealBTarget` nodes registered at construction (`add == true`).
+    /// Indexed by `RealBTarget::round` (0 or 1); consumed by `RealBTarget::sortGraph()`.
     inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
 
-    /// Current insertion count for each round in `realBTargetsGlobal`.
+    /// Number of entries in `realBTargetsGlobal[round]` for each round.
     inline static array<uint32_t, 2> realBTargetsArrayCount{};
 
-    // todo
-    // Maybe 3 of the RealBTarget[2] and the following could be pointers instead.
-
-    /// Process/event helper used by round-0 async workflows.
+    /// Process/event helper used by round-0 async workflows (`startAsyncProcess`, IPC pipes, captured output).
     RunCommand run;
 
   private:
@@ -297,17 +337,27 @@ class BTarget // BTarget
     friend void constructGlobals();
 
   public:
+    /// Monotonically increasing count of constructed `BTarget` instances (used to assign `id`).
     inline static uint32_t total = 0;
 
+    /// Human-readable target name (lower-cased). Used in logs, selective-build matching, and cycle diagnostics.
     string name;
-    size_t id = 0; // unique for every BTarget
 
-    /// Address of this element in fileTargetCaches vector
+    /// Unique runtime id assigned at construction (`++total`).
+    size_t id = 0;
+
+    /// Index into `bTargetCaches` / `nameToIndexMap` for this target's persisted cache slice.
     uint32_t cacheIndex = -1;
+
+    /// Set when this target's build-cache body changed; `getBuildCache()` calls `writeBuildCacheAtBuildTime()`.
     bool buildCacheUpdated = false;
+
+    /// Set when the 16-byte footer (`cumulativeHash` + `launchTime`) changed; `getBuildCache()` calls
+    /// `writeBuildCacheHeaderAtBuildTime()`. If neither this nor `buildCacheUpdated` is set, the prior blob is reused.
     bool buildFooterUpdated = false;
 
-    /// Name in the config-cache
+    /// Unique key for `nameToIndexMap` and `bTargetCaches[cacheIndex].name`. From `rapidhash(name)` or an explicit
+    /// constructor argument; must not collide with another target's `cacheName`.
     uint64_t cacheName;
 
     /// Runtime type tag supplied at construction — replaces virtual getBTargetType().
@@ -327,26 +377,50 @@ class BTarget // BTarget
     /// If true, this target is selected only when explicitly requested on CLI.
     bool buildExplicit = false;
 
+    /// True when this target had no config-cache entry on startup and a new `BTargetCache` slot was created.
     bool newlyAdded = false;
 
+    /// Round 0 (async/event-driven) and round 1 (synchronous) dependency graphs for this target.
     array<RealBTarget, 2> realBTargets;
 
+    /// Registers this target in `bTargetCaches` and links `bTargetCaches[cacheIndex].bTarget`.
+    ///
+    /// `BSMode::CONFIGURE`: if `makeDirectory`, creates `configureDir/name`. Looks up `cacheName` in `nameToIndexMap`;
+    /// allocates a new `BTargetCache` slot (and sets `newlyAdded`) when absent, otherwise reuses the existing index.
+    /// Enforces unique target names per `cacheName` via `checkForSameTargetName()`.
+    ///
+    /// `BSMode::BUILD`: requires an existing config-cache entry (errors if `cacheName` is missing — run configure
+    /// first). config-cache / build-cache slices were loaded earlier in `initializeCache()` → `readConfigCache()` /
+    /// `readBuildCache()`. When `launchesProcess` is true, restores `realBTargets[0].launchTime` from the footer;
+    /// `cumulativeHash` is compared later in `setFileStatus()`.
+    ///
+    /// TODO: persist `launchesProcess` in config-cache (e.g. packed in `BTargetCache::bTarget`) and error if it
+    /// differs from the current constructor argument.
     void initializeBTarget(bool makeDirectory);
 
-    /// One per round: index `0` (round 0), index `1` (round 1).
+    /// \param name_ human-readable name (lower-cased); `cacheName` is set to `rapidhash(name_)`. Must be unique among
+    /// targets. If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, bool launchesProcess_, BTargetType type_);
-    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
+    /// \param name_ human-readable name (lower-cased); `cacheName` is `rapidhash(name_)`. Must be unique among targets.
+    /// \param makeDirectory if true, HMake creates `configureDir/name` at configure-time.
+    /// If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, bool launchesProcess_, BTargetType type_, bool buildExplicit_, bool makeDirectory);
-    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
+    /// \param name_ human-readable name (lower-cased); `cacheName` is `rapidhash(name_)`. Must be unique among targets.
+    /// \param add0 / \p add1 if false, that round's `RealBTarget` is not registered in `realBTargetsGlobal`.
+    /// If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, bool launchesProcess_, BTargetType type_, bool buildExplicit_, bool makeDirectory, bool add0,
             bool add1);
 
-    /// One per round: index `0` (round 0), index `1` (round 1).
+    /// \param name_ display name (lower-cased). \p cacheName_ is the cache key (must be unique; must match configure-time
+    /// entry on build). If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, uint64_t cacheName_, bool launchesProcess_, BTargetType type_);
-    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
+    /// \param cacheName_ unique cache key; must match the value used at configure-time on build.
+    /// \param makeDirectory if true, HMake creates `configureDir/name` at configure-time.
+    /// If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, uint64_t cacheName_, bool launchesProcess_, BTargetType type_, bool buildExplicit_,
             bool makeDirectory);
-    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
+    /// \param cacheName_ unique cache key; must match configure-time on build.
+    /// If `launchesProcess`, a build-cache footer is stored for this target.
     BTarget(string name_, uint64_t cacheName_, bool launchesProcess_, BTargetType type_, bool buildExplicit_,
             bool makeDirectory, bool add0, bool add1);
 
@@ -380,6 +454,25 @@ class BTarget // BTarget
     /// that the BTarget is waiting for further messages.
     virtual bool isEventCompleted(Builder &builder, string_view message);
 
+    /// Determines whether `realBTargets[0]` needs to run. No-op if `updateStatus != UNCHECKED`.
+    ///
+    /// When `launchesProcess` is true: compares `realBTargets[0].cumulativeHash` against the stored value in the
+    /// build-cache footer — a mismatch immediately sets `UPDATE_NEEDED`. Otherwise, `highestTime` starts at
+    /// `realBTargets[0].launchTime` (restored from the footer by `initializeBTarget()`).
+    ///
+    /// When `launchesProcess` is false: `highestTime` starts at 0.
+    ///
+    /// Recurses over FULL/WAIT dependencies (calling `setFileStatus()` on any that are still `UNCHECKED`). For each:
+    /// - If the dependency is `UPDATE_NEEDED`, this target is also `UPDATE_NEEDED`.
+    /// - If `launchesProcess` and `depRb->launchTime > highestTime` (a dep was rebuilt after this target last ran),
+    ///   this target is `UPDATE_NEEDED`.
+    /// - Otherwise `highestTime = max(highestTime, depRb->launchTime)`.
+    ///
+    /// If no dependency triggers a rebuild, sets `UPDATE_NOT_NEEDED`. When `launchesProcess` is false, propagates
+    /// `highestTime` into `realBTargets[0].launchTime` so upstream targets can detect downstream rebuilds.
+    ///
+    /// Subclasses (`CppSrc`, `CppMod`, `LOAT`, `HeaderGen`) compute `cumulativeHash` from content hashes of inputs
+    /// and call this base implementation via `ObjectFile::setFileStatus()` / `PLOAT::setFileStatus()`.
     virtual void setFileStatus();
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be
@@ -391,8 +484,9 @@ class BTarget // BTarget
     /// This function is not part of CppMod class because CppMod class could have some dependencies that could like to
     /// add to the script
     /// \param dirPath is the directory-path where the response files and the script file is written.
+    /// \param direct
     virtual void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents,
-                                      const string &scriptDir);
+                                      const string &scriptDir, bool direct);
 
     virtual void writeConfigCacheAtConfigTime(string &buffer);
     virtual void writeBuildCacheAtConfigTime(string &buffer)
@@ -405,25 +499,31 @@ class BTarget // BTarget
     }
     void verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) const;
 
-    // Accumulates verbose parse output; flushed to stdout only when verifyError() fires.
-    inline static string verifyOutput;
-
-    [[noreturn]] static void verifyError(const string &msg)
-    {
-        printMessage(verifyOutput);
-        printErrorMessage(msg); // calls errorExit()
-    }
+    template <unsigned round, BTargetType type = BTargetType::UNKNOWN, RelationType depType = RelationType::FULL>
+    void addDep(BTarget *dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-template <BTargetType type, RelationType depType> void RealBTarget::addDep(RealBTarget *dep)
+template <BTargetType bTargetType, RelationType relationType> void RealBTarget::addDep(RealBTarget *dep)
 {
-    if (dependencies.emplace(dep, depType, type).second)
+    if (dependencies.emplace(dep, relationType, bTargetType).second)
     {
-        dep->dependents.emplace(this, depType, type);
-        if constexpr (depType == RelationType::FULL || depType == RelationType::WAIT)
+        dep->dependents.emplace(this, relationType, bTargetType);
+        if constexpr (relationType == RelationType::FULL || relationType == RelationType::WAIT)
         {
             ++dependenciesSize;
+        }
+    }
+}
+
+template <unsigned round, BTargetType type, RelationType relationType> void BTarget::addDep(BTarget *dep)
+{
+    if (realBTargets[round].dependencies.emplace(&dep->realBTargets[round], relationType, type).second)
+    {
+        dep->realBTargets[round].dependents.emplace(&realBTargets[round], relationType, type);
+        if constexpr (relationType == RelationType::FULL || relationType == RelationType::WAIT)
+        {
+            ++realBTargets[round].dependenciesSize;
         }
     }
 }
@@ -437,47 +537,51 @@ inline BTarget *RealBTarget::getBTarget() const
                                        offsetof(BTarget, realBTargets) - round * sizeof(RealBTarget));
 }
 
-/// HMake has 2 different cache that are config-cache and build-cache. config-cache is only read but not written at
-/// build-time. By separating config-cache and build-cache, we keep the build-cache smaller and keep the builds faster.
+/// Per-target slices of the on-disk caches managed by `initializeCache()` / `configureOrBuild()` in
+/// `BuildSystemFunctions.cpp`.
 ///
-/// TargetCache works with FileTargetCache to manage the config-cache and build-cache reading and writing. Any class
-/// that wants to store cache in config-cache or build-cache should inherit from this class. Its constructor take a name
-/// that must be unique for 2 inherited objects. Otherwise, configure step will fail.
+/// On disk (under the configure directory, optionally LZ4-compressed):
+/// - `config-cache` — one entry per target: `cacheName`, sized `configCache` blob (written at configure-time).
+/// - `build-cache` — parallel array: inline `depsCache` (round-0 FULL/WAIT `cacheIndex` list), then sized per-target
+///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `launchTime`).
 ///
-/// In config-cache, we store name, then the size of the data and then the data itself.
-/// However, in build-cache, we store only the size and the data but not the name. The order is same in both
-/// config-cache and build-cache.
-///
-/// initializeBuildCache() calls first readConfigCache() and then readBuildCache().
-///
-/// readConfigCache() populates fileTargetCaches and nameToIndexMap containers. Then in buildSpecification() and
-/// later, whenever an object of TargetCache is instantiated, in the TargetCache constructor, we use nameToIndexMap
-/// container to retrieve the index of FileTargetCache element in fileTargetCaches container. FileTargetCache contains
-/// the both configCache and buildCache data that were populated in readConfigCache() and readBuildCache() respectively.
+/// `readConfigCache()` / `readBuildCache()` fill `bTargetCaches` and `nameToIndexMap` before `buildSpecification()`.
+/// Live `BTarget` constructors attach via `initializeBTarget()`. At configure end or after a build,
+/// `getConfigCache()` / `getBuildCache()` serialize updates (build mode re-hashes nodes via `checkNodes(false)` when
+/// needed, then rewrites only entries with `buildCacheUpdated` / `buildFooterUpdated`).
 
-/// Every Target-Cache has representation on both config-cache and build-cache. It could be empty. The order is
-/// persistent across builds.
-class FileTargetCache
+/// Order of entries is stable across builds; each target has matching config and build slices.
+class BTargetCache
 {
   public:
-    /// Back-pointer to the bTarget
+    /// Back-pointer to the live `BTarget` owning this cache entry.
     BTarget *bTarget = nullptr;
+
+    /// Same value as `BTarget::cacheName` — hash key for this entry in `nameToIndexMap`.
     uint64_t name;
+
+    /// Target-specific config-cache payload (written at configure-time, read-only at build-time).
     string_view configCache;
+
+    /// Inline prefix in the on-disk build-cache entry: round-0 FULL/WAIT dependency `cacheIndex` list (see `readBuildCache()`).
     string_view depsCache;
 
   private:
+    /// Full build-cache blob: body followed by a fixed 16-byte footer (`cumulativeHash` + `launchTime`).
     string_view buildCache;
 
   public:
+    /// Build-cache body excluding the trailing 16-byte footer.
     string_view getBuildCache() const
     {
         return string_view{buildCache.data(), buildCache.size() - 16};
     }
+    /// Full build-cache blob including the footer.
     string_view getFullBuildCache() const
     {
         return buildCache;
     }
+    /// Trailing 16 bytes: `cumulativeHash` (8) + `launchTime` (8).
     string_view getBuildFooter() const
     {
         const uint64_t starting = buildCache.size() - 16;
@@ -489,16 +593,16 @@ class FileTargetCache
     }
 };
 
-inline vector<FileTargetCache> fileTargetCaches;
+inline vector<BTargetCache> bTargetCaches;
 inline flat_hash_map<uint64_t, uint32_t> nameToIndexMap;
 
 enum class CppModType : uint8_t
 {
-    CPP_SRC = 0,
-    PRIMARY_EXPORT = 1,
-    PARTITION_EXPORT = 2,
-    HEADER_UNIT = 3,
-    PRIMARY_IMPLEMENTATION = 4,
+    CPP_SRC = 0,                 ///< Ordinary source file (non-module).
+    PRIMARY_EXPORT = 1,          ///< Module interface unit exporting the primary module.
+    PARTITION_EXPORT = 2,      ///< Module interface unit for a module partition.
+    HEADER_UNIT = 3,             ///< Header unit (`.h` compiled as a BMI producer).
+    PRIMARY_IMPLEMENTATION = 4,  ///< Module implementation unit for the primary module.
 };
 
 bool readBool(const char *ptr, uint32_t &bytesRead);

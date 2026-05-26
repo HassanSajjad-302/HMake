@@ -1,6 +1,6 @@
 # HMake
 
-HMake is a C++ build system with a pure C++ API — no DSL,
+Hassan's Make or HMake is a C++ build system with a pure C++ API — no DSL,
 no domain-specific configuration language.
 You describe your build in C++, and HMake executes it.
 Support for additional programming languages and API bindings is planned.
@@ -12,8 +12,8 @@ Its core is approximately 17,000 lines of C++ — significantly smaller than CMa
 
 HMake separates concerns cleanly into two layers:
 
-**Core layer** — `BTarget`, `Builder`, `Node`, `TargetCache`. These classes are general-purpose and have no knowledge of
-C++. Any build system can be built on top of them.
+**Core layer** — `BTarget`, `Builder`, `Node`. These classes are general-purpose and have no knowledge of
+C++. Any build system can be built on top of these.
 
 **C++ layer** — `CppTarget`, `CppSrc`, `CppMod`, `LOAT`. These implement C++ compilation on top of the core. The core
 has zero references to these classes, which demonstrates how cleanly extensible the core API is.
@@ -46,24 +46,47 @@ filesystem path. This ID remains stable across rebuilds and reconfigurations, al
 to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
 size of UE5 — and near-instant build startup even for very large projects.
 
-Before round 0, HMake calls `Node::performSystemCheck` in parallel (using io_uring where available) for all nodes marked
-`toBeChecked`. This bulk, parallel stat eliminates redundant filesystem queries and contributes to HMake's rebuild speed
-being at least 2x faster than Ninja.
+`initializeCache()` loads path strings from the `nodes` cache file without stating or hashing them yet. Before round 0,
+`Builder::checkNodes(true)` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
+`doStatFile` / `doHashFile`. Skip/rebuild decisions use `Node::contentHash` (rapidhash of file contents) inside
+`setFileStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
+nodes that were flagged during compilation (for example headers discovered from compiler output).
 
-### TargetCache
+### BTargetCache
 
-`TargetCache` manages persistent data across configure-time and build-time. It takes a unique name (typically the same
-as `BTarget::name`) and creates entries in both the config cache and build cache. Config cache entries are written at
-configure-time and read at build-time without re-running configuration. For example, `CppTarget` uses `TargetCache` to
-store normalized, deduplicated node IDs for source files, module files, header units, headers, and include directories.
+Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache` and `build-cache` files under the
+configure directory (see `initializeCache()` / `configureOrBuild()` in `BuildSystemFunctions.cpp`).
+
+| File | When written | Contents |
+|------|----------------|----------|
+| `nodes` | Configure or build (if new paths appeared) | Interned path strings keyed by `Node::myId` |
+| `config-cache` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
+| `build-cache` | End of configure; updated after build | Per target: inline dependency list + sized body; optional 16-byte footer (`cumulativeHash`, `launchTime`) for process targets |
+
+At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
+live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
+a build, only targets with `buildCacheUpdated` or `buildFooterUpdated` are rewritten; unchanged blobs are copied as-is.
 
 ### Builder
 
-`Builder` drives the build loop. It maintains `updateBTargets`, the queue of targets that are ready to execute (those
-whose `dependenciesSize` has reached zero). `dependenciesSize` holds the number for the dependencies of the target.
-After sorting, those targets whose `dependenciesSize == 0` are added to the `updateBTargets` list. As each target in
-this list completes, HMake decrements `dependenciesSize` on its dependents, and any dependent that reaches zero is
-added in `updateBTargets` list. Build finishes once all targets are completed.
+`Builder` is constructed after caches are loaded and `buildSpecification()` has registered targets. It runs **round 1**
+(`completeRoundOne()` — configure-time setup), then in build mode **round 0** (async compilation/linking). Configure mode
+stops after round 1 and writes the cache files.
+
+Round 0 maintains `updateBTargets`, the queue of targets whose `dependenciesSize` has reached zero. After topological
+sorting, ready targets are enqueued; completion decrements dependents and enqueues any that become ready. Round-0
+dependency lists are persisted into each target's build-cache entry when the build finishes.
+
+**Bring-to-front scheduling (`CppMod`).** When a module or header-unit compilation discovers that another unit is already
+in the ready queue but `isEventRegistered` has not run on it yet, and consumers are blocked waiting on that unit, HMake
+can move it to the head of `updateBTargets` using `RealBTarget::insertionIndex` (the previous queue slot is nulled so
+the dependency is not scheduled twice). That prioritizes work with known waiters over other ready targets and lowers peak
+memory by reducing how long compiler processes sit idle.
+
+**Incremental decisions.** After `checkNodes(true)`, selective targets call `setFileStatus()`, which compares
+`Node::contentHash`, cached `cumulativeHash`, and dependency `launchTime` from the build-cache footer — not mtimes alone.
+When inputs change during the build, targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()` refreshes
+hashes and rewrites those entries before saving `build-cache`.
 
 ---
 
@@ -208,7 +231,7 @@ These examples are same to those in `Example/` directory.
 struct OurTarget : BTarget
 {
     string message;
-    explicit OurTarget(string str) : message{std::move(str)}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN), message{str}
     {
     }
 
@@ -222,7 +245,7 @@ void buildSpecification()
 {
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
-    b->addDep<1>(*a);
+    b->addDep<1>(a);
 }
 
 MAIN_FUNCTION
@@ -246,7 +269,7 @@ Let's clarify this with more examples.
 struct OurTarget : BTarget
 {
     string message;
-    explicit OurTarget(string str) : message{std::move(str)}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN), message{str}
     {
     }
 
@@ -267,8 +290,8 @@ void buildSpecification()
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
 
-    b->addDep<0>(*a);
-    a->addDep<1>(*b);
+    b->addDep<0>(a);
+    a->addDep<1>(b);
 }
 
 MAIN_FUNCTION
@@ -302,17 +325,12 @@ is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules a
 struct OurTarget : BTarget
 {
     string message;
-    explicit OurTarget(string str) : message{std::move(str)}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN), message{str}
     {
     }
 
     void completeRoundOne() override
     {
-    }
-
-    string getPrintName() const override
-    {
-        return message;
     }
 };
 
@@ -321,9 +339,9 @@ void buildSpecification()
     OurTarget *a = new OurTarget("Cat1");
     OurTarget *b = new OurTarget("Cat2");
     OurTarget *c = new OurTarget("Cat3");
-    a->addDep<0>(*b);
-    b->addDep<0>(*c);
-    c->addDep<0>(*a);
+    a->addDep<0>(b);
+    b->addDep<0>(c);
+    c->addDep<0>(a);
 }
 
 MAIN_FUNCTION
@@ -351,7 +369,8 @@ struct OurTarget : BTarget
 {
     string name;
     bool error = false;
-    explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
+    explicit OurTarget(const string &name_, const bool error_ = false)
+        : BTarget(name_, false, BTargetType::UNKNOWN), name{name_}, error(error_)
     {
     }
 
@@ -381,8 +400,8 @@ void buildSpecification()
     OurTarget *f = new OurTarget("XMake");
     OurTarget *g = new OurTarget("build2", true);
     OurTarget *h = new OurTarget("Boost");
-    d->addDep<0>(*e);
-    h->addDep<0>(*g);
+    d->addDep<0>(e);
+    h->addDep<0>(g);
 }
 
 MAIN_FUNCTION
@@ -412,8 +431,8 @@ then HMake will exit early and not execute the round0.
 struct OurTarget : BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(const unsigned short low_, const unsigned short high_)
-        : BTarget(true, false), low(low_), high(high_)
+    explicit OurTarget(const string &str, const unsigned short low_, const unsigned short high_)
+        : BTarget(str, false, BTargetType::UNKNOWN, false, false, false, false), low(low_), high(high_)
     {
     }
 
@@ -431,15 +450,20 @@ OurTarget *a, *b, *c;
 
 struct OurTarget2 : BTarget
 {
+    explicit OurTarget2(const string &str) : BTarget(str, false, BTargetType::UNKNOWN)
+    {
+        a = new OurTarget("a", 10, 40);
+        b = new OurTarget("b", 50, 80);
+        c = new OurTarget("c", 800, 1000);
+    }
+
     bool isEventRegistered(Builder &builder) override
     {
-        a = new OurTarget(10, 40);
-        b = new OurTarget(50, 80);
-        c = new OurTarget(800, 1000);
-        a->addDep<0>(*c);
-        b->addDep<0>(*c);
+        a->addDep<0>(c);
+        b->addDep<0>(c);
 
-        builder.updateBTargets.emplace(&c->realBTargets[0]);
+        uint32_t insertionIndex;
+        builder.updateBTargets.emplace(&c->realBTargets[0], insertionIndex);
         builder.updateBTargetsSizeGoal += 3;
         return false;
     }
@@ -447,7 +471,7 @@ struct OurTarget2 : BTarget
 
 void buildSpecification()
 {
-    OurTarget2 *target2 = new OurTarget2();
+    OurTarget2 *target2 = new OurTarget2("target2");
 }
 
 MAIN_FUNCTION
@@ -489,28 +513,28 @@ However, you have to take care of the following aspects:
 BTarget *b, *c;
 struct OurTarget : BTarget
 {
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN){}
     bool isEventRegistered(Builder &builder) override
     {
-        b->addDep<0>(*c);
-        c->addDep<0>(*b);
+        b->addDep<0>(c);
+        c->addDep<0>(b);
         return false;
     }
 };
 
 void buildSpecification()
 {
-    b = new BTarget();
-    c = new BTarget();
-    OurTarget *target = new OurTarget();
-    b->addDep<0>(*target);
-    c->addDep<0>(*target);
+    b = new BTarget("b", false, BTargetType::UNKNOWN);
+    c = new BTarget("c", false, BTargetType::UNKNOWN);
+    OurTarget *target = new OurTarget("target");
+    b->addDep<0>(target);
+    c->addDep<0>(target);
 }
 
 MAIN_FUNCTION
 ```
 
 </details>
-
 
 Adding edges dynamically that form a cycle is detected and reported the same way as static cycles.
 
@@ -566,6 +590,9 @@ This might hang or HMake might detect and print ```HMake API misuse```.
 
 struct Process : BTarget
 {
+    explicit Process(const string &name_) : BTarget(name_, false, BTargetType::UNKNOWN)
+    {
+    }
     static constexpr const char *cmd = "./a.out";
 
     bool isEventRegistered(Builder &builder) override
@@ -573,7 +600,7 @@ struct Process : BTarget
         // Pass true so HMake keeps the child's stdin pipe open — this process
         // sends a message to the build-system and then waits for a reply before
         // continuing.
-        run.startAsyncProcess(cmd, builder, this, /*keepStdinOpen=*/true);
+        run.startAsyncProcess(cmd, builder, this, /*haveWritePipe=*/true);
         // launched async process. would have returned false otherwise (e.g. a module-file was already updated).
         // HMake will call isEventCompleted when process exits or there is message for build-system.
         return true;
@@ -591,7 +618,7 @@ struct Process : BTarget
             string out = getColorCode(ok ? ColorIndex::light_green : ColorIndex::red);
             out += ok ? "./a.out finished successfully:\n" : "./a.out failed:\n";
             out += getColorCode(ColorIndex::reset);
-            out += run.output;
+            out += *run.output;
             printMessage(out);
 
             return false; // stop waiting; we are done with this target
@@ -624,15 +651,13 @@ struct Process : BTarget
 void buildSpecification()
 {
     // Any BTarget must have application life-time.
-    new Process();
+    new Process("Process");
 }
 
 MAIN_FUNCTION
 ```
 
 </details>
-
-
 
 <details>
 <summary>main.cpp</summary>
@@ -778,7 +803,6 @@ MAIN_FUNCTION
 
 </details>
 
-
 `getConfiguration()` creates a default `Configuration` named `release` with `ConfigType::RELEASE`.
 `CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in the
 build directory or a matching configuration subdirectory. This allows a multi-configuration project to build only the
@@ -814,7 +838,6 @@ MAIN_FUNCTION
 ```
 
 </details>
-
 
 Each `getConfiguration` call creates a named configuration subdirectory. `assign()` sets build features on the
 configuration. The full list of available features (optimization level, LTO, RTTI, exceptions, sanitizers, etc.) is in
@@ -896,7 +919,6 @@ MAIN_FUNCTION
 
 </details>
 
-
 The second argument `true` enables automatic export macro handling: HMake emits the appropriate compile definition for a
 static vs. shared build and propagates it to dependents. The third argument overrides the default macro name (which
 would otherwise be `Cat-Static_EXPORT`).
@@ -955,7 +977,6 @@ MAIN_FUNCTION
 
 </details>
 
-
 `DSC` correctly handles transitive static library dependencies. If a static library depends on another static library,
 `DSC` propagates that dependency up the chain until it reaches a shared library or executable, and ensures the link
 order is correct for linkers that require it.
@@ -977,7 +998,7 @@ void configurationSpecification(Configuration &config)
     if (config.name == "modules")
     {
         config.stdCppTarget->getSourceTarget().interfaceFiles("std.cpp", "std");
-        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp");
+        // config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp");
     }
     else
     {
@@ -987,7 +1008,10 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("modules").assign(IsCppMod::YES, StdAsHeaderUnit::NO);
+    // module build of std.ixx provided with the msvc lib crashing with this commit. can be produced on developer
+    // powershell. https://pastebin.com/38Q3FmWh
+    //  it was working before but is failing with this commit. cc0371f2a4f95614c35601f898dde7745120e8d1.
+    // getConfiguration("modules").assign(IsCppMod::YES, StdAsHeaderUnit::NO, CxxSTD::V_20);
     getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
@@ -997,9 +1021,9 @@ MAIN_FUNCTION
 
 </details>
 
-
 HMake has first-class support for C++20 modules and header units, including the ability to compile them without a prior
-scanning step. It is currently the only build system with this capability. The approach is described
+scanning step. During compilation, newly discovered module/hu dependencies can be prioritized in the build queue when
+other units are already waiting on them (see **Builder** above). It is currently the only build system with this capability. The approach is described
 in [ISO paper P2978](https://htmlpreview.github.io/?https://github.com/HassanSajjad-302/iso-papers/blob/main/generated/my-paper.html)
 and requires [this Clang fork](https://github.com/llvm/llvm-project/pull/147682).
 
@@ -1082,9 +1106,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    CxxSTD cxxStd = toolsCache.vsTools[0].compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
-
-    getConfiguration("static").assign(cxxStd, IsCppMod::YES, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
+    getConfiguration("static").assign(IsCppMod::YES, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
@@ -1202,12 +1224,12 @@ struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
-        : BTarget(std::move(name), buildExplicit, makeDirectory, true, true), message{std::move(str)}
+        : BTarget(std::move(name), false, BTargetType::UNKNOWN, buildExplicit, makeDirectory), message{std::move(str)}
     {
     }
-    void completeRoundOne(Builder &builder, const unsigned short round, bool &isComplete) override
+    void completeRoundOne() override
     {
-        if (round == 0 && selectiveBuild)
+        if (selectiveBuild)
         {
             printMessage(FORMAT("{}", message));
         }

@@ -711,7 +711,8 @@ TEST(StageTests, Test5)
 
     // We correct the older cycle.
     copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
-    BALANCES(Updates{.moduleFiles = 1, .imodFiles = 12, .linkTargetsDebug = 1}, example8Path / "Build");
+    // build returns successfully but no file is built as content-hashing is the same.
+    BALANCES(Updates{}, example8Path / "Build");
 
     // We add a bigger cycle this time
     // We modify fifteen.cppm to depend on seven.cppm. but sever.cppm already -> fourteen.cppm -> fifteen.cppm.

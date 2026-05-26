@@ -1,4 +1,3 @@
-
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Cache.hpp"
@@ -6,6 +5,7 @@
 #include "Node.hpp"
 #include "RunCommand.hpp"
 #include "ToolsCache.hpp"
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -13,6 +13,9 @@
 using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
     std::filesystem::canonical;
+
+using Clock = std::chrono::steady_clock;
+using Seconds = std::chrono::duration<double>;
 
 void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 {
@@ -32,7 +35,9 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 void replaceAll(string &str, const string &from, const string &to)
 {
     if (from.empty())
+    {
         return;
+    }
     string wsRet;
     wsRet.reserve(str.length());
     size_t start_pos = 0, pos;
@@ -44,7 +49,14 @@ void replaceAll(string &str, const string &from, const string &to)
         start_pos = pos;
     }
     wsRet += str.substr(start_pos);
-    str.swap(wsRet); // faster than str = wsRet;
+    str.swap(wsRet);
+}
+
+static string formatSeconds(Seconds s)
+{
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.3fs", s.count());
+    return buf;
 }
 
 #define THROW false
@@ -69,6 +81,8 @@ void replaceAll(string &str, const string &from, const string &to)
 
 int main(int argc, char **argv)
 {
+    const auto totalStart = Clock::now();
+
     constructGlobals();
 
     if (THROW)
@@ -76,6 +90,7 @@ int main(int argc, char **argv)
         printErrorMessage("Macros Required for hhelper are not provided.\n");
         exit(EXIT_FAILURE);
     }
+
     bool onlyConfigure = false;
     if (argc == 2)
     {
@@ -88,6 +103,7 @@ int main(int argc, char **argv)
             printErrorMessage("Unknown Argument provided to hhelper.\n");
         }
     }
+
     if (!std::filesystem::exists("cache.json"))
     {
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
@@ -102,33 +118,27 @@ int main(int argc, char **argv)
 
         if constexpr (os == OS::LINUX)
         {
-
 #ifdef USE_FILE_COMPRESSION
             string useJsonFileCompressionDef = " -D USE_FILE_COMPRESSION ";
 #else
             string useJsonFileCompressionDef = "";
 #endif
-
 #ifdef USE_THREAD_SANITIZER
             string tsan = "-fsanitize=thread -fno-omit-frame-pointer ";
 #else
             string tsan = "";
 #endif
-
             auto getCommand = [&](const bool configureExe) {
                 string compileCommand =
-                    "c++ -std=c++2b -O3 -march=native -flto -fno-exceptions -fno-rtti -fvisibility=hidden "
+                    "c++ -std=c++2b -O0 -fno-exceptions -fno-rtti -fvisibility=hidden "
                     "-ffunction-sections -fdata-sections " +
-                    tsan + useJsonFileCompressionDef +
-                    // a little slowness is acceptable at config time with better assertions.
-                    string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
+                    tsan + useJsonFileCompressionDef + string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
                     " -I " LZ4_HEADER " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--gc-sections -Wl,--whole-archive "
                     "-L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
                     string(configureExe ? "hconfigure-c" : "hconfigure-b") +
                     " -Wl,--no-whole-archive -o {CONFIGURE_DIRECTORY}/" +
                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, configureExe ? "configure" : "build");
-
                 return compileCommand;
             };
             cache.configureExeBuildScript = getCommand(true);
@@ -141,7 +151,6 @@ int main(int argc, char **argv)
 #else
             string useJsonFileCompressionDef = "";
 #endif
-
             toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
             if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
             {
@@ -150,7 +159,6 @@ int main(int argc, char **argv)
                 exit(EXIT_FAILURE);
             }
 
-            // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
             auto getCommand = [&](const bool configureExe) {
                 string command = addQuotes(toolsCache.vsTools[0].compiler.bTPath) + " ";
                 for (const string &str : toolsCache.vsTools[0].includeDirs)
@@ -162,9 +170,9 @@ int main(int argc, char **argv)
                 command += "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
                            jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
                            lz4Header.string() +
-                           " /std:c++latest /O2 /GL /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp "
+                           " /std:c++latest /O0 /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp "
                            "/Fo{CONFIGURE_DIRECTORY}/" +
-                           (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO /LTCG ";
+                           (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
                 {
                     command += "/LIBPATH:" + addQuotes(str) + " ";
@@ -172,14 +180,12 @@ int main(int argc, char **argv)
                 command += "/WHOLEARCHIVE:" +
                            addQuotes((configureExe ? hconfigureCStaticLibPath : hconfigureBStaticLibPath).string()) +
                            " kernel32.lib synchronization.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib "
-                           "oleaut32.lib "
-                           "uuid.lib comdlg32.lib advapi32.lib" +
+                           "oleaut32.lib uuid.lib comdlg32.lib advapi32.lib" +
                            " /OUT:{CONFIGURE_DIRECTORY}/" +
                            (configureExe ? getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")
                                          : getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build"));
                 return command;
             };
-
             cache.configureExeBuildScript = getCommand(true);
             cache.buildExeBuildScript = getCommand(false);
         }
@@ -188,8 +194,10 @@ int main(int argc, char **argv)
         ofstream("cache.json") << cacheJson.dump(4);
         return 0;
     }
+
     string configureExePath =
         (current_path() / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")).string();
+
     if (onlyConfigure)
     {
         if (!exists(path(configureExePath)))
@@ -204,6 +212,7 @@ int main(int argc, char **argv)
     ifstream("cache.json") >> cacheJson;
     configureNode = Node::getNodeNonNormalized(current_path().string(), false);
     Cache cacheLocal = cacheJson;
+
     path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
     if (sourceDirPath.is_relative())
     {
@@ -211,58 +220,96 @@ int main(int argc, char **argv)
     }
     sourceDirPath = sourceDirPath.string();
 
-    string srcDirString = "{SOURCE_DIRECTORY}";
-    string confDirString = "{CONFIGURE_DIRECTORY}";
+    const string srcDirString = "{SOURCE_DIRECTORY}";
+    const string confDirString = "{CONFIGURE_DIRECTORY}";
 
     if (cacheLocal.configureExeBuildScript.empty())
     {
         printErrorMessage("No script provided for building configure executable\n");
         exit(EXIT_FAILURE);
     }
-
     if (cacheLocal.buildExeBuildScript.empty())
     {
         printErrorMessage("No script provided for building build executable\n");
         exit(EXIT_FAILURE);
     }
 
-    std::mutex m;
+    Seconds compileConfigureTime{};
+    Seconds compileBuildTime{};
+    Seconds runConfigureTime{};
+    int configureRunExitStatus = EXIT_SUCCESS;
+
+    std::mutex printMutex;
+
     auto scriptExecution = [&](const bool configureExe) {
         string &command = configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
-        const string configureOrBuildStr = configureExe ? "configure" : "build";
+        const string label = configureExe ? "configure" : "build";
+        const string objFilename = configureExe ? "configure.obj" : "build.obj";
 
         replaceAll(command, srcDirString, sourceDirPath.string());
         replaceAll(command, confDirString, current_path().string());
 
-        RunCommand r;
-        r.runProcess(command.c_str());
+        const auto compileStart = Clock::now();
+        RunCommand compileRun;
+        compileRun.runProcess(command.c_str());
+        const Seconds compileDuration = Clock::now() - compileStart;
 
-        std::lock_guard _(m);
-
-        if (r.exitStatus == EXIT_SUCCESS)
+        if (configureExe)
         {
-            // Display any warnings in compilation process. MSVC displays the file-name.
-            if (!r.output->empty() && *r.output != "hmake.cpp\r\n")
-            {
-                printMessage(command);
-                printMessage(*r.output);
-            }
-            else
-            {
-                printMessage(FORMAT("Built {} executable\n", configureExe ? "configure" : "build"));
-            }
+            compileConfigureTime = compileDuration;
         }
         else
         {
-            printMessage("Errors in Building " + configureOrBuildStr + " Executable");
-            printMessage(command + "\n");
-            printMessage(*r.output + "\n");
-            exit(r.exitStatus);
+            compileBuildTime = compileDuration;
         }
 
-        if (std::filesystem::exists(configureExe ? "configure.obj" : "build.obj"))
+        if (std::filesystem::exists(objFilename))
         {
-            std::filesystem::remove(configureExe ? "configure.obj" : "build.obj");
+            std::filesystem::remove(objFilename);
+        }
+
+        {
+            std::lock_guard _(printMutex);
+            if (compileRun.exitStatus == EXIT_SUCCESS)
+            {
+                if (!compileRun.output->empty() && *compileRun.output != "hmake.cpp\r\n")
+                {
+                    printMessage(command);
+                    printMessage(*compileRun.output);
+                }
+                else
+                {
+                    printMessage(FORMAT("Built {} executable  ({})\n", label, formatSeconds(compileDuration)));
+                }
+            }
+            else
+            {
+                printMessage("Errors in Building " + label + " Executable\n");
+                printMessage(command + "\n");
+                printMessage(*compileRun.output + "\n");
+                exit(compileRun.exitStatus);
+            }
+        }
+
+        if (configureExe)
+        {
+            printMessage("Running configure executable\n");
+
+            const auto runStart = Clock::now();
+            RunCommand configureRun;
+            configureRun.runProcess(configureExePath.c_str());
+            runConfigureTime = Clock::now() - runStart;
+
+            std::lock_guard _(printMutex);
+            configureRunExitStatus = configureRun.exitStatus;
+            if (configureRun.exitStatus == EXIT_SUCCESS)
+            {
+                printMessage(*configureRun.output);
+            }
+            else
+            {
+                printErrorMessage(*configureRun.output);
+            }
         }
     };
 
@@ -272,18 +319,14 @@ int main(int argc, char **argv)
     configureExeThread.join();
     buildExeThread.join();
 
-    printMessage("Running configure executable\n");
-    RunCommand r;
-    r.runProcess(configureExePath.c_str());
-    if (r.exitStatus == EXIT_SUCCESS)
-    {
-        printMessage(*r.output);
-    }
-    else
-    {
-        printErrorMessage(*r.output);
-    }
-    // current_path("Release/std-cpp");
-    // system("hbuild");
-    return 0;
+    const Seconds totalTime = Clock::now() - totalStart;
+
+    printMessage("\n");
+    printMessage(FORMAT("Step 1 — Compile configure executable : {}\n", formatSeconds(compileConfigureTime)));
+    printMessage(FORMAT("Step 2 — Compile build executable     : {}\n", formatSeconds(compileBuildTime)));
+    printMessage(FORMAT("Step 3 — Run configure executable     : {}\n", formatSeconds(runConfigureTime)));
+    printMessage("---------------------------------------------------\n");
+    printMessage(FORMAT("Total                                 : {}\n", formatSeconds(totalTime)));
+
+    return configureRunExitStatus;
 }

@@ -66,7 +66,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
 
 void PLOAT::initializePLOAT()
 {
-    const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
+    const char *ptr = bTargetCaches[cacheIndex].configCache.data();
     outputFileNode = readHalfNode(ptr, configCacheBytesRead);
     const uint32_t size = readUint32(ptr, configCacheBytesRead);
     useReqLibraryDirs.reserve(size);
@@ -119,7 +119,7 @@ void PLOAT::completeRoundOne()
     if constexpr (bsMode == BSMode::BUILD)
     {
         readCacheAtBuildTime();
-        outputFileNode->toBeChecked = true;
+        outputFileNode->doStatFile = true;
     }
     else
     {
@@ -143,7 +143,7 @@ void PLOAT::completeRoundOne()
 
     for (const uint32_t index : reqDepsVecIndices)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+        PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
         if constexpr (bsMode == BSMode::BUILD)
         {
             if (evaluate(TargetType::LIBRARY_STATIC))
@@ -184,7 +184,7 @@ void PLOAT::completeRoundOne()
 
 void PLOAT::readCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+    const string_view configCache = bTargetCaches[cacheIndex].configCache;
     const char *ptr = configCache.data();
 
     const uint32_t reqVecSize = readUint32(ptr, configCacheBytesRead);

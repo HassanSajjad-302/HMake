@@ -127,7 +127,7 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
         {
             printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
                                      "declaration before the dependent is an invariant in HMake.",
-                                     fileTargetCaches[ourDep->cacheIndex].name, fileTargetCaches[us->cacheIndex].name));
+                                     bTargetCaches[ourDep->cacheIndex].name, bTargetCaches[us->cacheIndex].name));
         }
 
         if (depType == DepType::PUBLIC)
