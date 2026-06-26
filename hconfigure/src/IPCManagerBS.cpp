@@ -234,7 +234,7 @@ tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFi
 
         bmiFile.fileSize = st.st_size;
     }
-    void *mapping = mmap(nullptr, bmiFile.fileSize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
+    void *mapping = mmap(nullptr, bmiFile.fileSize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
     if (close(fd) == -1)
     {
         return tl::unexpected(getErrorString());

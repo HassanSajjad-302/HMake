@@ -310,12 +310,12 @@ bool pathContainsFile(string_view dir, const string_view file)
     return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
 }
 
-void CppSrc::setFileStatus()
+void CppSrc::setUpdateStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus != UpdateStatus::UNCHECKED)
     {
-       return;
+        return;
     }
 
     if (node->fileType == file_type::not_found)
@@ -339,7 +339,7 @@ void CppSrc::setFileStatus()
     }
     rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
 
-    ObjectFile::setFileStatus();
+    ObjectFile::setUpdateStatus();
 }
 
 bool CppSrc::isEventRegistered(Builder &builder)
@@ -351,7 +351,7 @@ bool CppSrc::isEventRegistered(Builder &builder)
     const RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
-        setFileStatus();
+        setUpdateStatus();
     }
     if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
@@ -1072,7 +1072,7 @@ bool CppMod::isEventRegistered(Builder &builder)
 
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
-        setFileStatus();
+        setUpdateStatus();
     }
     if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
@@ -1205,7 +1205,6 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (waitingFor)
     {
-        ++builder.activeEventCount;
         if (waitingFor->realBTargets[0].exitStatus != EXIT_SUCCESS)
         {
             waitingFor = nullptr;
@@ -1394,10 +1393,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             builder.updateBTargets.emplace(&foundRb, insertionIndex);
             foundRb.insertionIndex = insertionIndex; // not needed probably
         }
-        ++builder.updateBTargetsSizeGoal;
         // This process is going to idle. Build-system will automatically decrement when it launches a new process.
-        ++builder.idleCount;
-        --builder.activeEventCount;
+        ++builder.availableProcessSlots;
         return true;
     }
 
@@ -1483,6 +1480,11 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
 
     target->setCompileCommand(compileCommand);
     compileCommand += "-Wno-experimental-header-units ";
+    if (commandType != CommandType::CONVENTIONAL)
+    {
+        // so the compiler do not launch a new process to pre-process the file
+        compileCommand += "-fno-crash-diagnostics ";
+    }
 
     // if addMockFile is true, then -fuseIPC="mock-file-path" is used instead of -useIPC
     string useIPCsTR;
@@ -1568,12 +1570,12 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     }
 }
 
-void CppMod::setFileStatus()
+void CppMod::setUpdateStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus != UpdateStatus::UNCHECKED)
     {
-       return;
+        return;
     }
 
     if (node->fileType == file_type::not_found)
@@ -1632,7 +1634,7 @@ void CppMod::setFileStatus()
         const RealBTarget *depRb = &cppMod->realBTargets[0];
         if (depRb->updateStatus == UpdateStatus::UNCHECKED)
         {
-            cppMod->setFileStatus();
+            cppMod->setUpdateStatus();
         }
 
         if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)
@@ -1658,7 +1660,7 @@ void CppMod::setFileStatus()
     }
     rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
 
-    ObjectFile::setFileStatus();
+    ObjectFile::setUpdateStatus();
 }
 
 void CppMod::generateStandAloneCommand()

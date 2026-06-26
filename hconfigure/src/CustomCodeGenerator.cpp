@@ -50,7 +50,7 @@ bool HeaderGen::isEventRegistered(Builder &builder)
 
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
-        setFileStatus();
+        setUpdateStatus();
     }
 
     if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)

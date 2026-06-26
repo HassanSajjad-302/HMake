@@ -57,7 +57,7 @@ class CppSrc : public ObjectFile
     /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
     SourceType sourceType = SourceType::CPP;
 
-    /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setFileStatus()`.
+    /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setUpdateStatus()`.
     span<const uint32_t> cachedHeaderFiles;
 
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
@@ -71,7 +71,7 @@ class CppSrc : public ObjectFile
     /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
     void parseHeaderDeps(string &output, Builder &builder);
     /// This compares lastWrite of source-node with object-node and header-files
-    void setFileStatus() override;
+    void setUpdateStatus() override;
 
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view) override;
@@ -253,7 +253,7 @@ class CppMod : public CppSrc
     void getCompileCommand(std::pmr::string &compileCommand, CommandType commandType, string_view mockFilePath) const;
 
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
-    void setFileStatus() override;
+    void setUpdateStatus() override;
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
     /// stand-alone without the need for the build-system.

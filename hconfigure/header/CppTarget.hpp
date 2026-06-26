@@ -144,6 +144,10 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>
     /// and modules. As IPC based compilation does not support #include_next used by some standard headers.
     bool useIPC = true;
 
+    /// Escapes and quotes a preprocessor define value if it contains spaces or metacharacters,
+    /// ensuring that the generated command string is valid for process launchers (like wordexp).
+    static string escapeAndQuoteDefineValue(string_view val);
+
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
     void setCompileCommand(std::pmr::string &compileCommand);
 
@@ -988,8 +992,8 @@ template <typename... U> CppTarget &CppTarget::moduleFiles(NodeOrStr modFile, U.
 template <typename... U>
 CppTarget &CppTarget::publicCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
-    reqCompileDefinitions.emplace(cddName, cddValue);
-    useReqCompileDefinitions.emplace(cddName, cddValue);
+    reqCompileDefinitions.emplace(cddName, escapeAndQuoteDefineValue(cddValue));
+    useReqCompileDefinitions.emplace(cddName, escapeAndQuoteDefineValue(cddValue));
 
     if constexpr (sizeof...(compileDefines))
     {
@@ -1004,7 +1008,7 @@ CppTarget &CppTarget::publicCompileDefines(const string &cddName, const string &
 template <typename... U>
 CppTarget &CppTarget::privateCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
-    reqCompileDefinitions.emplace(cddName, cddValue);
+    reqCompileDefinitions.emplace(cddName, escapeAndQuoteDefineValue(cddValue));
 
     if constexpr (sizeof...(compileDefines))
     {
@@ -1019,7 +1023,7 @@ CppTarget &CppTarget::privateCompileDefines(const string &cddName, const string 
 template <typename... U>
 CppTarget &CppTarget::interfaceCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
-    useReqCompileDefinitions.emplace(cddName, cddValue);
+    useReqCompileDefinitions.emplace(cddName, escapeAndQuoteDefineValue(cddValue));
 
     if constexpr (sizeof...(compileDefines))
     {

@@ -173,7 +173,7 @@ using DepSet = flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual>;
 /// Incremental-build decision for a `RealBTarget` in round 0.
 enum class UpdateStatus : char
 {
-    UNCHECKED = 0,         ///< Not yet evaluated by `setFileStatus()`.
+    UNCHECKED = 0,         ///< Not yet evaluated by `setUpdateStatus()`.
     UPDATE_NEEDED = 1,     ///< Inputs or dependencies changed; this target must run.
     UPDATE_NOT_NEEDED = 2, ///< Up to date; skip launching work.
 };
@@ -212,8 +212,8 @@ class alignas(128) RealBTarget
 
     /// Content fingerprint for incremental builds when `BTarget::launchesProcess` is true.
     ///
-    /// Subclasses (e.g. `CppSrc`, `CppMod`, `HeaderGen`) compute this in `setFileStatus()` — typically a rapidhash over
-    /// `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setFileStatus()`, which
+    /// Subclasses (e.g. `CppSrc`, `CppMod`, `HeaderGen`) compute this in `setUpdateStatus()` — typically a rapidhash over
+    /// `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setUpdateStatus()`, which
     /// compares the live value to the footer stored in `BTargetCache` (loaded by `readBuildCache()` / updated at end of
     /// build via `getBuildCache()`). A mismatch sets `updateStatus` to `UpdateStatus::UPDATE_NEEDED`.
     uint64_t cumulativeHash = 0;
@@ -223,12 +223,12 @@ class alignas(128) RealBTarget
     /// When `BTarget::launchesProcess` is true:
     ///   - Set to the wall-clock time immediately before the child process is started.
     ///   - Restored from the build-cache footer in `initializeBTarget()`.
-    ///   - `BTarget::setFileStatus()` marks the target stale if any FULL/WAIT dependency has a greater `launchTime`
+    ///   - `BTarget::setUpdateStatus()` marks the target stale if any FULL/WAIT dependency has a greater `launchTime`
     ///     (a dependency was rebuilt after this target last ran).
     ///
     /// When `BTarget::launchesProcess` is false:
     ///   - Not read from the build-cache footer.
-    ///   - After recursively evaluating dependencies, `BTarget::setFileStatus()` sets this to the maximum
+    ///   - After recursively evaluating dependencies, `BTarget::setUpdateStatus()` sets this to the maximum
     ///     `launchTime` among those dependencies so upstream targets can detect downstream rebuilds.
     uint64_t launchTime = -1;
 
@@ -236,7 +236,7 @@ class alignas(128) RealBTarget
     /// libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort : 29 = 0;
 
-    /// Incremental-build state for round 0. Set by `setFileStatus()` and subclass overrides.
+    /// Incremental-build state for round 0. Set by `setUpdateStatus()` and subclass overrides.
     /// `Builder::decrementFromDependents()` marks this `RealBTarget` completed; if it finished with
     /// `UpdateStatus::UPDATE_NEEDED`, FULL dependents are also marked `UpdateStatus::UPDATE_NEEDED`.
     UpdateStatus updateStatus = UpdateStatus::UNCHECKED;
@@ -392,7 +392,7 @@ class BTarget // BTarget
     /// `BSMode::BUILD`: requires an existing config-cache entry (errors if `cacheName` is missing — run configure
     /// first). config-cache / build-cache slices were loaded earlier in `initializeCache()` → `readConfigCache()` /
     /// `readBuildCache()`. When `launchesProcess` is true, restores `realBTargets[0].launchTime` from the footer;
-    /// `cumulativeHash` is compared later in `setFileStatus()`.
+    /// `cumulativeHash` is compared later in `setUpdateStatus()`.
     ///
     /// TODO: persist `launchesProcess` in config-cache (e.g. packed in `BTargetCache::bTarget`) and error if it
     /// differs from the current constructor argument.
@@ -462,7 +462,7 @@ class BTarget // BTarget
     ///
     /// When `launchesProcess` is false: `highestTime` starts at 0.
     ///
-    /// Recurses over FULL/WAIT dependencies (calling `setFileStatus()` on any that are still `UNCHECKED`). For each:
+    /// Recurses over FULL/WAIT dependencies (calling `setUpdateStatus()` on any that are still `UNCHECKED`). For each:
     /// - If the dependency is `UPDATE_NEEDED`, this target is also `UPDATE_NEEDED`.
     /// - If `launchesProcess` and `depRb->launchTime > highestTime` (a dep was rebuilt after this target last ran),
     ///   this target is `UPDATE_NEEDED`.
@@ -472,8 +472,8 @@ class BTarget // BTarget
     /// `highestTime` into `realBTargets[0].launchTime` so upstream targets can detect downstream rebuilds.
     ///
     /// Subclasses (`CppSrc`, `CppMod`, `LOAT`, `HeaderGen`) compute `cumulativeHash` from content hashes of inputs
-    /// and call this base implementation via `ObjectFile::setFileStatus()` / `PLOAT::setFileStatus()`.
-    virtual void setFileStatus();
+    /// and call this base implementation via `ObjectFile::setUpdateStatus()` / `PLOAT::setUpdateStatus()`.
+    virtual void setUpdateStatus();
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be
     /// run stand-alone without the need for the build-system.

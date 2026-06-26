@@ -363,7 +363,7 @@ bool BTarget::isEventCompleted(Builder &builder, string_view message)
     return false;
 }
 
-void BTarget::setFileStatus()
+void BTarget::setUpdateStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus != UpdateStatus::UNCHECKED)
@@ -401,7 +401,7 @@ void BTarget::setFileStatus()
 
         if (depRb->updateStatus == UpdateStatus::UNCHECKED)
         {
-            depRb->getBTarget()->setFileStatus();
+            depRb->getBTarget()->setUpdateStatus();
         }
 
         if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)

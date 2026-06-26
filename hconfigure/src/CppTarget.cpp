@@ -1755,6 +1755,43 @@ CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, cons
     std::unreachable();
 }
 
+string CppTarget::escapeAndQuoteDefineValue(string_view val)
+{
+    if (val.empty())
+        return {};
+
+    constexpr auto isSpecial = [](char c) noexcept
+    {
+        switch (c)
+        {
+        case ' ':  case '\t':
+        case '(':  case ')':  case ',':
+        case '\'': case '"':  case '\\':
+        case '$':  case '`':
+        case '<':  case '>':
+        case '|':  case '&':  case ';':
+            return true;
+        default:
+            return false;
+        }
+    };
+
+    if (std::ranges::none_of(val, isSpecial))
+        return string(val);
+
+    string result;
+    result.reserve(val.size() + 8); // +2 quotes, headroom for a few escapes
+    result.push_back('"');
+    for (const char c : val)
+    {
+        if (c == '"' || c == '\\' || c == '$' || c == '`')
+            result.push_back('\\');
+        result.push_back(c);
+    }
+    result.push_back('"');
+    return result;
+}
+
 void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
 {
     Compiler &compiler = configuration->compilerFeatures.compiler;

@@ -614,7 +614,7 @@ tl::expected<Mapping, std::string> IPCManagerCompiler::readSharedMemoryBMIFile(c
     {
         return tl::unexpected(getErrorString());
     }
-    void *mapping = mmap(nullptr, file.fileSize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
+    void *mapping = mmap(nullptr, file.fileSize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
 
     if (close(fd) == -1)
     {

@@ -71,14 +71,14 @@ inline uint32_t currentIndexOutput = 0;
 /// - Configure mode stops after this round; `configureOrBuild()` then writes `nodes`, `config-cache`, and `build-cache`.
 ///
 /// Round 0 — `executeRoundZero()` (async processes, `epoll` on Linux / IOCP on Windows):
-/// - After `checkNodes(true)`, targets call `setFileStatus()` (see incremental builds below).
+/// - After `checkNodes(true)`, targets call `setUpdateStatus()` (see incremental builds below).
 /// - `isEventRegistered()` starts work or finishes synchronously; the event loop invokes `isEventCompleted()` on IPC
 ///   traffic or process exit. Returning `false` completes the bTarget and unblocks dependents.
 /// - `CppMod` bring-to-front: if a module/hu is already in `updateBTargets` but `isEventRegistered()` has not run, and
 ///   compilations are blocked on it, the consumer nulls the old slot at `insertionIndex` and re-enqueues the dependency
 ///   at the head. That prioritizes work with known waiters and lowers peak memory (fewer idle compiler processes).
 ///
-/// Incremental builds: `checkNodes()` fills `Node::contentHash` (rapidhash of file contents). `setFileStatus()` compares
+/// Incremental builds: `checkNodes()` fills `Node::contentHash` (rapidhash of file contents). `setUpdateStatus()` compares
 /// those hashes plus cached `cumulativeHash` / `launchTime` in the build-cache footer — not file mtimes alone.
 class Builder
 {
@@ -116,10 +116,7 @@ class Builder
     uint64_t serverFd;
 
     /// Available launcher slots.
-    uint16_t idleCount = 0;
-
-    /// Count of targets currently registered in event loop. Used for debugging purposes.
-    uint32_t activeEventCount = 0;
+    uint16_t availableProcessSlots = 0;
 
     /// Number of targets already consumed from `updatedBTarget` queue.
     uint32_t updatedCount = 0;

@@ -194,15 +194,16 @@ void Builder::executeRoundZero()
 
     serverFd = createMultiplex();
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
+    updatedCount = 0;
 
     // edit the following if you want to run in lesser threads.
     // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
-    uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
-    // numberOfLaunchedThreads = 1;
-    idleCount = numberOfLaunchedThreads;
-    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 16;
+    uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
+    // maxRunningProcessAllowed = 1;
+    availableProcessSlots = maxRunningProcessAllowed;
+    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 8;
 
-    if (!idleCount)
+    if (!availableProcessSlots)
     {
         printErrorMessage("number of maximum parallel process is 0\n");
     }
@@ -258,10 +259,18 @@ void Builder::executeRoundZero()
 
             // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
             // do so only when we are down to 0 active process.
-            const bool launchNewOne = pid == -1
-                                          ? (maxSimultaneousProcessDesired > simultaneousProcessCount && idleCount) ||
-                                                idleCount == numberOfLaunchedThreads
-                                          : idleCount > 0;
+            bool launchNewOne;
+            if (pid != -1)
+            {
+                launchNewOne = availableProcessSlots > 0;
+            }
+            else
+            {
+                const bool hasSlot = availableProcessSlots > 0;
+                const bool underLimit = simultaneousProcessCount < maxSimultaneousProcessDesired;
+                const bool nothingRunning = availableProcessSlots == maxRunningProcessAllowed;
+                launchNewOne = hasSlot && (underLimit || nothingRunning);
+            }
 
             if (!launchNewOne)
             {
@@ -270,11 +279,10 @@ void Builder::executeRoundZero()
             }
 
             updateBTargets.moveForward();
-            ++updatedCount;
 
             if (b->getBTarget()->isEventRegistered(*this))
             {
-                --idleCount;
+                --availableProcessSlots;
             }
             else
             {
@@ -282,136 +290,128 @@ void Builder::executeRoundZero()
             }
         }
 
-        if (activeEventCount)
+        if (availableProcessSlots == maxRunningProcessAllowed)
         {
-
-            /*
-            printMessage(getColorCode(ColorIndex::alice_blue));
-            auto end = std::chrono::high_resolution_clock::now();
-            printMessage(FORMAT("Active Event Count {} time-passed{}\n", activeEventCount, (end-start).count()));
-            printMessage(getColorCode(ColorIndex::reset));
-            */
-
-#ifdef _WIN32
-            OVERLAPPED_ENTRY events[128];
-            ULONG n = 0;
-            if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, events, 128, &n, INFINITE, FALSE))
-            {
-                printErrorMessage(P2978::getErrorString());
-            }
-
-            if constexpr (ndeb == NDEB::NO)
-            {
-                if (n > activeEventCount)
-                {
-                    printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
-                }
-            }
-            for (ULONG i = 0; i < n; i++)
-            {
-                const uint64_t index = events[i].lpCompletionKey;
-                if (index == -1)
-                {
-                    string buffer;
-                    writeBuildBuffer(buffer);
-                    exit(EXIT_SUCCESS);
-                }
-                CompletionKey &k = eventData[index];
-                if constexpr (ndeb == NDEB::NO)
-                {
-                    if (&(OVERLAPPED &)k.overlappedBuffer != events[i].lpOverlapped)
-                    {
-                        // printErrorMessage("events[i].lpOverlapped != events[i].lpOverlapped\n");
-                    }
-                }
-
-                if (BTarget *bTarget = k.target; bTarget && !callIsEventCompleted(bTarget, index))
-                {
-                    decrementFromDependents(bTarget->realBTargets[0]);
-                    ++idleCount;
-                }
-            }
-#else
-            epoll_event events[128];
-            const int n = epoll_wait(serverFd, events, 128, -1);
-
-            if constexpr (ndeb == NDEB::NO)
-            {
-                // +1 accounts for possible signalfd readiness event.
-                if (n != -1 && n > activeEventCount + 1)
-                {
-                    for (uint32_t i = 0; i < 4096; i++)
-                    {
-                        if (eventData[i])
-                        {
-                            printMessage(eventData[i]->getPrintName() + '\n');
-                        }
-                    }
-                    HMAKE_HMAKE_INTERNAL_ERROR
-                }
-            }
-
-            for (int i = 0; i < n; i++)
-            {
-                const int fd = events[i].data.fd;
-                if (fd == sfd)
-                {
-                    signalfd_siginfo signalInfo{};
-                    const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
-                    if (bytesRead == -1)
-                    {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK)
-                        {
-                            continue;
-                        }
-                        printErrorMessage(FORMAT("read(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
-                    }
-                    if (bytesRead != sizeof(signalInfo))
-                    {
-                        printErrorMessage("Short read from signalfd\n");
-                    }
-
-                    const string buildCache = getBuildCache();
-                    writeNodesCacheIfNewNodesAdded();
-                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                                buildCache);
-
-                    std::_Exit(EXIT_SUCCESS);
-                }
-                if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
-                {
-                    decrementFromDependents(bt->realBTargets[0]);
-                    ++idleCount;
-                }
-            }
-#endif
-            continue;
-        }
-
-        if (updatedCount == updateBTargetsSizeGoal)
-        {
-            // At this point the list must be empty
-            if (updateBTargets.hasElement())
-            {
-                HMAKE_HMAKE_INTERNAL_ERROR
-            }
-            /*for (uint32_t i = 0; i < updateBTargetsSizeGoal; ++i)
-            {
-                printMessage(updateBTargets.array[i].value->bTarget->getPrintName() + '\n');
-            }*/
             break;
         }
 
-        if (idleCount == numberOfLaunchedThreads)
+        /*
+        printMessage(getColorCode(ColorIndex::alice_blue));
+        auto end = std::chrono::high_resolution_clock::now();
+        printMessage(FORMAT("Active Event Count {} time-passed{}\n", activeEventCount, (end-start).count()));
+        printMessage(getColorCode(ColorIndex::reset));
+        */
+
+#ifdef _WIN32
+        OVERLAPPED_ENTRY events[128];
+        ULONG n = 0;
+        if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, events, 128, &n, INFINITE, FALSE))
         {
-            RealBTarget::sortGraph();
-            printErrorMessage("HMake API misuse.\n");
+            printErrorMessage(P2978::getErrorString());
         }
+
+        if constexpr (ndeb == NDEB::NO)
+        {
+            if (n > activeEventCount)
+            {
+                printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
+            }
+        }
+        for (ULONG i = 0; i < n; i++)
+        {
+            const uint64_t index = events[i].lpCompletionKey;
+            if (index == -1)
+            {
+                string buffer;
+                writeBuildBuffer(buffer);
+                exit(EXIT_SUCCESS);
+            }
+            CompletionKey &k = eventData[index];
+            if constexpr (ndeb == NDEB::NO)
+            {
+                if (&(OVERLAPPED &)k.overlappedBuffer != events[i].lpOverlapped)
+                {
+                    // printErrorMessage("events[i].lpOverlapped != events[i].lpOverlapped\n");
+                }
+            }
+
+            if (BTarget *bTarget = k.target; bTarget && !callIsEventCompleted(bTarget, index))
+            {
+                decrementFromDependents(bTarget->realBTargets[0]);
+                ++availableProcessSlots;
+            }
+        }
+#else
+        epoll_event events[128];
+        const int n = epoll_wait(serverFd, events, 128, -1);
+
+        if constexpr (ndeb == NDEB::NO)
+        {
+            // +1 accounts for possible signalfd readiness event.
+            if (n != -1 && n > availableProcessSlots)
+            {
+                for (uint32_t i = 0; i < 4096; i++)
+                {
+                    if (eventData[i])
+                    {
+                        printMessage(eventData[i]->getPrintName() + '\n');
+                    }
+                }
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            const int fd = events[i].data.fd;
+            if (fd == sfd)
+            {
+                signalfd_siginfo signalInfo{};
+                const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
+                if (bytesRead == -1)
+                {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
+                        continue;
+                    }
+                    printErrorMessage(FORMAT("read(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
+                }
+                if (bytesRead != sizeof(signalInfo))
+                {
+                    printErrorMessage("Short read from signalfd\n");
+                }
+
+                const string buildCache = getBuildCache();
+                writeNodesCacheIfNewNodesAdded();
+                writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                            buildCache);
+
+                std::_Exit(EXIT_SUCCESS);
+            }
+            if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
+            {
+                decrementFromDependents(bt->realBTargets[0]);
+                ++availableProcessSlots;
+            }
+        }
+#endif
     }
-    if (activeEventCount)
+
+    if (updatedCount != updateBTargetsSizeGoal)
     {
-        HMAKE_HMAKE_INTERNAL_ERROR
+        // At this point the list must be empty
+        if (updateBTargets.hasElement())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+        /*for (uint32_t i = 0; i < updateBTargetsSizeGoal; ++i)
+        {
+            printMessage(updateBTargets.array[i].value->bTarget->getPrintName() + '\n');
+        }*/
+        RealBTarget::sortGraph();
+        printErrorMessage("HMake API misuse.\n");
     }
+
 #ifndef _WIN32
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, sfd, nullptr) == -1)
     {
@@ -430,7 +430,6 @@ void Builder::executeRoundZero()
 
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 {
-    ++activeEventCount;
 #ifdef _WIN32
     if (unusedKeysIndices.empty())
     {
@@ -524,7 +523,6 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
-    --activeEventCount;
 #ifndef _WIN32
     // Remove FDs from epoll now that process has exited
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
@@ -745,6 +743,8 @@ void Builder::execute()
 
 void Builder::decrementFromDependents(RealBTarget &rb)
 {
+    ++updatedCount;
+
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
     if (rb.exitStatus != EXIT_SUCCESS)
     {
@@ -784,9 +784,9 @@ void Builder::decrementFromDependents(RealBTarget &rb)
 uint32_t Builder::getCapacityForNewProcesses() const
 {
     if (const uint32_t desiredCapacity = maxSimultaneousProcessDesired - simultaneousProcessCount;
-        desiredCapacity > idleCount)
+        desiredCapacity > availableProcessSlots)
     {
         return desiredCapacity;
     }
-    return idleCount;
+    return availableProcessSlots;
 }

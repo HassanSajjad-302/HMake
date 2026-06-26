@@ -70,7 +70,7 @@ void LOAT::setOutputName(string str)
 #endif
 }
 
-void LOAT::setFileStatus()
+void LOAT::setUpdateStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus != UpdateStatus::UNCHECKED)
@@ -84,7 +84,7 @@ void LOAT::setFileStatus()
         return;
     }
 
-    PLOAT::setFileStatus();
+    PLOAT::setUpdateStatus();
 }
 
 void LOAT::completeRoundOne()
@@ -324,7 +324,7 @@ bool LOAT::isEventRegistered(Builder &builder)
     setLinkOrArchiveCommands(linkWithTargets, false);
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
-        setFileStatus();
+        setUpdateStatus();
     }
 
     if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)

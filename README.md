@@ -49,7 +49,7 @@ size of UE5 — and near-instant build startup even for very large projects.
 `initializeCache()` loads path strings from the `nodes` cache file without stating or hashing them yet. Before round 0,
 `Builder::checkNodes(true)` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
 `doStatFile` / `doHashFile`. Skip/rebuild decisions use `Node::contentHash` (rapidhash of file contents) inside
-`setFileStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
+`setUpdateStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
 nodes that were flagged during compilation (for example headers discovered from compiler output).
 
 ### BTargetCache
@@ -83,7 +83,7 @@ can move it to the head of `updateBTargets` using `RealBTarget::insertionIndex` 
 the dependency is not scheduled twice). That prioritizes work with known waiters over other ready targets and lowers peak
 memory by reducing how long compiler processes sit idle.
 
-**Incremental decisions.** After `checkNodes(true)`, selective targets call `setFileStatus()`, which compares
+**Incremental decisions.** After `checkNodes(true)`, selective targets call `setUpdateStatus()`, which compares
 `Node::contentHash`, cached `cumulativeHash`, and dependency `launchTime` from the build-cache footer — not mtimes alone.
 When inputs change during the build, targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()` refreshes
 hashes and rewrites those entries before saving `build-cache`.

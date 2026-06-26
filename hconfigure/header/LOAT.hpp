@@ -36,7 +36,7 @@ class LOAT : public PLOAT
     LOAT(Configuration &config_, Node *myBuildDir_, bool buildExplicit, const string &name_, TargetType targetType);
     void setOutputName(string str);
 
-    void setFileStatus() override;
+    void setUpdateStatus() override;
     void completeRoundOne() override;
 
     string getPrintName() const override;
