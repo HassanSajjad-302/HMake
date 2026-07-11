@@ -1,4 +1,3 @@
-
 #include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
@@ -7,6 +6,11 @@
 #include <filesystem>
 #include <fstream>
 #include <utility>
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
+#include <sstream>
+#include <format>
 
 using std::ofstream, std::filesystem::remove;
 
@@ -142,36 +146,6 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
     convertPathsToWSLPaths(libraryDirs);
 }
 
-void to_json(Json &j, const VSTools &vsTool)
-{
-    j[JConsts::command] = vsTool.command;
-    j[JConsts::commandArguments] = vsTool.commandArguments;
-    j[JConsts::compiler] = vsTool.compiler;
-    j[JConsts::linker] = vsTool.linker;
-    j[JConsts::archiver] = vsTool.archiver;
-    j[JConsts::hostArchitecture] = vsTool.hostArch;
-    j[JConsts::hostArddressModel] = vsTool.hostAM;
-    j[JConsts::targetArchitecture] = vsTool.targetArch;
-    j[JConsts::targetAddressModel] = vsTool.targetAM;
-    j[JConsts::includeDirs] = vsTool.includeDirs;
-    j[JConsts::libraryDirs] = vsTool.libraryDirs;
-}
-
-void from_json(const Json &j, VSTools &vsTool)
-{
-    vsTool.command = j.at(JConsts::command).get<string>();
-    vsTool.commandArguments = j.at(JConsts::commandArguments).get<string>();
-    vsTool.compiler = j.at(JConsts::compiler).get<Compiler>();
-    vsTool.linker = j.at(JConsts::linker).get<Linker>();
-    vsTool.archiver = j.at(JConsts::archiver).get<Archiver>();
-    vsTool.hostArch = j.at(JConsts::hostArchitecture).get<Arch>();
-    vsTool.hostAM = j.at(JConsts::hostArddressModel).get<AddressModel>();
-    vsTool.targetArch = j.at(JConsts::targetArchitecture).get<Arch>();
-    vsTool.targetAM = j.at(JConsts::targetAddressModel).get<AddressModel>();
-    vsTool.includeDirs = j.at(JConsts::includeDirs).get<vector<string>>();
-    vsTool.libraryDirs = j.at(JConsts::libraryDirs).get<vector<string>>();
-}
-
 LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
     const string str = std::filesystem::current_path().string();
@@ -229,18 +203,190 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
     }
 }
 
-void to_json(Json &j, const LinuxTools &linuxTools)
-{
-    j[JConsts::command] = linuxTools.command;
-    j[JConsts::compiler] = linuxTools.compiler;
-    j[JConsts::includeDirs] = linuxTools.includeDirs;
+static string archToString(Arch a) {
+    switch (a) {
+        case Arch::X86: return "X86";
+        case Arch::ARM: return "ARM";
+        case Arch::S390X: return "S390X";
+        case Arch::POWER: return "POWER";
+        case Arch::LOONGARCH: return "LOONGARCH";
+        default: return "NONE";
+    }
+}
+static Arch stringToArch(const string& s) {
+    if (s == "X86") return Arch::X86;
+    if (s == "ARM") return Arch::ARM;
+    if (s == "S390X") return Arch::S390X;
+    if (s == "POWER") return Arch::POWER;
+    if (s == "LOONGARCH") return Arch::LOONGARCH;
+    return Arch::NONE;
 }
 
-void from_json(const Json &j, LinuxTools &linuxTools)
-{
-    linuxTools.command = j.at(JConsts::command).get<string>();
-    linuxTools.compiler = j.at(JConsts::compiler).get<Compiler>();
-    linuxTools.includeDirs = j.at(JConsts::includeDirs).get<vector<string>>();
+static string amToString(AddressModel am) {
+    switch (am) {
+        case AddressModel::A_32: return "A_32";
+        case AddressModel::A_64: return "A_64";
+        default: return "NONE";
+    }
+}
+static AddressModel stringToAm(const string& s) {
+    if (s == "A_32") return AddressModel::A_32;
+    if (s == "A_64") return AddressModel::A_64;
+    return AddressModel::NONE;
+}
+
+static string familyToString(BTFamily f) {
+    if (f == BTFamily::GCC) return "gcc";
+    return "msvc";
+}
+static BTFamily stringToFamily(const string& s) {
+    if (s == "gcc") return BTFamily::GCC;
+    return BTFamily::MSVC;
+}
+
+static string subFamilyToString(BTSubFamily f) {
+    if (f == BTSubFamily::CLANG) return "clang";
+    return "";
+}
+static BTSubFamily stringToSubFamily(const string& s) {
+    if (s == "clang") return BTSubFamily::CLANG;
+    return BTSubFamily::NONE;
+}
+
+static void writeVersion(rapidjson::Value& val, const Version& v, rapidjson::Document::AllocatorType& alloc) {
+    string s = std::format("{}.{}.{}", v.majorVersion, v.minorVersion, v.patchVersion);
+    val.SetString(s.c_str(), s.length(), alloc);
+}
+static Version readVersion(const rapidjson::Value& val) {
+    Version v;
+    string s = val.GetString();
+    std::stringstream ss(s);
+    string item;
+    int count = 0;
+    while (std::getline(ss, item, '.')) {
+        if (count == 0) v.majorVersion = std::stoi(item);
+        else if (count == 1) v.minorVersion = std::stoi(item);
+        else v.patchVersion = std::stoi(item);
+        ++count;
+    }
+    return v;
+}
+
+static void writeBuildTool(rapidjson::Value& val, const BuildTool& bt, rapidjson::Document::AllocatorType& alloc) {
+    val.SetObject();
+    rapidjson::Value family(familyToString(bt.bTFamily).c_str(), alloc);
+    val.AddMember("family", family, alloc);
+    rapidjson::Value subFamily(subFamilyToString(bt.btSubFamily).c_str(), alloc);
+    val.AddMember("sub-family", subFamily, alloc);
+    rapidjson::Value version;
+    writeVersion(version, bt.bTVersion, alloc);
+    val.AddMember("version", version, alloc);
+    rapidjson::Value path(bt.bTPath.c_str(), alloc);
+    val.AddMember("path", path, alloc);
+}
+static void readBuildTool(const rapidjson::Value& val, BuildTool& bt) {
+    if (val.HasMember("family")) bt.bTFamily = stringToFamily(val["family"].GetString());
+    if (val.HasMember("sub-family")) bt.btSubFamily = stringToSubFamily(val["sub-family"].GetString());
+    if (val.HasMember("version")) bt.bTVersion = readVersion(val["version"]);
+    if (val.HasMember("path")) bt.bTPath = val["path"].GetString();
+}
+
+static void writeVSTools(rapidjson::Value& val, const VSTools& vt, rapidjson::Document::AllocatorType& alloc) {
+    val.SetObject();
+    rapidjson::Value command(vt.command.c_str(), alloc);
+    val.AddMember("command", command, alloc);
+    rapidjson::Value commandArguments(vt.commandArguments.c_str(), alloc);
+    val.AddMember("commandArguments", commandArguments, alloc);
+    
+    rapidjson::Value compilerVal;
+    writeBuildTool(compilerVal, vt.compiler, alloc);
+    val.AddMember("compiler", compilerVal, alloc);
+    
+    rapidjson::Value linkerVal;
+    writeBuildTool(linkerVal, vt.linker, alloc);
+    val.AddMember("linker", linkerVal, alloc);
+    
+    rapidjson::Value archiverVal;
+    writeBuildTool(archiverVal, vt.archiver, alloc);
+    val.AddMember("archiver", archiverVal, alloc);
+    
+    rapidjson::Value hostArch(archToString(vt.hostArch).c_str(), alloc);
+    val.AddMember("host-architecture", hostArch, alloc);
+    
+    rapidjson::Value hostAM(amToString(vt.hostAM).c_str(), alloc);
+    val.AddMember("host-address-model", hostAM, alloc);
+    
+    rapidjson::Value targetArch(archToString(vt.targetArch).c_str(), alloc);
+    val.AddMember("target-architecture", targetArch, alloc);
+    
+    rapidjson::Value targetAM(amToString(vt.targetAM).c_str(), alloc);
+    val.AddMember("target-address-model", targetAM, alloc);
+    
+    rapidjson::Value includeDirsVal(rapidjson::kArrayType);
+    for (const auto& dir : vt.includeDirs) {
+        rapidjson::Value d(dir.c_str(), alloc);
+        includeDirsVal.PushBack(d, alloc);
+    }
+    val.AddMember("include-dirs", includeDirsVal, alloc);
+    
+    rapidjson::Value libraryDirsVal(rapidjson::kArrayType);
+    for (const auto& dir : vt.libraryDirs) {
+        rapidjson::Value d(dir.c_str(), alloc);
+        libraryDirsVal.PushBack(d, alloc);
+    }
+    val.AddMember("library-dirs", libraryDirsVal, alloc);
+}
+static VSTools readVSTools(const rapidjson::Value& val) {
+    VSTools vt;
+    if (val.HasMember("command")) vt.command = val["command"].GetString();
+    if (val.HasMember("commandArguments")) vt.commandArguments = val["commandArguments"].GetString();
+    if (val.HasMember("compiler")) readBuildTool(val["compiler"], vt.compiler);
+    if (val.HasMember("linker")) readBuildTool(val["linker"], vt.linker);
+    if (val.HasMember("archiver")) readBuildTool(val["archiver"], vt.archiver);
+    if (val.HasMember("host-architecture")) vt.hostArch = stringToArch(val["host-architecture"].GetString());
+    if (val.HasMember("host-address-model")) vt.hostAM = stringToAm(val["host-address-model"].GetString());
+    if (val.HasMember("target-architecture")) vt.targetArch = stringToArch(val["target-architecture"].GetString());
+    if (val.HasMember("target-address-model")) vt.targetAM = stringToAm(val["target-address-model"].GetString());
+    
+    if (val.HasMember("include-dirs")) {
+        for (const auto& d : val["include-dirs"].GetArray()) {
+            vt.includeDirs.push_back(d.GetString());
+        }
+    }
+    if (val.HasMember("library-dirs")) {
+        for (const auto& d : val["library-dirs"].GetArray()) {
+            vt.libraryDirs.push_back(d.GetString());
+        }
+    }
+    return vt;
+}
+
+static void writeLinuxTools(rapidjson::Value& val, const LinuxTools& lt, rapidjson::Document::AllocatorType& alloc) {
+    val.SetObject();
+    rapidjson::Value command(lt.command.c_str(), alloc);
+    val.AddMember("command", command, alloc);
+    
+    rapidjson::Value compilerVal;
+    writeBuildTool(compilerVal, lt.compiler, alloc);
+    val.AddMember("compiler", compilerVal, alloc);
+    
+    rapidjson::Value includeDirsVal(rapidjson::kArrayType);
+    for (const auto& dir : lt.includeDirs) {
+        rapidjson::Value d(dir.c_str(), alloc);
+        includeDirsVal.PushBack(d, alloc);
+    }
+    val.AddMember("include-dirs", includeDirsVal, alloc);
+}
+static LinuxTools readLinuxTools(const rapidjson::Value& val) {
+    LinuxTools lt;
+    if (val.HasMember("command")) lt.command = val["command"].GetString();
+    if (val.HasMember("compiler")) readBuildTool(val["compiler"], lt.compiler);
+    if (val.HasMember("include-dirs")) {
+        for (const auto& d : val["include-dirs"].GetArray()) {
+            lt.includeDirs.push_back(d.GetString());
+        }
+    }
+    return lt;
 }
 
 ToolsCache::ToolsCache()
@@ -265,9 +411,6 @@ ToolsCache::ToolsCache()
 
 void ToolsCache::detectToolsAndInitialize()
 {
-    // TODO: replace hardcoded defaults with tool auto-detection.
-    // Once an installer exists, these defaults can move into installation-time setup.
-
     if constexpr (os == OS::NT)
     {
         string batchFilePath =
@@ -290,25 +433,116 @@ void ToolsCache::detectToolsAndInitialize()
 
 void ToolsCache::initializeToolsCacheVariableFromToolsCacheFile()
 {
-    Json toolsCacheJson;
-    std::ifstream(toolsCacheFilePath) >> toolsCacheJson;
-    *this = toolsCacheJson;
+    if (!std::filesystem::exists(toolsCacheFilePath))
+    {
+        return;
+    }
+    std::ifstream ifs(toolsCacheFilePath);
+    string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    rapidjson::Document doc;
+    doc.Parse(content.c_str());
+    if (doc.HasParseError())
+    {
+        return;
+    }
+
+    if (doc.HasMember(JConsts::vsTools.c_str()))
+    {
+        for (const auto& item : doc[JConsts::vsTools.c_str()].GetArray())
+        {
+            vsTools.push_back(readVSTools(item));
+        }
+    }
+    if (doc.HasMember(JConsts::linuxTools.c_str()))
+    {
+        for (const auto& item : doc[JConsts::linuxTools.c_str()].GetArray())
+        {
+            linuxTools.push_back(readLinuxTools(item));
+        }
+    }
+    if (doc.HasMember(JConsts::compilerArray.c_str()))
+    {
+        for (const auto& item : doc[JConsts::compilerArray.c_str()].GetArray())
+        {
+            Compiler c;
+            readBuildTool(item, c);
+            compilers.push_back(c);
+        }
+    }
+    if (doc.HasMember(JConsts::linkerArray.c_str()))
+    {
+        for (const auto& item : doc[JConsts::linkerArray.c_str()].GetArray())
+        {
+            Linker l;
+            readBuildTool(item, l);
+            linkers.push_back(l);
+        }
+    }
+    if (doc.HasMember(JConsts::archiverArray.c_str()))
+    {
+        for (const auto& item : doc[JConsts::archiverArray.c_str()].GetArray())
+        {
+            Archiver a;
+            readBuildTool(item, a);
+            archivers.push_back(a);
+        }
+    }
 }
 
-void to_json(Json &j, const ToolsCache &toolsCacheLocal)
+void ToolsCache::writeToolsCacheFile()
 {
-    j[JConsts::vsTools] = toolsCacheLocal.vsTools;
-    j[JConsts::linuxTools] = toolsCacheLocal.linuxTools;
-    j[JConsts::compilerArray] = toolsCacheLocal.compilers;
-    j[JConsts::linkerArray] = toolsCacheLocal.linkers;
-    j[JConsts::archiverArray] = toolsCacheLocal.archivers;
-}
+    rapidjson::Document doc;
+    doc.SetObject();
+    auto& alloc = doc.GetAllocator();
 
-void from_json(const Json &j, ToolsCache &toolsCacheLocal)
-{
-    toolsCacheLocal.vsTools = j.at(JConsts::vsTools).get<vector<VSTools>>();
-    toolsCacheLocal.linuxTools = j.at(JConsts::linuxTools).get<vector<LinuxTools>>();
-    toolsCacheLocal.compilers = j.at(JConsts::compilerArray).get<vector<Compiler>>();
-    toolsCacheLocal.linkers = j.at(JConsts::linkerArray).get<vector<Linker>>();
-    toolsCacheLocal.archivers = j.at(JConsts::archiverArray).get<vector<Archiver>>();
+    rapidjson::Value vsToolsVal(rapidjson::kArrayType);
+    for (const auto& vt : vsTools)
+    {
+        rapidjson::Value v;
+        writeVSTools(v, vt, alloc);
+        vsToolsVal.PushBack(v, alloc);
+    }
+    doc.AddMember(rapidjson::Value(JConsts::vsTools.c_str(), alloc), vsToolsVal, alloc);
+
+    rapidjson::Value linuxToolsVal(rapidjson::kArrayType);
+    for (const auto& lt : linuxTools)
+    {
+        rapidjson::Value v;
+        writeLinuxTools(v, lt, alloc);
+        linuxToolsVal.PushBack(v, alloc);
+    }
+    doc.AddMember(rapidjson::Value(JConsts::linuxTools.c_str(), alloc), linuxToolsVal, alloc);
+
+    rapidjson::Value compilersVal(rapidjson::kArrayType);
+    for (const auto& c : compilers)
+    {
+        rapidjson::Value v;
+        writeBuildTool(v, c, alloc);
+        compilersVal.PushBack(v, alloc);
+    }
+    doc.AddMember(rapidjson::Value(JConsts::compilerArray.c_str(), alloc), compilersVal, alloc);
+
+    rapidjson::Value linkersVal(rapidjson::kArrayType);
+    for (const auto& l : linkers)
+    {
+        rapidjson::Value v;
+        writeBuildTool(v, l, alloc);
+        linkersVal.PushBack(v, alloc);
+    }
+    doc.AddMember(rapidjson::Value(JConsts::linkerArray.c_str(), alloc), linkersVal, alloc);
+
+    rapidjson::Value archiversVal(rapidjson::kArrayType);
+    for (const auto& a : archivers)
+    {
+        rapidjson::Value v;
+        writeBuildTool(v, a, alloc);
+        archiversVal.PushBack(v, alloc);
+    }
+    doc.AddMember(rapidjson::Value(JConsts::archiverArray.c_str(), alloc), archiversVal, alloc);
+
+    ofstream ofs(toolsCacheFilePath);
+    rapidjson::StringBuffer buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+    doc.Accept(writer);
+    ofs << buffer.GetString();
 }

@@ -31,8 +31,6 @@ endif ()
 
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
 
-add_subdirectory(3rdParty/json)
-
 set(HCONFIGURE_SOURCES
         hconfigure/src/Features.cpp
         hconfigure/src/BTarget.cpp
@@ -73,10 +71,10 @@ if (${INCLUDE_CONFIGURE})
         target_compile_options(hconfigure-c PRIVATE -fPIC)
     endif ()
 
-    target_link_libraries(hconfigure-c PUBLIC nlohmann_json::nlohmann_json)
     target_include_directories(hconfigure-c
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
+            PUBLIC 3rdParty/rapidjson/include
     )
 
     add_executable(htools htools/main.cpp)
@@ -113,10 +111,10 @@ if (${INCLUDE_BUILD})
         target_compile_options(hconfigure-b PRIVATE -fPIC)
     endif ()
 
-    target_link_libraries(hconfigure-b PUBLIC nlohmann_json::nlohmann_json)
     target_include_directories(hconfigure-b
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
+            PUBLIC 3rdParty/rapidjson/include
     )
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
@@ -242,7 +240,6 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         HMake hmake.cpp
         llvm Projects/LLVM/hmake.cpp
         UE5 Projects/UE5/hmake.cpp
-        dealii Projects/dealii/hmake.cpp
         lit Projects/lit/hmake.cpp
         Boost Projects/Boost/hmake.cpp)
 

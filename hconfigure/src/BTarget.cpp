@@ -334,7 +334,7 @@ BTarget::~BTarget()
 {
 }
 
-void BTarget::writeBuildCacheHeaderAtBuildTime(string &buffer) const
+void BTarget::writeBuildCacheFooterAtBuildTime(string &buffer) const
 {
     writeUint64(buffer, realBTargets[0].cumulativeHash);
     writeUint64(buffer, realBTargets[0].launchTime);
@@ -376,7 +376,7 @@ void BTarget::setUpdateStatus()
     {
         uint32_t bytesRead = 0;
         const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
-        if (const uint64_t compileHash = readUint64(ptr, bytesRead); compileHash != rb.cumulativeHash)
+        if (const uint64_t cumulativeHash = readUint64(ptr, bytesRead); cumulativeHash != rb.cumulativeHash)
         {
             rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
             return;

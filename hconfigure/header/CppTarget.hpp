@@ -1346,4 +1346,25 @@ template <> DSC<CppTarget> &DSC<CppTarget>::save(CppTarget &ptr);
 template <> DSC<CppTarget> &DSC<CppTarget>::saveAndReplace(CppTarget &ptr);
 template <> DSC<CppTarget> &DSC<CppTarget>::restore();
 
+extern template CppTarget &CppTarget::moduleFiles<>(NodeOrStr);
+extern template CppTarget &CppTarget::publicCompileDefines<>(const string &, const string &);
+extern template CppTarget &CppTarget::privateCompileDefines<>(const string &, const string &);
+extern template CppTarget &CppTarget::publicHUIncludes<>(NodeOrStr);
+extern template CppTarget &CppTarget::privateHUIncludes<>(NodeOrStr);
+extern template CppTarget &CppTarget::publicIncludesSource<>(NodeOrStr);
+extern template CppTarget &CppTarget::privateIncludesSource<>(NodeOrStr);
+extern template CppTarget &CppTarget::publicIncludes<>(NodeOrStr);
+extern template CppTarget &CppTarget::privateIncludes<>(NodeOrStr);
+extern template CppTarget &CppTarget::publicHUDirs<>(NodeOrStr, const string &);
+extern template CppTarget &CppTarget::privateHUDirs<>(NodeOrStr, const string &);
+extern template CppTarget &CppTarget::publicHUDirsRE<>(NodeOrStr, const string &, const string &);
+extern template CppTarget &CppTarget::privateHUDirsRE<>(NodeOrStr, const string &, const string &);
+extern template CppTarget &CppTarget::publicIncDirs<>(NodeOrStr, const string &);
+extern template CppTarget &CppTarget::privateIncDirs<>(NodeOrStr, const string &);
+extern template CppTarget &CppTarget::publicIncDirsRE<>(NodeOrStr, const string &, const string &);
+extern template CppTarget &CppTarget::privateIncDirsRE<>(NodeOrStr, const string &, const string &);
+
+extern template CppTarget &ObjectFileProducerWithDS<CppTarget>::publicDeps<>(CppTarget &);
+extern template CppTarget &ObjectFileProducerWithDS<CppTarget>::privateDeps<>(CppTarget &);
+
 #endif // HMAKE_CPPTARGET_HPP

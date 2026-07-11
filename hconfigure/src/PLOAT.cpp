@@ -255,8 +255,3 @@ bool operator<(const PLOAT &lhs, const PLOAT &rhs)
 {
     return lhs.id < rhs.id;
 }
-
-void to_json(Json &json, const PLOAT &PLOAT)
-{
-    json = PLOAT.getPrintName();
-}

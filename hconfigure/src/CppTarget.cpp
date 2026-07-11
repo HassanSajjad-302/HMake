@@ -261,7 +261,7 @@ void CppTarget::populateTransitiveProperties()
                 for (const InclNode &inclNode : req->useReqIncls)
                 {
                     // Configure-time check.
-                    actuallyAddInclude(true, inclNode.node, true, false);
+                    actuallyAddInclude(false, inclNode.node, true, false);
                     reqIncls.emplace_back(inclNode);
                 }
             }
@@ -282,7 +282,7 @@ void CppTarget::populateTransitiveProperties()
             for (const InclNode &inclNode : cppTarget->useReqIncls)
             {
                 // Configure-time check.
-                actuallyAddInclude(true, inclNode.node, true, false);
+                actuallyAddInclude(false, inclNode.node, true, false);
                 reqIncls.emplace_back(inclNode);
             }
         }
@@ -404,7 +404,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
         }
         imodFileDeps.emplace_back(new CppMod(
             this, node, exportName.contains(':') ? CppModType::PARTITION_EXPORT : CppModType::PRIMARY_EXPORT));
-        imodFileDeps[imodFileDeps.size() - 1]->logicalNames.emplace_back(exportName);
+        imodFileDeps[imodFileDeps.size() - 1]->logicalName = *new string(exportName);
     }
 }
 
@@ -478,8 +478,21 @@ void CppTarget::populateNameMappingsAndNodesType()
         {
             if (const auto &[it, ok] = configuration->nodesType.emplace(node, type); !ok)
             {
-                printErrorMessage(FORMAT("Configuration {}\nnodesTypeMap already has Node {} with type\n",
-                                         configuration->name, node->filePath));
+                string str;
+                if (type == FileType::HEADER_FILE)
+                {
+                    str = "Header-File ";
+                }
+                else if (type == FileType::HEADER_UNIT)
+                {
+                    str = "C++20-Header-Unit ";
+                }
+                else
+                {
+                    str = "C++20-Module ";
+                }
+                printErrorMessage(FORMAT("Configuration {}\nnodesTypeMap already has Node {} with type {}\n",
+                                         configuration->name, node->filePath, str));
             }
         }
     }
@@ -501,6 +514,7 @@ void CppTarget::populateNameMappingsAndNodesType()
                 printErrorMessage(FORMAT("CppTarget {} already has module {}\n", name, p.second->node->filePath));
             }
         }
+
         for (const auto &p : t->useReqHeaderNameMapping)
         {
             emplaceInHeaderNameMapping(p.first, p.second, true);
@@ -549,8 +563,21 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
 {
     if (const auto &[it, ok] = (addInReq ? reqNodesType : useReqNodesType).emplace(node, type); !ok)
     {
+        string str;
+        if (it->second == FileType::HEADER_FILE)
+        {
+            str = "Header-File ";
+        }
+        else if (it->second == FileType::HEADER_UNIT)
+        {
+            str = "C++20-Header-Unit ";
+        }
+        else
+        {
+            str = "C++20-Module ";
+        }
         printErrorMessage(
-            FORMAT("In CppTarget {}\nnodesTypeMap already has Node {} with type\n", name, node->filePath));
+            FORMAT("In CppTarget {}\nnodesTypeMap already has Node {} with type {}\n", name, node->filePath, str));
     }
 }
 
@@ -961,7 +988,7 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
         }
 
         checkSameHeaderNameMapping(*p);
-        hu->logicalNames.emplace_back(*p);
+        hu->logicalName = *p;
     }
 }
 
@@ -1760,16 +1787,24 @@ string CppTarget::escapeAndQuoteDefineValue(string_view val)
     if (val.empty())
         return {};
 
-    constexpr auto isSpecial = [](char c) noexcept
-    {
+    constexpr auto isSpecial = [](char c) noexcept {
         switch (c)
         {
-        case ' ':  case '\t':
-        case '(':  case ')':  case ',':
-        case '\'': case '"':  case '\\':
-        case '$':  case '`':
-        case '<':  case '>':
-        case '|':  case '&':  case ';':
+        case ' ':
+        case '\t':
+        case '(':
+        case ')':
+        case ',':
+        case '\'':
+        case '"':
+        case '\\':
+        case '$':
+        case '`':
+        case '<':
+        case '>':
+        case '|':
+        case '&':
+        case ';':
             return true;
         default:
             return false;
@@ -2238,3 +2273,24 @@ template <> DSC<CppTarget> &DSC<CppTarget>::restore()
     objectFileProducer = stored;
     return *this;
 }
+
+template CppTarget &CppTarget::moduleFiles<>(NodeOrStr);
+template CppTarget &CppTarget::publicCompileDefines<>(const string &, const string &);
+template CppTarget &CppTarget::privateCompileDefines<>(const string &, const string &);
+template CppTarget &CppTarget::publicHUIncludes<>(NodeOrStr);
+template CppTarget &CppTarget::privateHUIncludes<>(NodeOrStr);
+template CppTarget &CppTarget::publicIncludesSource<>(NodeOrStr);
+template CppTarget &CppTarget::privateIncludesSource<>(NodeOrStr);
+template CppTarget &CppTarget::publicIncludes<>(NodeOrStr);
+template CppTarget &CppTarget::privateIncludes<>(NodeOrStr);
+template CppTarget &CppTarget::publicHUDirs<>(NodeOrStr, const string &);
+template CppTarget &CppTarget::privateHUDirs<>(NodeOrStr, const string &);
+template CppTarget &CppTarget::publicHUDirsRE<>(NodeOrStr, const string &, const string &);
+template CppTarget &CppTarget::privateHUDirsRE<>(NodeOrStr, const string &, const string &);
+template CppTarget &CppTarget::publicIncDirs<>(NodeOrStr, const string &);
+template CppTarget &CppTarget::privateIncDirs<>(NodeOrStr, const string &);
+template CppTarget &CppTarget::publicIncDirsRE<>(NodeOrStr, const string &, const string &);
+template CppTarget &CppTarget::privateIncDirsRE<>(NodeOrStr, const string &, const string &);
+
+template CppTarget &ObjectFileProducerWithDS<CppTarget>::publicDeps<>(CppTarget &);
+template CppTarget &ObjectFileProducerWithDS<CppTarget>::privateDeps<>(CppTarget &);

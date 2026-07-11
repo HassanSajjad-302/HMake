@@ -397,7 +397,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
 
     if (run.output->empty())
     {
-        outputStr += FORMAT("[{}/{}]C++Source {} {}\n", builder.updatedCount, builder.updateBTargetsSizeGoal,
+        outputStr += FORMAT("[{}/{}]C++Source {} {}\n", builder.updatedCount, builder.readyBTargetsSizeGoal,
                             node->filePath, target->name);
     }
     else
@@ -571,37 +571,25 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
         if (!isImpl)
         {
             interfaceNode = readHalfNode(ptr, bytesRead);
-            if (!isHU)
-            {
-                logicalNames.emplace_back(readStringView(ptr, bytesRead));
-            }
+            logicalName = readStringView(ptr, bytesRead);
         }
 
         if (!isHU)
         {
             objectNode = readHalfNode(ptr, bytesRead);
-
-            const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
-            logicalNames.reserve(logicalNamesSize);
-
-            for (uint32_t j = 0; j < logicalNamesSize; ++j)
-            {
-                string_view str = readStringView(ptr, bytesRead);
-                target->imodNames.emplace(str, this);
-            }
+            target->imodNames.emplace(logicalName, this);
         }
         else
         {
             isReqHu = readBool(ptr, bytesRead);
             isUseReqHu = readBool(ptr, bytesRead);
 
-            const uint32_t headerFileModuleSize = readUint32(ptr, bytesRead);
-            const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
-            logicalNames.reserve(logicalNamesSize + headerFileModuleSize);
+            const uint32_t composingHeadersSize = readUint32(ptr, bytesRead);
 
-            for (uint32_t j = 0; j < headerFileModuleSize; ++j)
+            for (uint32_t j = 0; j < composingHeadersSize; ++j)
             {
                 string_view headerFileName = readStringView(ptr, bytesRead);
+                composingNames.emplace_back(headerFileName);
                 if (target->useIPC)
                 {
                     Node *headerNode = readHalfNode(ptr, bytesRead);
@@ -611,7 +599,6 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
                 {
                     composingHeaders.emplace(headerFileName, nullptr);
                 }
-                logicalNames.emplace_back(headerFileName);
 
                 if (isReqHu)
                 {
@@ -626,21 +613,16 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
                 }
             }
 
-            for (uint32_t j = 0; j < logicalNamesSize; ++j)
+            if (isReqHu)
             {
-                string_view str = readStringView(ptr, bytesRead);
-                logicalNames.emplace_back(str);
-                if (isReqHu)
-                {
-                    target->reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(this, target->isSystem));
-                }
+                target->reqHeaderNameMapping.emplace(logicalName, HeaderFileOrUnit(this, target->isSystem));
+            }
 
-                if (isUseReqHu)
-                {
-                    const auto &[it, ok] =
-                        target->configuration->headerNameMapping.emplace(str, vector<HeaderFileOrUnit>{});
-                    it->second.emplace_back(target->cacheIndex, this, target->isSystem);
-                }
+            if (isUseReqHu)
+            {
+                const auto &[it, ok] =
+                    target->configuration->headerNameMapping.emplace(logicalName, vector<HeaderFileOrUnit>{});
+                it->second.emplace_back(target->cacheIndex, this, target->isSystem);
             }
         }
 
@@ -720,34 +702,16 @@ void CppMod::populateAllDeps()
 
     isAllDepsPopulated = true;
 
-    if (realBTargets[0].updateStatus == UpdateStatus::UPDATE_NEEDED)
+    for (const uint32_t &dep : cachedDeps)
     {
-        for (const CppModWithDirect &depWithDirect : allCppModDeps)
+        if (CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[dep].bTarget);
+            allCppModDeps.emplace(CppModWithDirect(cppMod, true)).second)
         {
-            if (CppMod *cppMod = depWithDirect.getPointer();
-                allCppModDeps.emplace(CppModWithDirect(cppMod, false)).second)
+            cppMod->populateAllDeps();
+            for (const CppModWithDirect &transitive : cppMod->allCppModDeps)
             {
-                cppMod->populateAllDeps();
-                for (const CppModWithDirect &transitive : cppMod->allCppModDeps)
-                {
-                    allCppModDeps.emplace(transitive.getPointer(), false);
-                }
-            }
-        }
-    }
-    else
-    {
-        for (const uint32_t &dep : cachedDeps)
-        {
-            if (CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[dep].bTarget);
-                allCppModDeps.emplace(CppModWithDirect(cppMod, false)).second)
-            {
-                cppMod->populateAllDeps();
-                for (const CppModWithDirect &transitive : cppMod->allCppModDeps)
-                {
 
-                    allCppModDeps.emplace(transitive.getPointer(), false);
-                }
+                allCppModDeps.emplace(transitive.getPointer(), false);
             }
         }
     }
@@ -784,7 +748,7 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
         dep.file.filePath = modDep->interfaceNode->filePath;
         dep.file.fileSize = modDep->interfaceFileSize;
         dep.isSystem = modDep->target->isSystem;
-        dep.logicalNames.assign(modDep->logicalNames.begin(), modDep->logicalNames.end());
+        dep.logicalNames.emplace_back(modDep->logicalName);
 
         btcModule.modDeps.emplace_back(std::move(dep));
     }
@@ -935,14 +899,15 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     // BTCNonModule::fileSize
     writeUint32(toBeSend, hu.interfaceFileSize);
     // BTCNonModule::logicalNames
-    writeUint32(toBeSend, hu.logicalNames.size());
-    for (const string &str : hu.logicalNames)
+    writeUint32(toBeSend, hu.composingNames.size() + 1);
+    writeStringView(toBeSend, hu.logicalName);
+    for (const string_view &inclName : hu.composingNames)
     {
-        writeStringView(toBeSend, str);
+        writeStringView(toBeSend, inclName);
     }
 
     // index of the place-holder size of huDeps
-    uint32_t placeHolderIndex = toBeSend.size();
+    const uint32_t placeHolderIndex = toBeSend.size();
 
     // BTCNonModule::huDeps
     writeUint32(toBeSend, 0);
@@ -968,8 +933,9 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
         writeBool(toBeSend, modDep->target->isSystem);
 
         // HuDep::logicalNames
-        writeUint32(toBeSend, modDep->logicalNames.size());
-        for (const string &str : modDep->logicalNames)
+        writeUint32(toBeSend, modDep->composingNames.size() + 1);
+        writeStringView(toBeSend, modDep->logicalName);
+        for (const string_view &str : modDep->composingNames)
         {
             writeStringView(toBeSend, str);
         }
@@ -1034,7 +1000,6 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) cons
         }
     }
 
-    fflush(stdout);
     return {static_cast<Node *>(nullptr), false};
 }
 
@@ -1187,11 +1152,10 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     //  this is performance critical code. following improvements can be done.
     // 1) CppSrc::headerFiles can be made a vector or probable a pointer in a large list-buffer. this buffer can have
     // multiple lists of these header-files, and every CppSrc and CppMod having a pointer to the list. something like
-    // Builder::updateBTargets.
+    // Builder::readyBTargets.
     // 2) above string_view message can passed directly as part of output instead of first separating it out.
     // 3) Probably don't do colored output and copy from the Ninja. also take look for optimizing the header-file
     // parsing from msvc output and gcc .d files
-    // 4) run.output can be reused to keep memory usage limited.
 
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
@@ -1251,9 +1215,24 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         HeaderFileOrUnit f = findHeaderFileOrUnit(headerName);
         if (!f.data.cppMod)
         {
-            printErrorMessage(FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this "
-                                     "header \n{}\n requested in {}\n",
-                                     target->name, target->getDependenciesString(), headerName, node->filePath));
+            if (target->configuration->evaluate(UseConfigurationScope::YES))
+            {
+                printErrorMessageNoReturn(FORMAT(
+                    "No File in the configuration\n{}\n provides this header \n{}\n requested in {}\n of target {}\n",
+                    target->configuration->name, headerName, node->filePath, target->name));
+            }
+            else
+            {
+
+                printErrorMessageNoReturn(
+                    FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this "
+                           "header \n{}\n requested in {}\n",
+                           target->name, target->getDependenciesString(), headerName, node->filePath));
+            }
+
+            run.killModuleProcess(builder);
+            rb.exitStatus = EXIT_FAILURE;
+            return false;
         }
 
         // Checking if this is a big header-unit with composing header-files. Composing headers should be
@@ -1366,8 +1345,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (!ok)
     {
-        printErrorMessage(FORMAT("Warning: already sent the module {}\n with logical-name{}\n requested in {}\n.",
-                                 found->node->filePath, found->logicalNames[0], node->filePath));
+        printErrorMessage(FORMAT("HMake Internal Error: Already sent the module {}\n with logical-name {}\n requested in {}\n.",
+                                 found->node->filePath, found->logicalName, node->filePath));
     }
 
     RealBTarget &foundRb = found->realBTargets[0];
@@ -1388,9 +1367,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         {
             found->isScheduled = true;
             // Old index is reset and then we re-add
-            builder.updateBTargets.array[foundRb.insertionIndex].value = nullptr;
+            builder.readyBTargets.array[foundRb.insertionIndex].value = nullptr;
             uint32_t insertionIndex = 0;
-            builder.updateBTargets.emplace(&foundRb, insertionIndex);
+            builder.readyBTargets.emplace(&foundRb, insertionIndex);
             foundRb.insertionIndex = insertionIndex; // not needed probably
         }
         // This process is going to idle. Build-system will automatically decrement when it launches a new process.
@@ -1435,7 +1414,7 @@ void CppMod::print(const Builder &builder, const string &output) const
 
     if (output.empty())
     {
-        outputStr += FORMAT("[{}/{}]C++{} {} {}", builder.updatedCount, builder.updateBTargetsSizeGoal,
+        outputStr += FORMAT("[{}/{}]C++{} {} {}", builder.updatedCount, builder.readyBTargetsSizeGoal,
                             type == CppModType::HEADER_UNIT ? "Header-Unit" : "Module", node->filePath, target->name);
     }
     else
@@ -1621,9 +1600,9 @@ void CppMod::setUpdateStatus()
         }
     }
 
-    for (const uint32_t depIndex : cachedDeps)
+    for (const uint32_t cahceIndex : cachedDeps)
     {
-        CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[depIndex].bTarget);
+        CppMod *cppMod = static_cast<CppMod *>(bTargetCaches[cahceIndex].bTarget);
 
         // Can happen because the export-name or the include-name got mapped to a different file in the same target.
         if (!cppMod)
@@ -1739,24 +1718,28 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         for (const CppModWithDirect &cppModWithDirect : allCppModDeps)
         {
             CppMod *cppMod = cppModWithDirect.getPointer();
-            for (const string &logicalName : cppMod->logicalNames)
-            {
+            auto writeLogicalName = [&](const string_view &logicalName) {
                 ignoreNames.emplace(logicalName);
                 ++count;
                 writeStringView(mockFileContents, logicalName);
                 writeStringView(mockFileContents, cppMod->interfaceNode->filePath);
                 mockFileContents.push_back('\0');
-                P2978::FileType file;
+                FileType file;
                 if (cppMod->type == CppModType::HEADER_UNIT)
                 {
-                    file = P2978::FileType::HEADER_UNIT;
+                    file = FileType::HEADER_UNIT;
                 }
                 else
                 {
-                    file = P2978::FileType::MODULE;
+                    file = FileType::MODULE;
                 }
                 writeUint8(mockFileContents, static_cast<uint8_t>(file));
                 writeBool(mockFileContents, cppMod->target->isSystem);
+            };
+            writeLogicalName(cppMod->logicalName);
+            for (const string_view &inclName : cppMod->composingNames)
+            {
+                writeLogicalName(inclName);
             }
         }
 
@@ -1796,10 +1779,7 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
         interfaceNode = Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".ifc",
                                       true, true);
         writeNode(buffer, interfaceNode);
-        if (!isHU)
-        {
-            writeStringView(buffer, logicalNames[0]);
-        }
+        writeStringView(buffer, logicalName);
     }
 
     if (!isHU)
@@ -1807,18 +1787,12 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
         objectNode =
             Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".o", true, true);
         writeNode(buffer, objectNode);
-        writeUint32(buffer, logicalNames.size());
-        for (const string &str : logicalNames)
-        {
-            writeStringView(buffer, str);
-        }
     }
     else
     {
         writeBool(buffer, isReqHu);
         writeBool(buffer, isUseReqHu);
         writeUint32(buffer, composingHeaders.size());
-        writeUint32(buffer, logicalNames.size());
         if (target->useIPC)
         {
             for (const auto &[headerName, headerNode] : composingHeaders)
@@ -1833,10 +1807,6 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
             {
                 writeStringView(buffer, headerName);
             }
-        }
-        for (const string &str : logicalNames)
-        {
-            writeStringView(buffer, str);
         }
     }
 }
@@ -1862,12 +1832,11 @@ void CppMod::verifyConfigCache(const string_view configCache) const
         if (!isHU)
         {
             const string_view cachedLogicalName = readStringView(configCache.data(), bytesRead);
-            if (logicalNames.empty() || logicalNames[0] != cachedLogicalName)
+            if (logicalName.empty() || logicalName != cachedLogicalName)
             {
                 printErrorMessage(FORMAT("{} configCache-verification failed: logicalName mismatch\n"
                                          "current=\"{}\"  cached=\"{}\"\n",
-                                         getPrintName(), logicalNames.empty() ? "<empty>" : logicalNames[0],
-                                         cachedLogicalName));
+                                         getPrintName(), logicalName, cachedLogicalName));
             }
         }
     }
@@ -1890,26 +1859,6 @@ void CppMod::verifyConfigCache(const string_view configCache) const
         {
             printErrorMessage(FORMAT("{} configCache-verification failed: isReqHu mismatch current={} cached={}\n",
                                      getPrintName(), isReqHu, cachedIsReqHu));
-
-            const uint32_t cachedLogicalNamesSize = readUint32(configCache.data(), bytesRead);
-            if (logicalNames.size() != cachedLogicalNamesSize)
-            {
-                printErrorMessage(
-                    FORMAT("{} configCache-verification failed: logicalNames size mismatch current={} cached={}\n",
-                           getPrintName(), logicalNames.size(), cachedLogicalNamesSize));
-            }
-
-            for (uint32_t i = 0; i < cachedLogicalNamesSize; ++i)
-            {
-                const string_view cachedName = readStringView(configCache.data(), bytesRead);
-                const string_view currentName = (i < logicalNames.size()) ? string_view(logicalNames[i]) : "<missing>";
-                if (currentName != cachedName)
-                {
-                    printErrorMessage(FORMAT("{} configCache-verification failed: logicalName[{}] mismatch\n"
-                                             "current=\"{}\"  cached=\"{}\"\n",
-                                             getPrintName(), i, currentName, cachedName));
-                }
-            }
         }
 
         const bool cachedIsUseReqHu = readBool(configCache.data(), bytesRead);
@@ -1925,14 +1874,6 @@ void CppMod::verifyConfigCache(const string_view configCache) const
             printErrorMessage(
                 FORMAT("{} configCache-verification failed: composingHeaders size mismatch current={} cached={}\n",
                        getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
-        }
-
-        const uint32_t cachedLogicalNamesSize = readUint32(configCache.data(), bytesRead);
-        if (logicalNames.size() != cachedLogicalNamesSize)
-        {
-            printErrorMessage(
-                FORMAT("{} configCache-verification failed: logicalNames size mismatch current={} cached={}\n",
-                       getPrintName(), logicalNames.size(), cachedLogicalNamesSize));
         }
 
         for (uint32_t i = 0; i < cachedComposingHeadersSize; ++i)
@@ -1957,18 +1898,6 @@ void CppMod::verifyConfigCache(const string_view configCache) const
                                getPrintName(), cachedHeaderName, it->second ? it->second->filePath : "<null>",
                                cachedHeaderNode ? cachedHeaderNode->filePath : "<null>"));
                 }
-            }
-        }
-
-        for (uint32_t i = 0; i < cachedLogicalNamesSize; ++i)
-        {
-            const string_view cachedName = readStringView(configCache.data(), bytesRead);
-            const string_view currentName = (i < logicalNames.size()) ? string_view(logicalNames[i]) : "<missing>";
-            if (currentName != cachedName)
-            {
-                printErrorMessage(FORMAT("{} configCache-verification failed: logicalName[{}] mismatch\n"
-                                         "current=\"{}\"  cached=\"{}\"\n",
-                                         getPrintName(), i, currentName, cachedName));
             }
         }
     }

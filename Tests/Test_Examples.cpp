@@ -2,7 +2,9 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include "nlohmann/json.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
 #include "gtest/gtest.h"
 #include <fstream>
 #include <regex>
@@ -41,12 +43,23 @@ TEST(ExamplesTest, Example3)
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func() from file1.cpp called.\n");
 
-    Json cacheFileJson;
-    ifstream("cache.json") >> cacheFileJson;
-    const bool file1 = cacheFileJson.at("cache-variables").get<Json>().at("FILE1").get<bool>();
+    ifstream ifs("cache.json");
+    string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    rapidjson::Document cacheFileJson;
+    cacheFileJson.Parse(content.c_str());
+    ASSERT_FALSE(cacheFileJson.HasParseError());
+    ASSERT_TRUE(cacheFileJson.HasMember("cache-variables"));
+    ASSERT_TRUE(cacheFileJson["cache-variables"].HasMember("FILE1"));
+    const bool file1 = cacheFileJson["cache-variables"]["FILE1"].GetBool();
     ASSERT_EQ(file1, true) << "Cache does not has the Cache-Variable or this variable is not of right value";
-    cacheFileJson["cache-variables"]["FILE1"] = false;
-    ofstream("cache.json") << cacheFileJson.dump(4);
+    cacheFileJson["cache-variables"]["FILE1"].SetBool(false);
+    {
+        ofstream ofs("cache.json");
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        cacheFileJson.Accept(writer);
+        ofs << buffer.GetString();
+    }
 
     ASSERT_EQ(system((hhelperStr + " --configure").c_str()), 0) << hhelperStr + " --configure" + " command failed.";
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";

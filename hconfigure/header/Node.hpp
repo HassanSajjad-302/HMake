@@ -111,7 +111,7 @@ class Node
 };
 
 using NodeHashSet = node_hash_set<Node, NodeHash, NodeEqual>;
-GLOBAL_VARIABLE(Node **, nodeIndices)
+GLOBAL_VARIABLE(vector<Node*>, nodeIndices)
 GLOBAL_VARIABLE(NodeHashSet, nodeAllFiles)
 
 #endif // HMAKE_NODE_HPP

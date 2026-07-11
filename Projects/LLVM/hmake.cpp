@@ -46,9 +46,9 @@ void addLlvmDirectory(DSC<CppTarget> &target, const string &directory, const str
         if (const string cmakePrivateDir = "llvm/my-fork/lib/" + directory;
             exists(path(srcNode->filePath) / cmakePrivateDir))
         {
-            llvmCpp.publicHUDirsRE(cmakePrivateDir, "", ".*\\.h")
-                .publicIncDirsRE(cmakePrivateDir, "", ".*\\.inc")
-                .publicIncDirsRE(cmakePrivateDir, "", ".*\\.def");
+            llvmCpp.privateHUDirsRE(cmakePrivateDir, "", ".*\\.h")
+                .privateIncDirsRE(cmakePrivateDir, "", ".*\\.inc")
+                .privateIncDirsRE(cmakePrivateDir, "", ".*\\.def");
         }
     }
 
@@ -89,9 +89,9 @@ void addClangDirectory(DSC<CppTarget> &target, const string &directory, const st
         if (const string cmakePrivateDir = "llvm/my-fork/tools/clang/lib/" + directory;
             exists(path(srcNode->filePath) / cmakePrivateDir))
         {
-            clangCpp.publicHUDirsRE(cmakePrivateDir, "", ".*\\.h")
-                .publicIncDirsRE(cmakePrivateDir, "", ".*\\.inc")
-                .publicIncDirsRE(cmakePrivateDir, "", ".*\\.def");
+            clangCpp.privateHUDirsRE(cmakePrivateDir, "", ".*\\.h")
+                .privateIncDirsRE(cmakePrivateDir, "", ".*\\.inc")
+                .privateIncDirsRE(cmakePrivateDir, "", ".*\\.def");
         }
     }
 
@@ -895,7 +895,9 @@ void buildSpecification()
 {
     getConfiguration("standard");
     // Compilation does not work with big header-units.
-    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES);
+    getConfiguration("standard");
+    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES, Optimization::OFF,
+                                  Warnings::ALL, WarningsAsErrors::ON);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

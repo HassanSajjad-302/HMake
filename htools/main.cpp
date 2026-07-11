@@ -1,4 +1,3 @@
-
 #include "Configure.hpp"
 #include <fstream>
 
@@ -6,10 +5,9 @@ using std::ofstream, std::filesystem::current_path;
 int main()
 {
     toolsCache.detectToolsAndInitialize();
-    if (!exists(toolsCache.toolsCacheFilePath))
+    if (!exists(toolsCache.toolsCacheFilePath.parent_path()))
     {
         create_directories(toolsCache.toolsCacheFilePath.parent_path());
     }
-    const Json toolsCacheJson = toolsCache;
-    ofstream(toolsCache.toolsCacheFilePath) << toolsCacheJson.dump(4);
+    toolsCache.writeToolsCacheFile();
 }

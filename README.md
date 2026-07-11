@@ -73,13 +73,13 @@ a build, only targets with `buildCacheUpdated` or `buildFooterUpdated` are rewri
 (`completeRoundOne()` — configure-time setup), then in build mode **round 0** (async compilation/linking). Configure mode
 stops after round 1 and writes the cache files.
 
-Round 0 maintains `updateBTargets`, the queue of targets whose `dependenciesSize` has reached zero. After topological
+Round 0 maintains `readyBTargets`, the queue of targets whose `dependenciesSize` has reached zero. After topological
 sorting, ready targets are enqueued; completion decrements dependents and enqueues any that become ready. Round-0
 dependency lists are persisted into each target's build-cache entry when the build finishes.
 
 **Bring-to-front scheduling (`CppMod`).** When a module or header-unit compilation discovers that another unit is already
 in the ready queue but `isEventRegistered` has not run on it yet, and consumers are blocked waiting on that unit, HMake
-can move it to the head of `updateBTargets` using `RealBTarget::insertionIndex` (the previous queue slot is nulled so
+can move it to the head of `readyBTargets` using `RealBTarget::insertionIndex` (the previous queue slot is nulled so
 the dependency is not scheduled twice). That prioritizes work with known waiters over other ready targets and lowers peak
 memory by reducing how long compiler processes sit idle.
 
@@ -463,8 +463,8 @@ struct OurTarget2 : BTarget
         b->addDep<0>(c);
 
         uint32_t insertionIndex;
-        builder.updateBTargets.emplace(&c->realBTargets[0], insertionIndex);
-        builder.updateBTargetsSizeGoal += 3;
+        builder.readyBTargets.emplace(&c->realBTargets[0], insertionIndex);
+        builder.readyBTargetsSizeGoal += 3;
         return false;
     }
 };
@@ -492,14 +492,14 @@ Not only you can add new edges in the DAG dynamically,
 but also new nodes as well.
 However, you have to take care of the following aspects:
 
-1. You have to update the ```Builder::updateBTargetsSizeGoal``` variable with the
+1. You have to update the ```Builder::readyBTargetsSizeGoal``` variable with the
    additional number of times ```isEventRegistered``` will be called.
 2. If any newly added targets do not have any dependency
-   then it must be added in ```updateBTargets``` list like we added ```c``` target.
+   then it must be added in ```readyBTargets``` list like we added ```c``` target.
 3. Besides new targets, we can also modify the dependencies of older targets.
    But these targets ```dependenciesSize``` should not be zero.
    Because if the target ```dependenciesSize``` becomes zero,
-   it is added to the ```updateBTargets``` list.
+   it is added to the ```readyBTargets``` list.
    HMake does not allow removing or modifying elements in this list.
 
 ### Example 7 — Dynamic edges with cycle detection
@@ -557,8 +557,8 @@ struct OurTarget : BTarget
     bool isEventRegistered(Builder &builder) override
     {
         a = new BTarget();
-        ++builder.updateBTargetsSizeGoal;
-        // builder.updateBTargets.emplace(&a->realBTargets[0]);
+        ++builder.readyBTargetsSizeGoal;
+        // builder.readyBTargets.emplace(&a->realBTargets[0]);
         
         return false;
     }

@@ -24,7 +24,7 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
             // reading config-cache
             myBuildDir = readHalfNode(configCache.data(), bytesRead);
             sourceNode = readHalfNode(configCache.data(), bytesRead);
-            sourceNode->doStatFile = true;
+            sourceNode->doHashFile = true;
             outputHeader = readHalfNode(configCache.data(), bytesRead);
 
             command = codeGenerator->outputFileNode->filePath;
@@ -35,7 +35,10 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
             command += ' ';
             command += outputHeader->filePath;
 
-            realBTargets[0].cumulativeHash = rapidhash(command.c_str(), command.size());
+            if (bytesRead != configCache.size())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
         }
     }
 }
@@ -50,15 +53,21 @@ bool HeaderGen::isEventRegistered(Builder &builder)
 
     if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
+        if (sourceNode->fileType == file_type::not_found)
+        {
+            printErrorMessage(
+                FORMAT("Source-Node\n{}\nof Header-Gen target\n{}\ndoes not exit.", sourceNode->filePath, name));
+        }
+
+        const uint64_t arr2[] = {rapidhash(command.c_str(), command.size()), sourceNode->contentHash};
+        realBTargets[0].cumulativeHash = rapidhash(arr2, sizeof(arr2));
+
         setUpdateStatus();
     }
 
     if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
     {
-        if (realBTargets[0].launchTime > sourceNode->lastWriteTime)
-        {
-            return false;
-        }
+        return false;
     }
 
     rb.launchTime =
@@ -68,11 +77,12 @@ bool HeaderGen::isEventRegistered(Builder &builder)
     return true;
 }
 
-bool HeaderGen::isEventCompleted(Builder &builder, string_view message)
+bool HeaderGen::isEventCompleted(Builder &builder, string_view)
 {
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        realBTargets[0].updateStatus = UpdateStatus::UPDATE_NOT_NEEDED;
+        const uint64_t arr2[] = {rapidhash(command.c_str(), command.size()), sourceNode->contentHash};
+        realBTargets[0].cumulativeHash = rapidhash(arr2, sizeof(arr2));
         buildFooterUpdated = true;
     }
 
@@ -84,7 +94,7 @@ bool HeaderGen::isEventCompleted(Builder &builder, string_view message)
 
     if (run.output->empty())
     {
-        outputStr += FORMAT("[{}/{}]HeaderGen {} -> {} {}\n", builder.updatedCount, builder.updateBTargetsSizeGoal,
+        outputStr += FORMAT("[{}/{}]HeaderGen {} -> {} {}\n", builder.updatedCount, builder.readyBTargetsSizeGoal,
                             sourceNode->filePath, outputHeader->getFileName(), name);
     }
     else

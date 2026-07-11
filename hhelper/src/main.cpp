@@ -9,6 +9,9 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
@@ -16,20 +19,6 @@ using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::fi
 
 using Clock = std::chrono::steady_clock;
 using Seconds = std::chrono::duration<double>;
-
-void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
-{
-    if (container.empty())
-    {
-        return;
-    }
-    if (container.size() == 1)
-    {
-        j[jstr] = *container.begin();
-        return;
-    }
-    j[jstr] = container;
-}
 
 // https://stackoverflow.com/a/17620909/8993136
 void replaceAll(string &str, const string &from, const string &to)
@@ -63,9 +52,6 @@ static string formatSeconds(Seconds s)
 #ifndef HCONFIGURE_HEADER
 #define THROW true
 #endif
-#ifndef JSON_HEADER
-#define THROW true
-#endif
 #ifndef HCONFIGURE_C_STATIC_LIB_PATH
 #define THROW true
 #endif
@@ -78,6 +64,54 @@ static string formatSeconds(Seconds s)
 #ifndef LZ4_HEADER
 #define THROW true
 #endif
+
+static void writeCacheFile(const Cache& cacheLocal, const string& filePath)
+{
+    rapidjson::Document doc;
+    doc.SetObject();
+    auto& alloc = doc.GetAllocator();
+    
+    auto set_member = [&](const string& key, auto val) {
+        rapidjson::Value k(key.c_str(), alloc);
+        rapidjson::Value v;
+        if constexpr (std::is_same_v<decltype(val), bool>)
+        {
+            v.SetBool(val);
+        }
+        else if constexpr (std::is_same_v<decltype(val), string>)
+        {
+            v.SetString(val.c_str(), val.length(), alloc);
+        }
+        else
+        {
+            v.SetUint(val);
+        }
+        doc.AddMember(k, v, alloc);
+    };
+
+    set_member(JConsts::sourceDirectory, cacheLocal.sourceDirectoryPath);
+    set_member(JConsts::isCompilerInToolsArray, cacheLocal.isCompilerInToolsArray);
+    set_member(JConsts::compilerSelectedArrayIndex, cacheLocal.selectedCompilerArrayIndex);
+    set_member(JConsts::isLinkerInToolsArray, cacheLocal.isLinkerInToolsArray);
+    set_member(JConsts::linkerSelectedArrayIndex, cacheLocal.selectedLinkerArrayIndex);
+    set_member(JConsts::isArchiverInToolsArray, cacheLocal.isArchiverInToolsArray);
+    set_member(JConsts::archiverSelectedArrayIndex, cacheLocal.selectedArchiverArrayIndex);
+    set_member(JConsts::isScannerInToolsArray, cacheLocal.isScannerInToolsArray);
+    set_member(JConsts::scannerSelectedArrayIndex, cacheLocal.selectedScannerArrayIndex);
+    set_member(JConsts::numberOfBuildThreads, cacheLocal.numberOfBuildProcesses);
+    set_member(JConsts::configureExeBuildScript, cacheLocal.configureExeBuildScript);
+    set_member(JConsts::buildExeBuildScript, cacheLocal.buildExeBuildScript);
+    
+    rapidjson::Value k(JConsts::cacheVariables.c_str(), alloc);
+    rapidjson::Value v(rapidjson::kObjectType);
+    doc.AddMember(k, v, alloc);
+
+    ofstream ofs(filePath);
+    rapidjson::StringBuffer buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+    doc.Accept(writer);
+    ofs << buffer.GetString();
+}
 
 int main(int argc, char **argv)
 {
@@ -107,7 +141,6 @@ int main(int argc, char **argv)
     if (!std::filesystem::exists("cache.json"))
     {
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
-        path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
         path thirdPartyHeaderPath = path(THIRD_PARTY_HEADER);
         path lz4Header = path(LZ4_HEADER);
@@ -133,7 +166,7 @@ int main(int argc, char **argv)
                     "c++ -std=c++2b -O0 -fno-exceptions -fno-rtti -fvisibility=hidden "
                     "-ffunction-sections -fdata-sections " +
                     tsan + useJsonFileCompressionDef + string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
-                    " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
+                    " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " RAPIDJSON_HEADER
                     " -I " LZ4_HEADER " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--gc-sections -Wl,--whole-archive "
                     "-L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
                     string(configureExe ? "hconfigure-c" : "hconfigure-b") +
@@ -168,7 +201,7 @@ int main(int argc, char **argv)
                 command += useJsonFileCompressionDef;
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command += "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                           jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
+                           rapidjsonHeaderPath.string() + " /I " +
                            lz4Header.string() +
                            " /std:c++latest /O0 /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp "
                            "/Fo{CONFIGURE_DIRECTORY}/" +
@@ -190,8 +223,7 @@ int main(int argc, char **argv)
             cache.buildExeBuildScript = getCommand(false);
         }
 
-        Json cacheJson = cache;
-        ofstream("cache.json") << cacheJson.dump(4);
+        writeCacheFile(cache, "cache.json");
         return 0;
     }
 
@@ -208,12 +240,45 @@ int main(int argc, char **argv)
         return std::system(configureExePath.c_str());
     }
 
-    Json cacheJson;
-    ifstream("cache.json") >> cacheJson;
+    ifstream ifs("cache.json");
+    string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    rapidjson::Document cacheJson;
+    cacheJson.Parse(content.c_str());
+    if (cacheJson.HasParseError())
+    {
+        printErrorMessage("Error parsing cache.json\n");
+        exit(EXIT_FAILURE);
+    }
+    
     configureNode = Node::getNodeNonNormalized(current_path().string(), false);
-    Cache cacheLocal = cacheJson;
+    
+    Cache cacheLocal;
+    if (cacheJson.HasMember(JConsts::sourceDirectory.c_str()))
+        cacheLocal.sourceDirectoryPath = cacheJson[JConsts::sourceDirectory.c_str()].GetString();
+    if (cacheJson.HasMember(JConsts::isCompilerInToolsArray.c_str()))
+        cacheLocal.isCompilerInToolsArray = cacheJson[JConsts::isCompilerInToolsArray.c_str()].GetBool();
+    if (cacheJson.HasMember(JConsts::compilerSelectedArrayIndex.c_str()))
+        cacheLocal.selectedCompilerArrayIndex = static_cast<uint8_t>(cacheJson[JConsts::compilerSelectedArrayIndex.c_str()].GetUint());
+    if (cacheJson.HasMember(JConsts::isLinkerInToolsArray.c_str()))
+        cacheLocal.isLinkerInToolsArray = cacheJson[JConsts::isLinkerInToolsArray.c_str()].GetBool();
+    if (cacheJson.HasMember(JConsts::linkerSelectedArrayIndex.c_str()))
+        cacheLocal.selectedLinkerArrayIndex = static_cast<uint8_t>(cacheJson[JConsts::linkerSelectedArrayIndex.c_str()].GetUint());
+    if (cacheJson.HasMember(JConsts::isArchiverInToolsArray.c_str()))
+        cacheLocal.isArchiverInToolsArray = cacheJson[JConsts::isArchiverInToolsArray.c_str()].GetBool();
+    if (cacheJson.HasMember(JConsts::archiverSelectedArrayIndex.c_str()))
+        cacheLocal.selectedArchiverArrayIndex = static_cast<uint8_t>(cacheJson[JConsts::archiverSelectedArrayIndex.c_str()].GetUint());
+    if (cacheJson.HasMember(JConsts::isScannerInToolsArray.c_str()))
+        cacheLocal.isScannerInToolsArray = cacheJson[JConsts::isScannerInToolsArray.c_str()].GetBool();
+    if (cacheJson.HasMember(JConsts::scannerSelectedArrayIndex.c_str()))
+        cacheLocal.selectedScannerArrayIndex = static_cast<uint8_t>(cacheJson[JConsts::scannerSelectedArrayIndex.c_str()].GetUint());
+    if (cacheJson.HasMember(JConsts::numberOfBuildThreads.c_str()))
+        cacheLocal.numberOfBuildProcesses = static_cast<uint16_t>(cacheJson[JConsts::numberOfBuildThreads.c_str()].GetUint());
+    if (cacheJson.HasMember(JConsts::configureExeBuildScript.c_str()))
+        cacheLocal.configureExeBuildScript = cacheJson[JConsts::configureExeBuildScript.c_str()].GetString();
+    if (cacheJson.HasMember(JConsts::buildExeBuildScript.c_str()))
+        cacheLocal.buildExeBuildScript = cacheJson[JConsts::buildExeBuildScript.c_str()].GetString();
 
-    path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
+    path sourceDirPath = cacheLocal.sourceDirectoryPath;
     if (sourceDirPath.is_relative())
     {
         sourceDirPath = (current_path() / sourceDirPath).lexically_normal();

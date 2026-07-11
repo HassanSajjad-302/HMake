@@ -13,7 +13,6 @@
 #include "Features.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
-#include "nlohmann/json.hpp"
 #include <filesystem>
 #include <memory>
 #include <stack>

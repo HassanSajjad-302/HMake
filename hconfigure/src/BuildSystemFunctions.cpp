@@ -189,7 +189,8 @@ void constructGlobals()
         const auto buffer = new char[sizeof(RealBTarget) * count];
         realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), count);
     }
-    nodeIndices = new Node *[128 * 1024];
+    std::construct_at(&nodeIndices);
+    nodeIndices.reserve(128 * 1024);
     std::construct_at(&nodeAllFiles, 10000);
 
     std::construct_at(&cache);
@@ -199,15 +200,25 @@ void constructGlobals()
     unusedKeysIndices.reserve(32 * 1024);
     eventData = new CompletionKey[32 * 1024];
 #else
-    std::construct_at(&unusedOutputIndices);
-    unusedOutputIndices.reserve(4 * 1024);
-    processOutputs = new string[4 * 1024];
-    eventData = new BTarget *[32 * 1024];
+    std::construct_at(&freeOutputStrings);
+    freeOutputStrings.reserve(4 * 1024);
+    for (size_t i = 0; i < 4 * 1024; ++i)
+    {
+        freeOutputStrings.emplace_back(new string());
+    }
+    std::construct_at(&eventData);
+    eventData.resize(32 * 1024, nullptr);
 #endif
 }
 
 void destructGlobals()
 {
+#ifndef _WIN32
+    for (string *ptr : freeOutputStrings)
+    {
+        delete ptr;
+    }
+#endif
 }
 
 void errorExit()
@@ -388,13 +399,13 @@ void readConfigCache()
     const char *ptr = configCacheGlobal.data();
     while (bufferRead != bufferSize)
     {
-        BTargetCache fileCacheTarget;
+        BTargetCache bTargetCache;
 
-        fileCacheTarget.name = readUint64(ptr, bufferRead);
-        fileCacheTarget.configCache = readStringView(ptr, bufferRead);
+        bTargetCache.name = readUint64(ptr, bufferRead);
+        bTargetCache.configCache = readStringView(ptr, bufferRead);
 
-        bTargetCaches.emplace_back(fileCacheTarget);
-        nameToIndexMap.emplace(fileCacheTarget.name, count);
+        bTargetCaches.emplace_back(bTargetCache);
+        nameToIndexMap.emplace(bTargetCache.name, count);
 
         ++count;
     }
@@ -563,10 +574,12 @@ string getBuildCache()
             if (fileCacheTarget.bTarget->buildCacheUpdated)
             {
                 fileCacheTarget.bTarget->writeBuildCacheAtBuildTime(buildCache);
+                fileCacheTarget.bTarget->writeBuildCacheFooterAtBuildTime(buildCache);
             }
-            if (fileCacheTarget.bTarget->buildFooterUpdated)
+            else if (fileCacheTarget.bTarget->buildFooterUpdated)
             {
-                fileCacheTarget.bTarget->writeBuildCacheHeaderAtBuildTime(buildCache);
+                buildCache.append(fileCacheTarget.getBuildCache().begin(), fileCacheTarget.getBuildCache().end());
+                fileCacheTarget.bTarget->writeBuildCacheFooterAtBuildTime(buildCache);
             }
         }
         else

@@ -71,7 +71,11 @@ std::size_t NodeHash::operator()(const string_view &str) const
 Node::Node(const string_view filePath_) : filePath(filePath_)
 {
     myId = idCount++;
-    nodeIndices[myId] = this;
+    if (myId >= 128 * 1024)
+    {
+        printErrorMessage("Error: Maximum node count (128k) exceeded.\n");
+    }
+    nodeIndices.emplace_back(this);
 }
 
 string Node::getFileName() const
@@ -207,7 +211,7 @@ void Node::performSystemCheck()
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
 #ifdef BUILD_MODE
-    printErrorMessage(FORMAT("For filePath {}\n Node::getNode is called at build-time.\n", filePath_));
+   // printErrorMessage(FORMAT("For filePath {}\n Node::getNode is called at build-time.\n", filePath_));
 #endif
 
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);

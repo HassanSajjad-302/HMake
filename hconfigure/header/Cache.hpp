@@ -2,14 +2,14 @@
 #define HMAKE_CACHE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "nlohmann/json.hpp"
+#include <rapidjson/document.h>
 #include <vector>
+#include <type_traits>
 
-using Json = nlohmann::json;
 using std::vector;
 struct Cache
 {
-    Json cacheFileJson;
+    rapidjson::Document cacheFileJson;
     string sourceDirectoryPath;
     // isToolInVSToolsArray to be used only on Windows. Determines if the index of tool is in VSTools array or is in
     // plain array. In VSTools array, compiler and linker also have include-dirs and library-dirs with
@@ -23,15 +23,12 @@ struct Cache
     bool isScannerInToolsArray;
     uint8_t selectedScannerArrayIndex;
     uint16_t numberOfBuildProcesses;
-    Json cacheVariables;
     string configureExeBuildScript;
     string buildExeBuildScript;
     Cache();
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();
 };
-void to_json(Json &j, const Cache &cacheLocal);
-void from_json(const Json &j, Cache &cacheLocal);
 
 GLOBAL_VARIABLE(Cache, cache)
 
@@ -46,15 +43,52 @@ template <typename T>
 CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
     : jsonString(std::move(cacheVariableString_))
 {
-    Json &cacheVariablesJson = cache.cacheVariables;
-    if (cacheVariablesJson.contains(jsonString))
+    auto& doc = cache.cacheFileJson;
+    if (!doc.IsObject())
     {
-        value = cacheVariablesJson.at(jsonString).get<T>();
+        doc.SetObject();
+    }
+    if (!doc.HasMember("cache-variables"))
+    {
+        rapidjson::Value key("cache-variables", doc.GetAllocator());
+        rapidjson::Value val(rapidjson::kObjectType);
+        doc.AddMember(key, val, doc.GetAllocator());
+    }
+    auto& cacheVars = doc["cache-variables"];
+    if (cacheVars.HasMember(jsonString.c_str()))
+    {
+        const auto& member = cacheVars[jsonString.c_str()];
+        if constexpr (std::is_same_v<T, bool>)
+        {
+            value = member.GetBool();
+        }
+        else if constexpr (std::is_same_v<T, std::string>)
+        {
+            value = member.GetString();
+        }
+        else if constexpr (std::is_same_v<T, int>)
+        {
+            value = member.GetInt();
+        }
     }
     else
     {
         value = defaultValue;
-        cacheVariablesJson[jsonString] = value;
+        rapidjson::Value key(jsonString.c_str(), doc.GetAllocator());
+        rapidjson::Value val;
+        if constexpr (std::is_same_v<T, bool>)
+        {
+            val.SetBool(defaultValue);
+        }
+        else if constexpr (std::is_same_v<T, std::string>)
+        {
+            val.SetString(defaultValue.c_str(), doc.GetAllocator());
+        }
+        else if constexpr (std::is_same_v<T, int>)
+        {
+            val.SetInt(defaultValue);
+        }
+        cacheVars.AddMember(key, val, doc.GetAllocator());
     }
 }
 

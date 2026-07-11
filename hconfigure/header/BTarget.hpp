@@ -243,7 +243,7 @@ class alignas(128) RealBTarget
 
     /// Count of incoming FULL/WAIT edges. Incremented in `addDep()`; decremented in
     /// `Builder::decrementFromDependents()` when this bTarget completes. When it reaches zero, the dependent is enqueued
-    /// in `Builder::updateBTargets`.
+    /// in `Builder::readyBTargets`.
     uint32_t dependenciesSize : 30 = 0;
 
     /// Set to true in `Builder::decrementFromDependents()` after round-0 work for this node finishes.
@@ -257,9 +257,9 @@ class alignas(128) RealBTarget
     //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
 
-    /// Which `Builder::updateBTargets` array cell holds this node (set by `PointerArrayList::emplace`).
+    /// Which `Builder::readyBTargets` array cell holds this node (set by `PointerArrayList::emplace`).
     ///
-    /// `CppMod` bring-to-front: a consumer that is blocked on this module/hu nulls `updateBTargets.array[insertionIndex].value`
+    /// `CppMod` bring-to-front: a consumer that is blocked on this module/hu nulls `readyBTargets.array[insertionIndex].value`
     /// and re-enqueues it at the head when it is already in the ready queue but `isEventRegistered` has not run yet
     /// (`getItem()` skips the nulled slot).
     ///
@@ -425,7 +425,7 @@ class BTarget // BTarget
             bool makeDirectory, bool add0, bool add1);
 
     virtual ~BTarget();
-    void writeBuildCacheHeaderAtBuildTime(string &buffer) const;
+    void writeBuildCacheFooterAtBuildTime(string &buffer) const;
 
     /// Might set the BTarget::selectiveBuild variable based on BTarget::name, hbuild execution directory and passed
     /// arguments. Called in round1 before `completeRoundOne` call.

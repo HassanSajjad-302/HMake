@@ -27,8 +27,6 @@ struct VSTools
     void initializeFromVSToolBatchCommand(bool executingFromWSL = false);
     void initializeFromVSToolBatchCommand(const string &command, bool executingFromWSL = false);
 };
-void to_json(Json &j, const VSTools &vsTool);
-void from_json(const Json &j, VSTools &vsTool);
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on
 // Architecture and Address-Model.
@@ -40,8 +38,6 @@ struct LinuxTools
     LinuxTools(Compiler compiler_);
     LinuxTools() = default;
 };
-void to_json(Json &j, const LinuxTools &linuxTools);
-void from_json(const Json &j, LinuxTools &linuxTools);
 
 struct ToolsCache
 {
@@ -55,8 +51,8 @@ struct ToolsCache
     ToolsCache();
     void detectToolsAndInitialize();
     void initializeToolsCacheVariableFromToolsCacheFile();
+    void writeToolsCacheFile();
 };
-void to_json(Json &j, const ToolsCache &toolsCacheLocal);
-void from_json(const Json &j, ToolsCache &toolsCacheLocal);
+
 inline ToolsCache toolsCache;
 #endif // HMAKE_TOOLSCACHE_HPP

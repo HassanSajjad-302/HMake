@@ -4,7 +4,7 @@
 
 #include "BTarget.hpp"
 #include "Features.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
+#include "DepType.hpp"
 #include "SpecialNodes.hpp"
 #include "gtl/include/gtl/btree.hpp"
 
@@ -85,7 +85,6 @@ template <typename T> bool PLOAT::evaluate(T property) const
 }
 
 bool operator<(const PLOAT &lhs, const PLOAT &rhs);
-void to_json(Json &json, const PLOAT &PLOAT);
 
 template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {

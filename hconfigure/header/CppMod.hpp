@@ -163,11 +163,10 @@ class CppMod : public CppSrc
     /// rebuilds.
     flat_hash_map<string, Node *> composingHeaders;
 
-    /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". Also, in big
-    /// header-units case a big header-unit can be found by any of its composing headers. All composing includes are
-    /// added in following array and is sent with requested hu to keep the number of messages minimal. In case of
-    /// module, logicalNames[0] is the exportName of the module.
-    vector<string> logicalNames;
+    vector<string_view> composingNames;
+
+    /// include-name in-case of header-unit and export-name in-case of module.
+    string_view logicalName;
 
     /// Snapshot of `realBTargets[0].launchTime` taken when IPC compilation starts; used to detect header changes that
     /// occurred after launch when writing the cumulative-hash to the build-cache.
@@ -202,7 +201,7 @@ class CppMod : public CppSrc
     bool memoryMappingCompleted = false;
 
     /// With `realBTargets[0].insertionIndex`, allows one bring-to-front per dependency: while it is already in
-    /// `updateBTargets` but `isEventRegistered` has not run and it has not yet been moved to the head (`!isScheduled`).
+    /// `readyBTargets` but `isEventRegistered` has not run and it has not yet been moved to the head (`!isScheduled`).
     bool isScheduled = false;
 
     /// True after `populateAllDeps()` has filled `allCppModDeps` from `cachedDeps` and transitive closure.

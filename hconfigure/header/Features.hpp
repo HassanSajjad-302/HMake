@@ -3,7 +3,7 @@
 
 #include "BuildTools.hpp"
 #include "Cache.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
+
 #include "TargetType.hpp"
 #include <vector>
 
@@ -40,37 +40,21 @@ enum class DefineDLLInterface : bool
 enum class Arch : uint8_t // Architecture
 {
     X86,
-    IA64,
-    SPARC,
-    POWER,
-    LOONGARCH,
-    MIPS,
-    MIPS1,
-    MIPS2,
-    MIPS3,
-    MIPS4,
-    MIPS32,
-    MIPS32R2,
-    MIPS64,
-    PARISC,
     ARM,
     S390X,
-    ARM_P_X86, // arm+x86
+    POWER,
+    LOONGARCH,
     NONE,
 };
-void to_json(Json &j, const Arch &arch);
-void from_json(const Json &j, Arch &arch);
+
 
 enum class AddressModel : uint8_t // AddressModel
 {
-    A_16,
     A_32,
     A_64,
-    A_32_64,
     NONE,
 };
-void to_json(Json &j, const AddressModel &am);
-void from_json(const Json &j, AddressModel &am);
+
 
 struct CxxFlags : string
 {
@@ -90,8 +74,7 @@ struct Define
     explicit Define(string name_, string value_ = "");
 };
 
-void to_json(Json &j, const Define &cd);
-void from_json(const Json &j, Define &cd);
+
 
 enum class Threading : bool
 {
@@ -213,8 +196,6 @@ enum class StdLib : uint8_t
     GNU,
     GNU11,
     LIBCPP, // libc++
-    SUN_STLPORT,
-    APACHE,
 };
 
 enum class Coverage : bool
@@ -234,9 +215,6 @@ enum class RuntimeDebugging : bool
     OFF,
     ON
 };
-
-void to_json(Json &json, const OS &osLocal);
-void from_json(const Json &json, OS &osLocal);
 
 string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
@@ -270,29 +248,15 @@ enum class CxxSTDDialect : uint8_t
 
 enum class TargetOS : uint8_t
 {
-    AIX,
     ANDROID,
     APPLETV,
-    BSD,
     CYGWIN,
     DARWIN,
     FREEBSD,
-    FREERTOS,
-    HAIKU,
-    HPUX,
     IPHONE,
     LINUX_,
-    NETBSD,
     OPENBSD,
-    OSF,
     QNX,
-    QNXNTO,
-    SGI,
-    SOLARIS,
-    UNIX_,
-    UNIXWARE,
-    VMS,
-    VXWORKS,
     WINDOWS,
     NONE,
 };
@@ -345,284 +309,18 @@ enum class Strip : bool
 
 enum class InstructionSet : unsigned short
 {
-    // x86 and x86-64
     OFF,
     native,
-    i486,
-    i586,
-    i686,
-    pentium,
-    pentium_mmx,
-    pentiumpro,
-    pentium2,
-    pentium3,
-    pentium3m,
-    pentium_m,
-    pentium4,
-    pentium4m,
-    prescott,
-    nocona,
-    core2,
-    corei7,
-    corei7_avx,
-    core_avx_i,
-    conroe,
-    conroe_xe,
-    conroe_l,
-    allendale,
-    merom,
-    merom_xe,
-    kentsfield,
-    kentsfield_xe,
-    penryn,
-    wolfdale,
-    yorksfield,
-    nehalem,
-    sandy_bridge,
-    ivy_bridge,
-    haswell,
-    broadwell,
-    skylake,
-    skylake_avx512,
-    cannonlake,
-    icelake_client,
-    icelake_server,
-    cascadelake,
-    cooperlake,
-    tigerlake,
-    rocketlake,
-    alderlake,
-    sapphirerapids,
-    atom,
-    k6,
-    k6_2,
-    k6_3,
-    athlon,
-    athlon_tbird,
-    athlon_4,
-    athlon_xp,
-    athlon_mp,
-    k8,
-    opteron,
-    athlon64,
-    athlon_fx,
-    k8_sse3,
-    opteron_sse3,
-    athlon64_sse3,
-    amdfam10,
-    barcelona,
-    bdver1,
-    bdver2,
-    bdver3,
-    bdver4,
-    btver1,
-    btver2,
-    znver1,
-    znver2,
-    znver3,
-    winchip_c6,
-    winchip2,
-    c3,
-    c3_2,
-    c7,
-
-    // ia64
-    itanium,
-    itanium1,
-    merced,
-    itanium2,
-    mckinley,
-
-    // Sparc
-    v7,
-    cypress,
-    v8,
-    supersparc,
-    sparclite,
-    hypersparc,
-    sparclite86x,
-    f930,
-    f934,
-    sparclet,
-    tsc701,
-    v9,
-    ultrasparc,
-    ultrasparc3,
-
-    // RS/6000 & PowerPC
-    V_401,
-    V_403,
-    V_405,
-    V_405fp,
-    V_440,
-    V_440fp,
-    V_505,
-    V_601,
-    V_602,
-    V_603,
-    V_603e,
-    V_604,
-    V_604e,
-    V_620,
-    V_630,
-    V_740,
-    V_7400,
-    V_7450,
-    V_750,
-    V_801,
-    V_821,
-    V_823,
-    V_860,
-    V_970,
-    V_8540,
-    power_common,
-    ec603e,
-    g3,
-    g4,
-    g5,
-    power,
-    power2,
-    power3,
-    power4,
-    power5,
-    powerpc,
-    powerpc64,
-    rios,
-    rios1,
-    rsc,
-    rios2,
-    rs64a,
-
-    // MIPS
-    V_4kc,
-    V_4km,
-    V_4kp,
-    V_4ksc,
-    V_4kec,
-    V_4kem,
-    V_4kep,
-    V_4ksd,
-    V_5kc,
-    V_5kf,
-    V_20kc,
-    V_24kc,
-    V_24kf2_1,
-    V_24kf1_1,
-    V_24kec,
-    V_24kef2_1,
-    V_24kef1_1,
-    V_34kc,
-    V_34kf2_1,
-    V_34kf1_1,
-    V_34kn,
-    V_74kc,
-    V_74kf2_1,
-    V_74kf1_1,
-    V_74kf3_2,
-    V_1004kc,
-    V_1004kf2_1,
-    V_1004kf1_1,
-    i6400,
-    i6500,
-    interaptiv,
-    loongson2e,
-    loongson2f,
-    loongson3a,
-    gs464,
-    gs464e,
-    gs264e,
-    m4k,
-    m14k,
-    m14kc,
-    m14ke,
-    m14kec,
-    m5100,
-    m5101,
-    octeon,
-    octeon_p,
-    octeon2,
-    octeon3,
-    orion,
-    p5600,
-    p6600,
-    r2000,
-    r3000,
-    r3900,
-    r4000,
-    r4400,
-    r4600,
-    r4650,
-    r4700,
-    r5900,
-    r6000,
-    r8000,
-    rm7000,
-    rm9000,
-    r10000,
-    r12000,
-    r14000,
-    r16000,
-    sb1,
-    sr71000,
-    vr4100,
-    vr4111,
-    vr4120,
-    vr4130,
-    vr4300,
-    vr5000,
-    vr5400,
-    vr5500,
-    xlr,
-    xlp,
-
-    // HP/PA-RISC
-    V_700,
-    V_7100,
-    V_7100lc,
-    V_7200,
-    V_7300,
-    V_8000,
-
-    // Advanced RISC Machines
-    armv2,
-    armv2a,
-    armv3,
-    armv3m,
-    armv4,
-    armv4t,
-    armv5,
-    armv5t,
-    armv5te,
-    armv6,
-    armv6j,
-    iwmmxt,
-    ep9312,
-    armv7,
-    armv7s,
-
-    cortex_a9_p_vfpv3,
-    cortex_a53,
-    cortex_r5,
-    cortex_r5_p_vfpv3_d16,
-
-    // z Systems (aka s390x)
-    z196,
-    zEC12,
-    z13,
-    z14,
-    z15,
+    x86_64_v1,
+    x86_64_v2,
+    x86_64_v3,
+    x86_64_v4,
 };
 
 // Declared on Line 2143 in msvc.jam
 enum class CpuType : uint8_t
 {
-    G5,
-    G6,
-    EM64T,
     AMD64,
-    G7,
-    ITANIUM,
-    ITANIUM2,
     ARM,
     NONE,
 };
@@ -666,26 +364,9 @@ template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
     }
 }
 
-struct LinkerFlags
-{
-    // GCC
-    string options;
-    string optionsLink;
-    string lang;
-    string rpathOptionLink;
 
-    // MSVC
-    string findLibsSaLink;
-    string dotLdLink;
-    string dotLdArchive;
-    string linkFlagsLink;
-    string pdbCFlag;
-    string asmFlags_asm;
-    string pdbLinkFlag;
-    string linkFlagsMsvc;
-};
 
-struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
+struct LinkerFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -728,11 +409,57 @@ struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
 
     TargetType libraryType;
     LinkerFeatures();
-    LinkerFlags getLinkerFlags();
+    string getLinkerFlags();
     string getLinkCommand() const;
     string getArchiveCommand() const;
     void setConfigType(ConfigType configType);
     template <typename T> bool evaluate(T property) const;
+
+    template <typename T, typename... Property>
+    LinkerFeatures &assign(T property, Property... properties) {
+        if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
+        else if constexpr (std::is_same_v<T, LeakSanitizer>) leakSanitizer = property;
+        else if constexpr (std::is_same_v<T, ThreadSanitizer>) threadSanitizer = property;
+        else if constexpr (std::is_same_v<T, UndefinedSanitizer>) undefinedSanitizer = property;
+        else if constexpr (std::is_same_v<T, Coverage>) coverage = property;
+        else if constexpr (std::is_same_v<T, LTO>) lto = property;
+        else if constexpr (std::is_same_v<T, LTOMode>) ltoMode = property;
+        else if constexpr (std::is_same_v<T, RuntimeLink>) runtimeLink = property;
+        else if constexpr (std::is_same_v<T, RuntimeDebugging>) runtimeDebugging = property;
+        else if constexpr (std::is_same_v<T, TargetOS>) targetOs = property;
+        else if constexpr (std::is_same_v<T, DebugSymbols>) debugSymbols = property;
+        else if constexpr (std::is_same_v<T, Profiling>) profiling = property;
+        else if constexpr (std::is_same_v<T, Visibility>) visibility = property;
+        else if constexpr (std::is_same_v<T, ConfigType>) setConfigType(property);
+        else if constexpr (std::is_same_v<T, Arch>) arch = property;
+        else if constexpr (std::is_same_v<T, AddressModel>) addModel = property;
+        else if constexpr (std::is_same_v<T, DebugStore>) debugStore = property;
+        else if constexpr (std::is_same_v<T, UserInterface>) userInterface = property;
+        else if constexpr (std::is_same_v<T, InstructionSet>) instructionSet = property;
+        else if constexpr (std::is_same_v<T, CpuType>) cpuType = property;
+        else if constexpr (std::is_same_v<T, Strip>) strip = property;
+        else if constexpr (std::is_same_v<T, CxxSTD>) cxxStd = property;
+        else if constexpr (std::is_same_v<T, CxxSTDDialect>) cxxStdDialect = property;
+        else if constexpr (std::is_same_v<T, Linker>) linker = property;
+        else if constexpr (std::is_same_v<T, Archiver>) archiver = property;
+        else if constexpr (std::is_same_v<T, Threading>) threading = property;
+        else if constexpr (std::is_same_v<T, TargetType>) libraryType = property;
+
+        if constexpr (sizeof...(properties)) {
+            return assign(properties...);
+        } else {
+            return *this;
+        }
+    }
+
+    template <typename T, typename... Condition>
+    LinkerFeatures &assign(bool assignBool, T property, Condition... conditions)
+    {
+        if (assignBool) {
+            return assign(property, conditions...);
+        }
+        return *this;
+    }
 };
 
 template <typename T> bool LinkerFeatures::evaluate(T property) const
@@ -847,31 +574,9 @@ template <typename T> bool LinkerFeatures::evaluate(T property) const
     }
 }
 
-// Separate this in GccCompilerFlags and MSVCCompilerFlags
-struct CompilerFlags
-{
-    // GCC
-    string options;
-    string optionsCompileCpp;
-    string optionsCompile;
-    string definesCompileCpp;
 
-    string translateInclude;
-    // MSVC
-    string dotCcCompile;
-    string dotAsmCompile;
-    string dotAsmOutputCompile;
-    string dotLdArchive;
-    string pchFileCompile;
-    string pchSourceCompile;
-    string pchHeaderCompile;
-    string pdbCflags;
-    string asmFlagsAsm;
-    string cppFlagsCompileCpp;
-    string cppFlagsCompile;
-};
 
-struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
+struct CppCompilerFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -932,9 +637,63 @@ struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
     void setCpuType();
     bool isCpuTypeG7();
     void setConfigType(ConfigType configType_);
-    CompilerFlags getCompilerFlags() const;
+    string getCompilerFlags() const;
     string getCompileCommand();
     template <typename T> bool evaluate(T property) const;
+
+    template <typename T, typename... Property>
+    CppCompilerFeatures &assign(T property, Property... properties) {
+        if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
+        else if constexpr (std::is_same_v<T, LeakSanitizer>) leakSanitizer = property;
+        else if constexpr (std::is_same_v<T, ThreadSanitizer>) threadSanitizer = property;
+        else if constexpr (std::is_same_v<T, UndefinedSanitizer>) undefinedSanitizer = property;
+        else if constexpr (std::is_same_v<T, Coverage>) coverage = property;
+        else if constexpr (std::is_same_v<T, LTO>) lto = property;
+        else if constexpr (std::is_same_v<T, LTOMode>) ltoMode = property;
+        else if constexpr (std::is_same_v<T, RuntimeLink>) runtimeLink = property;
+        else if constexpr (std::is_same_v<T, RuntimeDebugging>) runtimeDebugging = property;
+        else if constexpr (std::is_same_v<T, TargetOS>) targetOs = property;
+        else if constexpr (std::is_same_v<T, DebugSymbols>) debugSymbols = property;
+        else if constexpr (std::is_same_v<T, Profiling>) profiling = property;
+        else if constexpr (std::is_same_v<T, Visibility>) localVisibility = property;
+        else if constexpr (std::is_same_v<T, ConfigType>) setConfigType(property);
+        else if constexpr (std::is_same_v<T, Arch>) arch = property;
+        else if constexpr (std::is_same_v<T, AddressModel>) addModel = property;
+        else if constexpr (std::is_same_v<T, DebugStore>) debugStore = property;
+
+        else if constexpr (std::is_same_v<T, StdLib>) stdLib = property;
+        else if constexpr (std::is_same_v<T, Optimization>) optimization = property;
+        else if constexpr (std::is_same_v<T, Inlining>) inlining = property;
+        else if constexpr (std::is_same_v<T, Vectorize>) vectorize = property;
+        else if constexpr (std::is_same_v<T, Warnings>) warnings = property;
+        else if constexpr (std::is_same_v<T, WarningsAsErrors>) warningsAsErrors = property;
+        else if constexpr (std::is_same_v<T, ExceptionHandling>) exceptionHandling = property;
+        else if constexpr (std::is_same_v<T, AsyncExceptions>) asyncExceptions = property;
+        else if constexpr (std::is_same_v<T, ExternCNoThrow>) externCNoThrow = property;
+        else if constexpr (std::is_same_v<T, RTTI>) rtti = property;
+        else if constexpr (std::is_same_v<T, InstructionSet>) instructionSet = property;
+        else if constexpr (std::is_same_v<T, CpuType>) cpuType = property;
+        else if constexpr (std::is_same_v<T, CSourceTargetEnum>) cSourceTarget = property;
+        else if constexpr (std::is_same_v<T, CxxSTD>) cxxStd = property;
+        else if constexpr (std::is_same_v<T, CxxSTDDialect>) cxxStdDialect = property;
+        else if constexpr (std::is_same_v<T, Compiler>) compiler = property;
+        else if constexpr (std::is_same_v<T, Threading>) threading = property;
+
+        if constexpr (sizeof...(properties)) {
+            return assign(properties...);
+        } else {
+            return *this;
+        }
+    }
+
+    template <typename T, typename... Condition>
+    CppCompilerFeatures &assign(bool assignBool, T property, Condition... conditions)
+    {
+        if (assignBool) {
+            return assign(property, conditions...);
+        }
+        return *this;
+    }
 };
 
 template <typename T> bool CppCompilerFeatures::evaluate(T property) const
@@ -986,6 +745,10 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
     {
         return asyncExceptions == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Vectorize>)
+    {
+        return vectorize == property;
     }
     else if constexpr (std::is_same_v<decltype(property), RTTI>)
     {

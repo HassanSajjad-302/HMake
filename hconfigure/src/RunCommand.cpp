@@ -292,18 +292,15 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
     ++builder.simultaneousProcessCount;
 
-    if (unusedOutputIndices.empty())
+    if (!freeOutputStrings.empty())
     {
-        outputIndex = currentIndexOutput;
-        ++currentIndexOutput;
-        output = &processOutputs[outputIndex];
+        output = freeOutputStrings.back();
+        freeOutputStrings.pop_back();
+        output->clear();
     }
     else
     {
-        outputIndex = unusedOutputIndices.back();
-        unusedOutputIndices.pop_back();
-        output = &processOutputs[outputIndex];
-        output->clear();
+        output = new string();
     }
 
     return readPipe;

@@ -22,6 +22,14 @@
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
 
+/// Builder uses two complementary scheduling models. Round 1 is a synchronous graph walk that lets targets finish
+/// configuration and establish a stable dependency graph. Round 0 is an asynchronous process scheduler: a target is
+/// placed on `readyBTargets` only when all of its FULL predecessors have completed, then either finishes immediately
+/// or registers an event whose completion releases its dependents.
+///
+/// In other words, `readyBTargets` is a readiness frontier rather than a generic work list. `dependenciesSize`,
+/// `updatedCount`, and `availableProcessSlots` respectively track graph readiness, completion accounting, and process
+/// pressure; together they guarantee that the frontier advances without oversubscribing the machine.
 static Builder *consoleHandlerBuilder;
 #ifdef _WIN32
 BOOL WINAPI ConsoleHandler(DWORD signal)
@@ -57,6 +65,8 @@ static uint64_t createMultiplex()
 
 Builder::Builder()
 {
+    // Construct the graph before inspecting filesystem state: configuration determines which nodes must be stat'ed or
+    // hashed for round 0's incremental decisions.
     round = 1;
     executeRoundOne();
     if (errorHappenedInRoundMode)
@@ -68,6 +78,7 @@ Builder::Builder()
     {
         return;
     }
+    // The graph now knows the complete initial node set, so snapshot its relevant file state in parallel.
     checkNodes(true);
     delete[] BTarget::realBTargetsGlobal[1].data();
     --round;
@@ -87,6 +98,7 @@ Builder::Builder()
 
 void Builder::executeRoundOne()
 {
+    // Seed the readiness frontier from a topological order. `execute()` extends it synchronously as nodes complete.
     RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
 
@@ -94,7 +106,7 @@ void Builder::executeRoundOne()
     {
         if (!rb->dependenciesSize)
         {
-            updateBTargets.emplace_back(rb);
+            readyBTargets.emplace_back(rb);
         }
     }
 
@@ -103,6 +115,8 @@ void Builder::executeRoundOne()
 
 static void checkDepsChanged(RealBTarget &rb)
 {
+    // The cache records the dependency contract of the completed build. A later build compares that contract with its
+    // current graph to decide whether a selectively requested target must be rebuilt.
     const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
     BTargetCache &fc = bTargetCaches[cacheIdx];
 
@@ -126,52 +140,54 @@ void Builder::executeRoundZero()
     RealBTarget::sortGraph();
     // RealBTarget::printSortedGraph();
 
-    if (const size_t topSize = RealBTarget::sorted.size())
+    if (const size_t topologicalTargetCount = RealBTarget::sorted.size())
     {
-        for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+        // Visit consumers before producers: selective work pulls its required dependencies into the build, while a
+        // changed relationship updates the dependency contract persisted for the consumer.
+        for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
         {
-            RealBTarget &rb = *RealBTarget::sorted[i];
+            RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
 
-            rb.indexInTopologicalSort = topSize - (i + 1);
+            target.indexInTopologicalSort = topologicalTargetCount - (reverseTopologicalIndex + 1);
 
-            if (rb.getBTarget()->selectiveBuild)
+            if (target.getBTarget()->selectiveBuild)
             {
-                // We need to check if our rb.dependenciesSize == 0, because it may have one in the deps-cache
-                if (rb.checkDepsChanged())
+                // The cached dependencies may exist even when the target has no current dependencies.
+                if (target.checkDepsChanged())
                 {
-                    const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
-                    BTargetCache &fc = bTargetCaches[cacheIdx];
+                    const uint32_t cacheIndex = target.getBTarget()->cacheIndex;
+                    BTargetCache &targetCache = bTargetCaches[cacheIndex];
 
-                    string *const newDeps = new string();
-                    newDeps->reserve(4 + 4 * rb.dependenciesSize);
-                    writeUint32(*newDeps, rb.dependenciesSize);
-                    rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+                    string *const updatedDependencies = new string();
+                    updatedDependencies->reserve(4 + 4 * target.dependenciesSize);
+                    writeUint32(*updatedDependencies, target.dependenciesSize);
+                    target.updateStatus = UpdateStatus::UPDATE_NEEDED;
 
-                    for (const auto &rbt : rb.dependencies)
+                    for (const RBTWithType &dependency : target.dependencies)
                     {
-                        const RelationType relationType = rbt.getRelationType();
-                        BTarget *dep = rbt.getPointer()->getBTarget();
+                        const RelationType relationType = dependency.getRelationType();
+                        BTarget *dependencyTarget = dependency.getPointer()->getBTarget();
 
                         if (relationType == RelationType::FULL || relationType == RelationType::SELECTIVE)
                         {
-                            dep->selectiveBuild = true;
+                            dependencyTarget->selectiveBuild = true;
                         }
 
                         if (relationType == RelationType::FULL || relationType == RelationType::WAIT)
                         {
-                            writeUint32(*newDeps, dep->cacheIndex);
+                            writeUint32(*updatedDependencies, dependencyTarget->cacheIndex);
                         }
                     }
-                    fc.depsCache = *newDeps;
+                    targetCache.depsCache = *updatedDependencies;
                 }
                 else
                 {
-                    for (const RBTWithType &rbt : rb.dependencies)
+                    for (const RBTWithType &dependency : target.dependencies)
                     {
-                        if (rbt.getRelationType() == RelationType::FULL ||
-                            rbt.getRelationType() == RelationType::SELECTIVE)
+                        if (dependency.getRelationType() == RelationType::FULL ||
+                            dependency.getRelationType() == RelationType::SELECTIVE)
                         {
-                            rbt.getPointer()->getBTarget()->selectiveBuild = true;
+                            dependency.getPointer()->getBTarget()->selectiveBuild = true;
                         }
                     }
                 }
@@ -179,27 +195,29 @@ void Builder::executeRoundZero()
         }
     }
 
-    uint32_t elementCount = 0;
-    updateBTargets.clear();
-    for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+    // Recreate the readiness frontier from the final graph. `insertionIndex` allows a module with blocked consumers to
+    // be promoted later, reducing the number of idle compiler processes.
+    uint32_t readyTargetCount = 0;
+    readyBTargets.clear();
+    for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
     {
-        RealBTarget &localRb = *RealBTarget::sorted[i];
-        if (!localRb.dependenciesSize)
+        RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
+        if (!target.dependenciesSize)
         {
-            updateBTargets.emplace_front(&localRb);
-            localRb.insertionIndex = elementCount;
-            ++elementCount;
+            readyBTargets.emplace_front(&target);
+            target.insertionIndex = readyTargetCount;
+            ++readyTargetCount;
         }
     }
 
     serverFd = createMultiplex();
-    updateBTargetsSizeGoal = RealBTarget::sorted.size();
+    readyBTargetsSizeGoal = RealBTarget::sorted.size();
     updatedCount = 0;
 
-    // edit the following if you want to run in lesser threads.
-    // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
+    // One limit caps active child processes; the other limits aggregate compiler pressure. A fully idle scheduler may
+    // still start one process, so conservative throttling cannot prevent the graph from making initial progress.
     uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
-    // maxRunningProcessAllowed = 1;
+    maxRunningProcessAllowed = 20;
     availableProcessSlots = maxRunningProcessAllowed;
     maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 8;
 
@@ -215,7 +233,8 @@ void Builder::executeRoundZero()
         P2978::getErrorString("SetConsoleCtrlHandler");
     }
 #else
-    // 1. Block signals so they are consumed from signalfd.
+    // Feed cancellation through the same event loop as child output. Blocking first prevents asynchronous delivery
+    // before signalfd can observe the signal.
     sigset_t mask;
     sigset_t oldMask;
     sigemptyset(&mask);
@@ -228,14 +247,12 @@ void Builder::executeRoundZero()
         printErrorMessage(FORMAT("sigprocmask(SIG_BLOCK) failed. Error\n{}\n", P2978::getErrorString()));
     }
 
-    // 2. Create a signalfd for blocked signals.
     const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (sfd == -1)
     {
         printErrorMessage(FORMAT("signalfd failed. Error\n{}\n", P2978::getErrorString()));
     }
 
-    // 3. Add signalfd to epoll.
     epoll_event ev{};
     ev.events = EPOLLIN;
     ev.data.fd = sfd;
@@ -250,15 +267,15 @@ void Builder::executeRoundZero()
     {
         while (true)
         {
-            const RealBTarget *b = updateBTargets.hasElement();
-            if (!b)
+            const RealBTarget *next = readyBTargets.hasElement();
+            if (!next)
             {
                 break;
             }
-            const uint64_t pid = b->getBTarget()->run.pid;
+            const uint64_t pid = next->getBTarget()->run.pid;
 
-            // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
-            // do so only when we are down to 0 active process.
+            // Resuming an existing process does not add process pressure. Starting a child consumes a slot and usually
+            // observes both limits; the idle exception ensures that the first runnable target can always launch.
             bool launchNewOne;
             if (pid != -1)
             {
@@ -278,15 +295,15 @@ void Builder::executeRoundZero()
                 break;
             }
 
-            updateBTargets.moveForward();
+            readyBTargets.moveForward();
 
-            if (b->getBTarget()->isEventRegistered(*this))
+            if (next->getBTarget()->isEventRegistered(*this))
             {
                 --availableProcessSlots;
             }
             else
             {
-                decrementFromDependents(const_cast<RealBTarget &>(*b));
+                decrementFromDependents(const_cast<RealBTarget &>(*next));
             }
         }
 
@@ -303,68 +320,69 @@ void Builder::executeRoundZero()
         */
 
 #ifdef _WIN32
-        OVERLAPPED_ENTRY events[128];
-        ULONG n = 0;
-        if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, events, 128, &n, INFINITE, FALSE))
+        OVERLAPPED_ENTRY completionEvents[128];
+        ULONG completionEventCount = 0;
+        if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, completionEvents, 128, &completionEventCount, INFINITE, FALSE))
         {
             printErrorMessage(P2978::getErrorString());
         }
 
         if constexpr (ndeb == NDEB::NO)
         {
-            if (n > activeEventCount)
+            if (completionEventCount > activeEventCount)
             {
-                printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
+                printErrorMessage(
+                    FORMAT("completionEventCount > activeEventCount, completionEventCount {} activeEventCount {}\n",
+                           completionEventCount, activeEventCount));
             }
         }
-        for (ULONG i = 0; i < n; i++)
+        for (ULONG completionEventIndex = 0; completionEventIndex < completionEventCount; completionEventIndex++)
         {
-            const uint64_t index = events[i].lpCompletionKey;
-            if (index == -1)
+            const uint64_t eventIndex = completionEvents[completionEventIndex].lpCompletionKey;
+            if (eventIndex == -1)
             {
                 string buffer;
                 writeBuildBuffer(buffer);
                 exit(EXIT_SUCCESS);
             }
-            CompletionKey &k = eventData[index];
+            CompletionKey &completionKey = eventData[eventIndex];
             if constexpr (ndeb == NDEB::NO)
             {
-                if (&(OVERLAPPED &)k.overlappedBuffer != events[i].lpOverlapped)
+                if (&(OVERLAPPED &)completionKey.overlappedBuffer != completionEvents[completionEventIndex].lpOverlapped)
                 {
-                    // printErrorMessage("events[i].lpOverlapped != events[i].lpOverlapped\n");
+                    // printErrorMessage("completion event does not match its completion key\n");
                 }
             }
 
-            if (BTarget *bTarget = k.target; bTarget && !callIsEventCompleted(bTarget, index))
+            if (BTarget *target = completionKey.target; target)
             {
-                decrementFromDependents(bTarget->realBTargets[0]);
-                ++availableProcessSlots;
+                completeTargetForEvent(target, eventIndex);
             }
         }
 #else
-        epoll_event events[128];
-        const int n = epoll_wait(serverFd, events, 128, -1);
+        epoll_event readyEvents[128];
+        const int readyEventCount = epoll_wait(serverFd, readyEvents, 128, -1);
 
         if constexpr (ndeb == NDEB::NO)
         {
             // +1 accounts for possible signalfd readiness event.
-            if (n != -1 && n > availableProcessSlots)
+            if (readyEventCount != -1 && readyEventCount > maxRunningProcessAllowed - availableProcessSlots + 1)
             {
-                for (uint32_t i = 0; i < 4096; i++)
+                for (const BTarget *ptr : eventData)
                 {
-                    if (eventData[i])
+                    if (ptr)
                     {
-                        printMessage(eventData[i]->getPrintName() + '\n');
+                        printMessage(ptr->getPrintName() + '\n');
                     }
                 }
                 HMAKE_HMAKE_INTERNAL_ERROR
             }
         }
 
-        for (int i = 0; i < n; i++)
+        for (int readyEventIndex = 0; readyEventIndex < readyEventCount; readyEventIndex++)
         {
-            const int fd = events[i].data.fd;
-            if (fd == sfd)
+            const int eventFd = readyEvents[readyEventIndex].data.fd;
+            if (eventFd == sfd)
             {
                 signalfd_siginfo signalInfo{};
                 const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
@@ -388,7 +406,7 @@ void Builder::executeRoundZero()
 
                 std::_Exit(EXIT_SUCCESS);
             }
-            if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
+            if (BTarget *bt = eventData[eventFd]; !callIsEventCompleted(bt, eventFd))
             {
                 decrementFromDependents(bt->realBTargets[0]);
                 ++availableProcessSlots;
@@ -397,16 +415,16 @@ void Builder::executeRoundZero()
 #endif
     }
 
-    if (updatedCount != updateBTargetsSizeGoal)
+    if (updatedCount != readyBTargetsSizeGoal)
     {
         // At this point the list must be empty
-        if (updateBTargets.hasElement())
+        if (readyBTargets.hasElement())
         {
             HMAKE_HMAKE_INTERNAL_ERROR
         }
-        /*for (uint32_t i = 0; i < updateBTargetsSizeGoal; ++i)
+        /*for (uint32_t i = 0; i < readyBTargetsSizeGoal; ++i)
         {
-            printMessage(updateBTargets.array[i].value->bTarget->getPrintName() + '\n');
+            printMessage(readyBTargets.array[i].value->bTarget->getPrintName() + '\n');
         }*/
         RealBTarget::sortGraph();
         printErrorMessage("HMake API misuse.\n");
@@ -441,8 +459,8 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         handle = fd;
         target = target_;
         target->run.output = &buffer;
-        // We need to provide a buffer where Windows kernel would write asynchronously.
-        // On Linux,
+        // IOCP needs storage that survives until its asynchronous completion. Linux keeps only an fd-to-target map;
+        // RunCommand owns the associated read buffer there.
         buffer.resize(4096);
         return index;
     }
@@ -459,6 +477,10 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
     buffer.resize(4096);
     return index;
 #else
+    if (fd >= eventData.size())
+    {
+        eventData.resize(std::max<size_t>(fd + 1, eventData.size() * 2), nullptr);
+    }
     eventData[fd] = target_;
     epoll_event ev{};
     // Add stdout to epoll
@@ -476,6 +498,8 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 
 bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 {
+    // Readability is not synonymous with process completion: IPC module builds can produce multiple messages. Keep
+    // dispatching until the target needs another read or explicitly completes; only completion releases dependents.
     CompleteReadType completeReadType = bTarget->run.completeRead();
     if (completeReadType == CompleteReadType::INCOMPLETE)
     {
@@ -508,14 +532,11 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
         }
         else
         {
-            if constexpr (os == OS::NT)
-            {
-                unusedKeysIndices.emplace_back(index);
-            }
-            else
-            {
-                unusedOutputIndices.emplace_back(bTarget->run.outputIndex);
-            }
+#ifdef _WIN32
+            unusedKeysIndices.emplace_back(index);
+#else
+            freeOutputStrings.push_back(bTarget->run.output);
+#endif
             return false;
         }
     }
@@ -524,7 +545,7 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
 #ifndef _WIN32
-    // Remove FDs from epoll now that process has exited
+    // The child has been reaped before this point, so this descriptor can no longer produce useful scheduler events.
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {
         printErrorMessage(FORMAT("Failed to remove BTarget\n{}\nread from epoll list. Error\n{}",
@@ -550,26 +571,21 @@ unsigned short count = 0;
 
 template <typename T> void divideInChunk(std::pmr::vector<std::span<T>> &result, std::pmr::vector<T> &v, uint16_t n)
 {
-
-    // If n is 1, return vector containing one span of the entire vector
+    // Produce non-owning partitions for regular-cost work. Content hashing uses a different strategy below because
+    // file sizes make its individual items highly uneven.
     if (n == 1)
     {
         result.emplace_back(std::span<T>(v.data(), v.size()));
         return;
     }
 
-    // If n is greater than vector size, create n spans where first v.size() spans
-    // contain one element each, and remaining spans are empty
     if (n > v.size())
     {
-
-        // Create spans for existing elements (one element per span)
         for (size_t i = 0; i < v.size(); ++i)
         {
             result.emplace_back(v.data() + i, 1);
         }
 
-        // Fill remaining spans as empty
         for (size_t i = v.size(); i < n; ++i)
         {
             result.emplace_back();
@@ -578,14 +594,12 @@ template <typename T> void divideInChunk(std::pmr::vector<std::span<T>> &result,
         return;
     }
 
-    // Normal case: divide vector into n chunks
     const size_t chunk_size = v.size() / n;
     const size_t remainder = v.size() % n;
     size_t start_pos = 0;
 
     for (uint16_t i = 0; i < n; ++i)
     {
-        // First 'remainder' chunks get an extra element
         size_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
 
         result.emplace_back(v.data() + start_pos, current_chunk_size);
@@ -615,9 +629,8 @@ void Builder::checkNodes(const bool isFirstTime)
     }
     else
     {
-        // This is called at the end before saving the cache. Here we cached those that were skipped earlier ( were
-        // generated during the build or initially there toBeChecked was false ( like dynamically discovered
-        // header-files)).
+        // Before persisting the cache, finish nodes discovered during the build, such as headers reported by a compiler
+        // after the initial snapshot.
 
         for (uint32_t i = 0; i < Node::idCount; ++i)
         {
@@ -634,7 +647,7 @@ void Builder::checkNodes(const bool isFirstTime)
         return n ? n : 1;
     }();
 
-    // Phase 1: stat — uniform cost, static chunks are fine.
+    // Stat work is cheap and regular, so contiguous static chunks minimize coordination overhead.
     if (statNodes.empty())
     {
         return;
@@ -665,14 +678,15 @@ void Builder::checkNodes(const bool isFirstTime)
         }
     }
 
-    // Phase 2: hash — heterogeneous cost, LPT static assignment.
+    // Hashing cost is size-sensitive. Sorting largest-first and assigning by stride approximates longest-processing-
+    // time scheduling, keeping a few large files from leaving one worker busy after the others finish.
     if (hashNodes.empty())
     {
         return;
     }
 
-    // Partition not_found nodes to the end without shifting.
-    // Swap-with-last is O(n) and allocation-free.
+    // Missing files have the stable sentinel hash 0 and need no I/O; remove them in-place before partitioning the real
+    // hashing work.
     uint32_t validCount = static_cast<uint32_t>(hashNodes.size());
     for (uint32_t i = 0; i < validCount;)
     {
@@ -721,7 +735,8 @@ void Builder::checkNodes(const bool isFirstTime)
 
 void Builder::execute()
 {
-    RealBTarget *rb = updateBTargets.getItem();
+    // Round 1 has no child processes, so every completion immediately advances the readiness frontier.
+    RealBTarget *rb = readyBTargets.getItem();
 
     while (rb)
     {
@@ -737,12 +752,14 @@ void Builder::execute()
         }
 
         decrementFromDependents(*rb);
-        rb = updateBTargets.getItem();
+        rb = readyBTargets.getItem();
     }
 }
 
 void Builder::decrementFromDependents(RealBTarget &rb)
 {
+    // This is the graph's commit point: propagate rebuild/failure state and one predecessor completion to each FULL
+    // consumer. A consumer becomes runnable exactly when its final prerequisite commits here.
     ++updatedCount;
 
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
@@ -771,22 +788,12 @@ void Builder::decrementFromDependents(RealBTarget &rb)
             if (!dependent->dependenciesSize)
             {
                 uint32_t insertionIndex;
-                updateBTargets.emplace(rbt.getPointer(), insertionIndex);
+                readyBTargets.emplace(rbt.getPointer(), insertionIndex);
                 dependent->insertionIndex = insertionIndex;
             }
         }
     }
 
-    DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
-                         updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
-}
-
-uint32_t Builder::getCapacityForNewProcesses() const
-{
-    if (const uint32_t desiredCapacity = maxSimultaneousProcessDesired - simultaneousProcessCount;
-        desiredCapacity > availableProcessSlots)
-    {
-        return desiredCapacity;
-    }
-    return availableProcessSlots;
+    DEBUG_EXECUTE(FORMAT("{} {} Info: readyBTargets.size() {} readyBTargetsSizeGoal {} {}\n", round, __LINE__,
+                         readyBTargets.size(), readyBTargetsSizeGoal, getThreadId()));
 }

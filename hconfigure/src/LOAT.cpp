@@ -383,7 +383,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         {
             str = "Executable";
         }
-        outputStr += FORMAT("[{}/{}]{} {} ", builder.updatedCount, builder.updateBTargetsSizeGoal, str, name);
+        outputStr += FORMAT("[{}/{}]{} {} ", builder.updatedCount, builder.readyBTargetsSizeGoal, str, name);
     }
     else
     {
