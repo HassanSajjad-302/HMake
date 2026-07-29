@@ -29,7 +29,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
 
     for (uint64_t i = str.find('\n', start); i != string::npos; start = i + 1, i = str.find('\n', start))
     {
-        string_view line = str.substr(start, i - start);
+        string_view line = string_view(str).substr(start, i - start);
 
         // Skip comments and empty lines
         if (line.starts_with("//") || line.empty())
@@ -48,15 +48,20 @@ void CppTarget::readModuleMapFromDir(const string &dir)
                 {
                     if (currentModeIndex == newModeIndex)
                     {
-                        printErrorMessage(FORMAT("Error: mode {} supplied twice", modeStrs[newModeIndex]));
+                        printErrorMessage(
+                            FORMAT("Module-map section is declared more than once.\nFile: {}\nSection: {}",
+                                   dir + "module-map.txt", modeStrs[newModeIndex]));
                     }
-                    printErrorMessage(FORMAT("Error: mode {} out of order", modeStrs[newModeIndex]));
+                    printErrorMessage(FORMAT("Module-map sections are out of order.\nFile: {}\nSection: {}\n"
+                                             "Previous section index: {}\nCurrent section index: {}",
+                                             dir + "module-map.txt", modeStrs[newModeIndex], currentModeIndex,
+                                             newModeIndex));
                 }
 
                 if (!pendingLogicalName.empty())
                 {
-                    printErrorMessage(FORMAT("Error: incomplete entry - missing file path for logical name: {}",
-                                             string(pendingLogicalName)));
+                    printErrorMessage(FORMAT("Module-map entry is missing its file path.\nFile: {}\nLogical name: {}",
+                                             dir + "module-map.txt", pendingLogicalName));
                 }
 
                 currentModeIndex = newModeIndex;
@@ -73,7 +78,9 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         // Parse data based on current mode
         if (currentModeIndex == -1)
         {
-            printErrorMessage("Error: data found before any mode declaration");
+            printErrorMessage(FORMAT("Module-map data appears before the first section declaration.\nFile: {}\n"
+                                     "Value: {}",
+                                     dir + "module-map.txt", line));
             return;
         }
 
@@ -86,8 +93,9 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         Node *node = Node::getNodeNonNormalized(string(line), true, true);
         if (node->fileType == file_type::not_found)
         {
-            printErrorMessage(FORMAT("Error: file {}\n provided in mode {}\n does not exists while parsing {}\n",
-                                     node->filePath, modeStrs[currentModeIndex], dir + "module-map.txt"));
+            printErrorMessage(
+                FORMAT("Module-map entry refers to a missing file.\nModule map: {}\nSection: {}\nPath: {}",
+                       dir + "module-map.txt", modeStrs[currentModeIndex], node->filePath));
         }
 
         /*if (currentModeIndex == 0)
@@ -125,45 +133,74 @@ void CppTarget::readModuleMapFromDir(const string &dir)
     }
 }
 
-HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_)
-    : data{.cppMod = cppMod_}, targetIndex{targetIndex_}, isUnit(true), isSystem(isSystem_)
-{
-}
-HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, Node *node_, bool isSystem_)
-    : data{.node = node_}, targetIndex{targetIndex_}, isUnit(false), isSystem(isSystem_)
-{
-}
-HeaderFileOrUnit::HeaderFileOrUnit(CppMod *cppMod_, const bool isSystem_)
-    : data{.cppMod = cppMod_}, isUnit(true), isSystem(isSystem_)
-{
-}
-HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
-    : data{.node = node_}, isUnit(false), isSystem(isSystem_)
-{
-}
-
 CppTarget::CppTarget(const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
+    : ObjectFileProducer(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
 {
     initializeCppTarget(name_, nullptr);
 }
 
 CppTarget::CppTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
+    : ObjectFileProducer(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
 {
     initializeCppTarget(name_, nullptr);
 }
 
 CppTarget::CppTarget(Node *myBuildDir_, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
+    : ObjectFileProducer(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
 {
     initializeCppTarget(name_, myBuildDir_);
 }
 
 CppTarget::CppTarget(Node *myBuildDir_, const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
+    : ObjectFileProducer(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
 {
     initializeCppTarget(name_, myBuildDir_);
+}
+
+void CppTarget::addCompileDependency(const DepType depType, CppTarget &dependency)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (depType == DepType::PUBLIC)
+        {
+            reqDeps.emplace(&dependency);
+            useReqDeps.emplace(&dependency);
+            realBTargets[1].addDep<BTargetType::UNKNOWN>(&dependency.realBTargets[1]);
+        }
+        else if (depType == DepType::PRIVATE)
+        {
+            reqDeps.emplace(&dependency);
+            realBTargets[1].addDep<BTargetType::UNKNOWN>(&dependency.realBTargets[1]);
+        }
+        else
+        {
+            useReqDeps.emplace(&dependency);
+        }
+    }
+    else
+    {
+        realBTargets[0].addDep<BTargetType::UNKNOWN, RelationType::SELECTIVE>(&dependency.realBTargets[0]);
+    }
+}
+
+void CppTarget::populateReqAndUseReqDeps()
+{
+    // Copy each set because this function adds transitive dependencies to it while iterating.
+    for (auto localReqDeps = reqDeps; CppTarget *dependency : localReqDeps)
+    {
+        reqDeps.insert(dependency->useReqDeps.begin(), dependency->useReqDeps.end());
+    }
+
+    for (auto localUseReqDeps = useReqDeps; CppTarget *dependency : localUseReqDeps)
+    {
+        useReqDeps.insert(dependency->useReqDeps.begin(), dependency->useReqDeps.end());
+    }
+
+    // A transitive closure through an explicitly supported circular frontend graph
+    // may lead back to this target. A target never needs to consume itself as a
+    // dependency, and retaining it would pollute the config cache and property pass.
+    reqDeps.erase(this);
+    useReqDeps.erase(this);
 }
 
 void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
@@ -185,7 +222,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNo
     }
 }
 
-void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
+void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_view, HfOrCppMod> &headerNameMapping)
 {
     // Reserve space for the count, fill it in after iteration.
     const uint32_t countOffset = buffer.size();
@@ -194,7 +231,7 @@ void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_vie
     uint32_t written = 0;
     for (const auto &[s, h] : headerNameMapping)
     {
-        if (h.isUnit)
+        if (h.type != FileType::HEADER_FILE)
         {
             continue;
         }
@@ -298,8 +335,8 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
     if (configuration->evaluate(IsCppMod::YES))
     {
-        printErrorMessage(FORMAT("In CppTarget {} source-file {}\n is being added with IsCppMod::YES.\n "
-                                 "Please use moduleFiles* API.\n",
+        printErrorMessage(FORMAT("A regular source was added to a module-enabled target.\nTarget: {}\nSource file: {}\n"
+                                 "Hint: use a moduleFiles* API for module implementation units.",
                                  name, node->filePath));
     }
 
@@ -308,8 +345,7 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
         if (source->node == node)
         {
             printErrorMessage(
-                FORMAT("Attempting to add {} twice in source-files in cpptarget {}. second insertiion ignored.\n",
-                       node->filePath, name));
+                FORMAT("Source file was added more than once.\nTarget: {}\nSource file: {}", name, node->filePath));
             return;
         }
     }
@@ -324,15 +360,14 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
     if (!file)
     {
         printErrorMessage(
-            FORMAT("Could not read the first line of file\n{}\n in actuallyAddModuleFileConfigTime\n", node->filePath));
+            FORMAT("Could not open a module file to read its module declaration.\nModule file: {}", node->filePath));
         return {};
     }
 
     string firstLine;
     if (!std::getline(file, firstLine))
     {
-        printErrorMessage(
-            FORMAT("Could not read the first line of file\n{}\n in actuallyAddModuleFileConfigTime\n", node->filePath));
+        printErrorMessage(FORMAT("Could not read the module declaration line.\nModule file: {}", node->filePath));
         return {};
     }
 
@@ -363,8 +398,9 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
 {
     if (configuration->evaluate(IsCppMod::NO))
     {
-        printErrorMessage(
-            FORMAT("In CppTarget {}\n module-file {}\n is being added with IsCppMod::NO.\n", name, node->filePath));
+        printErrorMessage(FORMAT("A module file was added to a target with modules disabled.\nTarget: {}\n"
+                                 "Module file: {}\nRequired setting: IsCppMod::YES",
+                                 name, node->filePath));
     }
 
     if (exportName.empty())
@@ -382,9 +418,9 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
         {
             if (cppMod->node == node)
             {
-                printErrorMessage(
-                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
-                           node->filePath, name));
+                printErrorMessage(FORMAT("Module implementation file was added more than once.\nTarget: {}\n"
+                                         "Module file: {}",
+                                         name, node->filePath));
                 return;
             }
         }
@@ -396,9 +432,9 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
         {
             if (cppMod->node == node)
             {
-                printErrorMessage(
-                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
-                           node->filePath, name));
+                printErrorMessage(FORMAT("Module interface file was added more than once.\nTarget: {}\n"
+                                         "Module file: {}\nExport name: {}",
+                                         name, node->filePath, exportName));
                 return;
             }
         }
@@ -417,19 +453,18 @@ void CppTarget::checkSameHeaderNameMapping(const string_view headerName)
         if (it->second.data.node != it2->second.data.node)
         {
             string str;
-            if (it->second.isUnit)
+            if (it->second.type == FileType::HEADER_UNIT || it->second.type == FileType::MODULE)
             {
-                str = FORMAT(
-                    "In CppTarget {}\nheader-name{}\n is mapped to different Header-Units in reqHeaderMapping and "
-                    "useReqHeaderMapping respectively\n{}\n{}\n",
-                    name, it->first, it->second.data.cppMod->node->filePath, it2->second.data.cppMod->node->filePath);
+                str = FORMAT("Header logical name maps to different CppMod in different scopes.\nTarget: {}\n"
+                             "Logical name: {}\nPrivate/required path: {}\nInterface path: {}",
+                             name, it->first, it->second.data.cppMod->node->filePath,
+                             it2->second.data.cppMod->node->filePath);
             }
             else
             {
-                str = FORMAT(
-                    "In CppTarget {}\nheader-name{}\n is mapped to different Header-Files in reqHeaderMapping and "
-                    "useReqHeaderMapping respectively\n{}\n{}\n",
-                    name, it->first, it->second.data.node->filePath, it->second.data.node->filePath);
+                str = FORMAT("Header logical name maps to different files in different scopes.\nTarget: {}\n"
+                             "Logical name: {}\nPrivate/required path: {}\nInterface path: {}",
+                             name, it->first, it->second.data.node->filePath, it2->second.data.node->filePath);
             }
             printErrorMessage(str);
         }
@@ -440,33 +475,33 @@ void CppTarget::populateNameMappingsAndNodesType()
 {
     if (configuration->evaluate(UseConfigurationScope::YES))
     {
-        flat_hash_map<string_view, HeaderFileOrUnit> tempNameMapping;
+        flat_hash_map<string_view, HfOrCppMod> tempNameMapping;
         tempNameMapping.reserve(reqHeaderNameMapping.size() + useReqHeaderNameMapping.size());
         tempNameMapping.insert(reqHeaderNameMapping.begin(), reqHeaderNameMapping.end());
         tempNameMapping.insert(useReqHeaderNameMapping.begin(), useReqHeaderNameMapping.end());
 
-        for (const auto &[headerName, type] : tempNameMapping)
+        for (const auto &[headerName, hfOrCppMod] : tempNameMapping)
         {
-            if (const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, type)); !ok)
+            if (const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, hfOrCppMod)); !ok)
             {
                 string alreadyAdded;
                 string tried;
 
-                const HeaderFileOrUnit headerFileOrUnit = it->second[0];
-                if (type.isUnit)
+                const HfOrCppMod local = it->second[0];
+                if (hfOrCppMod.type == FileType::HEADER_FILE)
                 {
-                    tried = "Header-Unit " + type.data.cppMod->node->filePath;
-                    alreadyAdded = "Header-Unit " + headerFileOrUnit.data.cppMod->node->filePath;
+                    tried = "CppMod " + hfOrCppMod.data.cppMod->node->filePath;
+                    alreadyAdded = "CppMod " + local.data.cppMod->node->filePath;
                 }
                 else
                 {
-                    tried = "Header-File " + type.data.node->filePath;
-                    alreadyAdded = "Header-File " + headerFileOrUnit.data.node->filePath;
+                    tried = "Header-File " + hfOrCppMod.data.node->filePath;
+                    alreadyAdded = "Header-File " + local.data.node->filePath;
                 }
 
-                printErrorMessage(FORMAT("In Configuration {}\nFailed adding headerName {} in "
-                                         "headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
-                                         configuration->name, headerName, tried, alreadyAdded));
+                printErrorMessage(FORMAT("Header logical name maps to multiple files.\nConfiguration: {}\n"
+                                         "Logical name: {}\nExisting mapping: {}\nAttempted mapping: {}",
+                                         configuration->name, headerName, alreadyAdded, tried));
             }
         }
 
@@ -491,7 +526,8 @@ void CppTarget::populateNameMappingsAndNodesType()
                 {
                     str = "C++20-Module ";
                 }
-                printErrorMessage(FORMAT("Configuration {}\nnodesTypeMap already has Node {} with type {}\n",
+                printErrorMessage(FORMAT("File has conflicting classifications in the configuration.\n"
+                                         "Configuration: {}\nPath: {}\nAttempted type: {}",
                                          configuration->name, node->filePath, str));
             }
         }
@@ -511,7 +547,9 @@ void CppTarget::populateNameMappingsAndNodesType()
         {
             if (!imodNames.emplace(p).second)
             {
-                printErrorMessage(FORMAT("CppTarget {} already has module {}\n", name, p.second->node->filePath));
+                printErrorMessage(FORMAT("Module name is provided more than once.\nTarget: {}\nModule name: {}\n"
+                                         "Module file: {}\nDependency target: {}",
+                                         name, p.first, p.second->node->filePath, t->name));
             }
         }
 
@@ -524,17 +562,18 @@ void CppTarget::populateNameMappingsAndNodesType()
         {
             if (reqHeaderNameMapping.contains(p.first))
             {
-                printErrorMessage(FORMAT(
-                    "CppTarget {} has header-name {} defined as both module and HeaderFileOrUnit\n", name, p.first));
+                printErrorMessage(FORMAT("Logical name is defined as both a module and a header.\nTarget: {}\n"
+                                         "Logical name: {}\nModule file: {}",
+                                         name, p.first, p.second->node->filePath));
             }
         }
     }
 }
 
-void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, const bool addInReq)
+void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HfOrCppMod hfOrCppMod, const bool addInReq)
 {
-    const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, type);
-    const HeaderFileOrUnit headerFileOrUnit = it->second;
+    const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, hfOrCppMod);
+    const HfOrCppMod local = it->second;
 
     if (ok)
     {
@@ -543,20 +582,20 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
 
     string alreadyAdded;
     string tried;
-    if (type.isUnit)
+    if (hfOrCppMod.type == FileType::HEADER_FILE)
     {
-        tried = "Header-Unit " + type.data.cppMod->node->filePath;
-        alreadyAdded = "Header-Unit " + headerFileOrUnit.data.cppMod->node->filePath;
+        tried = "Header-File " + hfOrCppMod.data.node->filePath;
+        alreadyAdded = "Header-File " + local.data.node->filePath;
     }
     else
     {
-        tried = "Header-File " + type.data.node->filePath;
-        alreadyAdded = "Header-File " + headerFileOrUnit.data.node->filePath;
+        tried = "Header-Unit " + hfOrCppMod.data.cppMod->node->filePath;
+        alreadyAdded = "Header-Unit " + local.data.cppMod->node->filePath;
     }
 
-    printErrorMessage(
-        FORMAT("In CppTarget {}\nFailed adding headerName {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
-               name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
+    printErrorMessage(FORMAT("Header logical name maps to multiple files.\nTarget: {}\nMapping scope: {}\n"
+                             "Logical name: {}\nExisting mapping: {}\nAttempted mapping: {}",
+                             name, addInReq ? "private/required" : "interface", headerName, alreadyAdded, tried));
 }
 
 void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool addInReq)
@@ -576,8 +615,9 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
         {
             str = "C++20-Module ";
         }
-        printErrorMessage(
-            FORMAT("In CppTarget {}\nnodesTypeMap already has Node {} with type {}\n", name, node->filePath, str));
+        printErrorMessage(FORMAT("File has conflicting classifications in the target.\nTarget: {}\nPath: {}\n"
+                                 "Existing type: {}",
+                                 name, node->filePath, str));
     }
 }
 
@@ -664,8 +704,9 @@ void CppTarget::makeHeaderFileHeaderUnit(const string &includeName, bool addInRe
     const Node *headerNode = getIncludeNode(true, *p, addInReq, addInUseReq);
     if (!headerNode)
     {
-        printErrorMessage(FORMAT("Include-Name {} does not exist in target {} while calling makeHeaderFileHeaderUnit\n",
-                                 includeName, name));
+        printErrorMessage(FORMAT("Cannot convert an unknown header file to a header unit.\nTarget: {}\n"
+                                 "Logical name: {}",
+                                 name, includeName));
     }
 
     removeHeaderFile(includeName, addInReq, addInUseReq);
@@ -689,8 +730,9 @@ void CppTarget::makeHeaderUnitHeaderFile(const string &includeName, bool addInRe
     const Node *headerNode = getIncludeNode(false, *p, addInReq, addInUseReq);
     if (!headerNode)
     {
-        printErrorMessage(FORMAT("Include-Name {} does not exist in target {} while calling makeHeaderUnitHeaderFile\n",
-                                 includeName, name));
+        printErrorMessage(FORMAT("Cannot convert an unknown header unit to a header file.\nTarget: {}\n"
+                                 "Logical name: {}",
+                                 name, includeName));
     }
 
     removeHeaderUnit(includeName, addInReq, addInUseReq);
@@ -712,7 +754,9 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
     {
         if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
         {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
+            printErrorMessage(FORMAT("Cannot remove an unknown header file.\nTarget: {}\nLogical name: {}\n"
+                                     "Mapping scope: private/required",
+                                     name, *p));
         }
         else
         {
@@ -733,7 +777,9 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
     {
         if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
         {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
+            printErrorMessage(FORMAT("Cannot remove an unknown header file.\nTarget: {}\nLogical name: {}\n"
+                                     "Mapping scope: interface",
+                                     name, *p));
         }
         else
         {
@@ -783,8 +829,9 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
         {
             if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
             {
-                printErrorMessage(
-                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+                printErrorMessage(FORMAT("Cannot remove an unknown header unit.\nTarget: {}\nLogical name: {}\n"
+                                         "Mapping scope: private/required",
+                                         name, *p));
             }
             else
             {
@@ -805,8 +852,9 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
         {
             if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
             {
-                printErrorMessage(
-                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+                printErrorMessage(FORMAT("Cannot remove an unknown header unit.\nTarget: {}\nLogical name: {}\n"
+                                         "Mapping scope: interface",
+                                         name, *p));
             }
             else
             {
@@ -825,8 +873,9 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
 
         if (!bigHu->composingHeaders.erase(*p))
         {
-            printErrorMessage(
-                FORMAT("Could not find composing-header {} to remove in public-header-unit in target {}\n.", *p, name));
+            printErrorMessage(FORMAT("Cannot remove a header that is not part of the aggregate header unit.\n"
+                                     "Target: {}\nAggregate header unit: {}\nLogical name: {}",
+                                     name, bigHu->node->filePath, *p));
         }
         if (bigHu->composingHeaders.empty())
         {
@@ -848,16 +897,18 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
 
     if (!found)
     {
-        printErrorMessage(
-            FORMAT("Could not find the header-unit {}\n with logical-name {}\n in target {}\n to delete.\n",
-                   headerNode->filePath, includeName, name));
+        printErrorMessage(FORMAT("Cannot remove a header unit that is not registered with the target.\nTarget: {}\n"
+                                 "Header unit: {}\nLogical name: {}",
+                                 name, headerNode->filePath, includeName));
     }
 
     if (addInReq)
     {
         if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
         {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            printErrorMessage(FORMAT("Cannot remove an unknown header unit.\nTarget: {}\nLogical name: {}\n"
+                                     "Mapping scope: private/required",
+                                     name, *p));
         }
         else
         {
@@ -878,7 +929,9 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
     {
         if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
         {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            printErrorMessage(FORMAT("Cannot remove an unknown header unit.\nTarget: {}\nLogical name: {}\n"
+                                     "Mapping scope: interface",
+                                     name, *p));
         }
         else
         {
@@ -903,13 +956,15 @@ void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile,
     lowerCaseOnWindows(p->data(), p->size());
     if (addInReq)
     {
-        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, true);
+        emplaceInHeaderNameMapping(*p, HfOrCppMod{const_cast<Node *>(headerFile), FileType::HEADER_FILE, isSystem},
+                                   true);
         emplaceInNodesType(headerFile, FileType::HEADER_FILE, true);
     }
 
     if (addInUseReq)
     {
-        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, false);
+        emplaceInHeaderNameMapping(*p, HfOrCppMod{const_cast<Node *>(headerFile), FileType::HEADER_FILE, isSystem},
+                                   false);
         emplaceInNodesType(headerFile, FileType::HEADER_FILE, false);
     }
 
@@ -947,13 +1002,13 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
 
         if (addInReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true);
+            emplaceInHeaderNameMapping(*p, HfOrCppMod{hu, FileType::HEADER_UNIT, false}, true);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, true);
         }
 
         if (addInUseReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false);
+            emplaceInHeaderNameMapping(*p, HfOrCppMod{hu, FileType::HEADER_UNIT, false}, false);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, false);
         }
 
@@ -966,8 +1021,8 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
         {
             if (cppMod->node == headerUnit)
             {
-                printErrorMessage(FORMAT("Attempting to add {} twice in header-units in cpptarget {}.\n",
-                                         headerUnit->filePath, name));
+                printErrorMessage(FORMAT("Header unit was added more than once.\nTarget: {}\nHeader unit: {}", name,
+                                         headerUnit->filePath));
             }
         }
 
@@ -975,14 +1030,14 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
 
         if (addInReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true);
+            emplaceInHeaderNameMapping(*p, HfOrCppMod{hu, FileType::HEADER_UNIT, false}, true);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, true);
             hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false);
+            emplaceInHeaderNameMapping(*p, HfOrCppMod{hu, FileType::HEADER_UNIT, false}, false);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, false);
             hu->isUseReqHu = true;
         }
@@ -1119,8 +1174,19 @@ void CppTarget::parseAndAddInComposingHeaders(CppMod &hu, const string &headerNa
 
         if (!hu.composingHeaders.emplace(*logicalName, nullptr).second)
         {
-            printErrorMessage(
-                FORMAT("Emplace of logicalName {}\n failed for hu {}\n", *logicalName, hu.node->filePath));
+            printErrorMessage(FORMAT("Composing-header logical name is duplicated.\nTarget: {}\nHeader unit: {}\n"
+                                     "Logical name: {}",
+                                     hu.target->name, hu.node->filePath, *logicalName));
+        }
+
+        if (hu.isReqHu)
+        {
+            emplaceInHeaderNameMapping(*logicalName, HfOrCppMod(&hu, FileType::HEADER_UNIT, true), true);
+        }
+
+        if (hu.isUseReqHu)
+        {
+            emplaceInHeaderNameMapping(*logicalName, HfOrCppMod(&hu, FileType::HEADER_UNIT, true), false);
         }
 
         oldIndex = index + 1;
@@ -1263,8 +1329,9 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
                 {
                     if (errorOnEmplaceFail)
                     {
-                        printErrorMessage(
-                            FORMAT("Include {} is already added in reqIncls in target {}.\n", include->filePath, name));
+                        printErrorMessage(FORMAT("Include directory was added more than once.\nTarget: {}\n"
+                                                 "Directory: {}\nScope: private/required",
+                                                 name, include->filePath));
                     }
                     found = true;
                     break;
@@ -1285,8 +1352,9 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
                 {
                     if (errorOnEmplaceFail)
                     {
-                        printErrorMessage(FORMAT("Include {} is already added in useReqIncls in target {}.\n",
-                                                 include->filePath, name));
+                        printErrorMessage(FORMAT("Include directory was added more than once.\nTarget: {}\n"
+                                                 "Directory: {}\nScope: interface",
+                                                 name, include->filePath));
                     }
                     return;
                 }
@@ -1611,7 +1679,7 @@ void CppTarget::readConfigCacheAtBuildTime()
             {
                 string_view name = readStringView(ptr, bytesRead);
                 if (Node *node = readHalfNode(ptr, bytesRead);
-                    !reqHeaderNameMapping.emplace(name, HeaderFileOrUnit{node, isSystem}).second)
+                    !reqHeaderNameMapping.emplace(name, HfOrCppMod{node, FileType::HEADER_FILE, isSystem}).second)
                 {
                     HMAKE_HMAKE_INTERNAL_ERROR
                 }
@@ -1624,8 +1692,8 @@ void CppTarget::readConfigCacheAtBuildTime()
         {
             string_view name = readStringView(ptr, bytesRead);
             Node *node = readHalfNode(ptr, bytesRead);
-            const auto &[it, ok] = configuration->headerNameMapping.emplace(name, vector<HeaderFileOrUnit>{});
-            it->second.emplace_back(cacheIndex, node, isSystem);
+            const auto &[it, ok] = configuration->headerNameMapping.emplace(name, vector<HfOrCppMod>{});
+            it->second.emplace_back(cacheIndex, node, FileType::HEADER_FILE, isSystem);
         }
     }
 
@@ -1669,7 +1737,9 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        printErrorMessage("Called Wrong time");
+        printErrorMessage(FORMAT("Source-directory expansion is only valid during configuration.\nTarget: {}\n"
+                                 "Build mode: BUILD",
+                                 name));
     }
 
     auto addNewFile = [&](const auto &k) {
@@ -1689,7 +1759,7 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
 
     if (string s = getNormalizedPath(sourceDirectory); !exists(path(s)))
     {
-        printErrorMessage(FORMAT("Path {} does not exist in target {}", s, name));
+        printErrorMessage(FORMAT("Source directory does not exist.\nTarget: {}\nDirectory: {}", name, s));
     }
 
     if (recursive)
@@ -1718,7 +1788,7 @@ CppSrc &CppTarget::getCppSrc(const string &str)
             return *cppSrc;
         }
     }
-    printErrorMessage(FORMAT("Could not find the CppSrc \n{}\nin srcFileDeps.\nin Target {}", str, name));
+    printErrorMessage(FORMAT("Source file is not registered with the target.\nTarget: {}\nSource file: {}", name, str));
 }
 
 CppMod &CppTarget::getCppInterfaceModule(const string &str)
@@ -1735,7 +1805,8 @@ CppMod &CppTarget::getCppInterfaceModule(const string &str)
             return *cppMod;
         }
     }
-    printErrorMessage(FORMAT("Could not find the CppMod \n{}\nin imodFileDeps.\nin Target {}", str, name));
+    printErrorMessage(
+        FORMAT("Module interface is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
     std::unreachable();
 }
 
@@ -1753,7 +1824,8 @@ CppMod &CppTarget::getCppModule(const string &str)
             return *cppMod;
         }
     }
-    printErrorMessage(FORMAT("Could not find the CppMod \n{}\nin modFileDeps.\nin Target {}", str, name));
+    printErrorMessage(
+        FORMAT("Module implementation is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
     std::unreachable();
 }
 
@@ -1764,7 +1836,7 @@ CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, cons
     if (addInReq)
     {
         if (const auto it = reqHeaderNameMapping.find(includeName);
-            it != reqHeaderNameMapping.end() && it->second.isUnit)
+            it != reqHeaderNameMapping.end() && it->second.type == FileType::HEADER_UNIT)
         {
             return *it->second.data.cppMod;
         }
@@ -1773,12 +1845,12 @@ CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, cons
     if (addInUseReq)
     {
         if (const auto it = useReqHeaderNameMapping.find(includeName);
-            it != useReqHeaderNameMapping.end() && it->second.isUnit)
+            it != useReqHeaderNameMapping.end() && it->second.type == FileType::HEADER_UNIT)
         {
             return *it->second.data.cppMod;
         }
     }
-    printErrorMessage(FORMAT("Could not find the Header-Unit \n{}\nin huDeps.\nin Target {}", str, name));
+    printErrorMessage(FORMAT("Header unit is not registered with the target.\nTarget: {}\nHeader unit: {}", name, str));
     std::unreachable();
 }
 
@@ -1927,7 +1999,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const uint32_t cachedReqDepsSize = readUint32(configCache.data(), bytesRead);
     if (reqDeps.size() != cachedReqDepsSize)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: reqDeps size mismatch current={} cached={}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: dependency count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
                                  getPrintName(), reqDeps.size(), cachedReqDepsSize));
     }
 
@@ -1937,9 +2010,10 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         if (const uint32_t cachedCacheIndex = readUint32(configCache.data(), bytesRead);
             r->cacheIndex != cachedCacheIndex)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: reqDeps[{}] cacheIndex mismatch\n"
-                                     "current={}  cached={}\n",
-                                     getPrintName(), reqDepsCount, r->cacheIndex, cachedCacheIndex));
+            printErrorMessage(
+                FORMAT("Configuration cache verification failed: dependency cache index mismatch.\nTarget: "
+                       "{}\nDependency position: {}\nCurrent index: {}\nCached index: {}",
+                       getPrintName(), reqDepsCount, r->cacheIndex, cachedCacheIndex));
         }
         ++reqDepsCount;
     }
@@ -1952,14 +2026,16 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     if (hasObjFiles != cachedHasObjFiles)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: hasObjFiles mismatch current={} cached={}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: object-file flag mismatch.\nTarget: "
+                                 "{}\nCurrent value: {}\nCached value: {}",
                                  getPrintName(), hasObjFiles, cachedHasObjFiles));
     }
 
     const uint32_t cachedSrcFileDepsSize = readUint32(configCache.data(), bytesRead);
     if (srcFileDeps.size() != cachedSrcFileDepsSize)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: srcFileDeps size mismatch current={} cached={}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: source-file count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
                                  getPrintName(), srcFileDeps.size(), cachedSrcFileDepsSize));
     }
 
@@ -1968,8 +2044,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
         if (i < srcFileDeps.size() && srcFileDeps[i]->node != cachedNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: srcFileDeps[{}] node mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: source-file path mismatch.\nTarget: "
+                                     "{}\nSource position: {}\nCurrent path: {}\nCached path: {}",
                                      getPrintName(), i,
                                      srcFileDeps[i]->node ? srcFileDeps[i]->node->filePath : "<null>",
                                      cachedNode ? cachedNode->filePath : "<null>"));
@@ -1979,7 +2055,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const uint32_t cachedModFileDepsSize = readUint32(configCache.data(), bytesRead);
     if (modFileDeps.size() != cachedModFileDepsSize)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: modFileDeps size mismatch current={} cached={}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: module implementation count "
+                                 "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
                                  getPrintName(), modFileDeps.size(), cachedModFileDepsSize));
     }
 
@@ -1988,8 +2065,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
         if (i < modFileDeps.size() && modFileDeps[i]->node != cachedNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: modFileDeps[{}] node mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: module implementation path "
+                                     "mismatch.\nTarget: {}\nModule position: {}\nCurrent path: {}\nCached path: {}",
                                      getPrintName(), i,
                                      modFileDeps[i]->node ? modFileDeps[i]->node->filePath : "<null>",
                                      cachedNode ? cachedNode->filePath : "<null>"));
@@ -1999,9 +2076,9 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const uint32_t cachedImodFileDepsSize = readUint32(configCache.data(), bytesRead);
     if (imodFileDeps.size() != cachedImodFileDepsSize)
     {
-        printErrorMessage(
-            FORMAT("{} configCache-verification failed: imodFileDeps size mismatch current={} cached={}\n",
-                   getPrintName(), imodFileDeps.size(), cachedImodFileDepsSize));
+        printErrorMessage(FORMAT("Configuration cache verification failed: module interface count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
+                                 getPrintName(), imodFileDeps.size(), cachedImodFileDepsSize));
     }
 
     for (uint32_t i = 0; i < cachedImodFileDepsSize; ++i)
@@ -2009,8 +2086,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
         if (i < imodFileDeps.size() && imodFileDeps[i]->node != cachedNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: imodFileDeps[{}] node mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: module interface path "
+                                     "mismatch.\nTarget: {}\nModule position: {}\nCurrent path: {}\nCached path: {}",
                                      getPrintName(), i,
                                      imodFileDeps[i]->node ? imodFileDeps[i]->node->filePath : "<null>",
                                      cachedNode ? cachedNode->filePath : "<null>"));
@@ -2019,8 +2096,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const bool cachedIsPrimaryExport = readBool(configCache.data(), bytesRead);
         if (i < imodFileDeps.size() && (imodFileDeps[i]->type == CppModType::PRIMARY_EXPORT) != cachedIsPrimaryExport)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: imodFileDeps[{}] isPrimaryExport mismatch\n"
-                                     "current={}  cached={}\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: primary-export flag mismatch.\nTarget: "
+                                     "{}\nModule position: {}\nCurrent value: {}\nCached value: {}",
                                      getPrintName(), i, imodFileDeps[i]->type == CppModType::PRIMARY_EXPORT,
                                      cachedIsPrimaryExport));
         }
@@ -2029,7 +2106,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const uint32_t cachedHuDepsSize = readUint32(configCache.data(), bytesRead);
     if (huDeps.size() != cachedHuDepsSize)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: huDeps size mismatch current={} cached={}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: header-unit count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
                                  getPrintName(), huDeps.size(), cachedHuDepsSize));
     }
 
@@ -2038,8 +2116,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
         if (i < huDeps.size() && huDeps[i]->node != cachedNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: huDeps[{}] node mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: header-unit path mismatch.\nTarget: "
+                                     "{}\nHeader-unit position: {}\nCurrent path: {}\nCached path: {}",
                                      getPrintName(), i, huDeps[i]->node ? huDeps[i]->node->filePath : "<null>",
                                      cachedNode ? cachedNode->filePath : "<null>"));
         }
@@ -2048,8 +2126,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
     const Node *cachedMyBuildDir = readHalfNode(configCache.data(), bytesRead);
     if (myBuildDir != cachedMyBuildDir)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed: myBuildDir mismatch\n"
-                                 "current=\"{}\"  cached=\"{}\"\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: build directory mismatch.\nTarget: "
+                                 "{}\nCurrent path: {}\nCached path: {}",
                                  getPrintName(), myBuildDir ? myBuildDir->filePath : "<null>",
                                  cachedMyBuildDir ? cachedMyBuildDir->filePath : "<null>"));
     }
@@ -2059,9 +2137,9 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         const uint32_t cachedReqInclsSize = readUint32(configCache.data(), bytesRead);
         if (reqIncls.size() != cachedReqInclsSize)
         {
-            printErrorMessage(
-                FORMAT("{} configCache-verification failed: reqIncls size mismatch current={} cached={}\n",
-                       getPrintName(), reqIncls.size(), cachedReqInclsSize));
+            printErrorMessage(FORMAT("Configuration cache verification failed: private include count "
+                                     "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
+                                     getPrintName(), reqIncls.size(), cachedReqInclsSize));
         }
 
         for (uint32_t i = 0; i < cachedReqInclsSize; ++i)
@@ -2069,19 +2147,20 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
             const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
             if (i < reqIncls.size() && reqIncls[i].node != cachedNode)
             {
-                printErrorMessage(FORMAT("{} configCache-verification failed: reqIncls[{}] node mismatch\n"
-                                         "current=\"{}\"  cached=\"{}\"\n",
-                                         getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
-                                         cachedNode ? cachedNode->filePath : "<null>"));
+                printErrorMessage(
+                    FORMAT("Configuration cache verification failed: private include path mismatch.\nTarget: "
+                           "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
+                           getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
+                           cachedNode ? cachedNode->filePath : "<null>"));
             }
         }
 
         const uint32_t cachedUseReqInclsSize = readUint32(configCache.data(), bytesRead);
         if (useReqIncls.size() != cachedUseReqInclsSize)
         {
-            printErrorMessage(
-                FORMAT("{} configCache-verification failed: useReqIncls size mismatch current={} cached={}\n",
-                       getPrintName(), useReqIncls.size(), cachedUseReqInclsSize));
+            printErrorMessage(FORMAT("Configuration cache verification failed: interface include count "
+                                     "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
+                                     getPrintName(), useReqIncls.size(), cachedUseReqInclsSize));
         }
 
         for (uint32_t i = 0; i < cachedUseReqInclsSize; ++i)
@@ -2089,18 +2168,18 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
             const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
             if (i < useReqIncls.size() && useReqIncls[i].node != cachedNode)
             {
-                printErrorMessage(FORMAT("{} configCache-verification failed: useReqIncls[{}] node mismatch\n"
-                                         "current=\"{}\"  cached=\"{}\"\n",
-                                         getPrintName(), i,
-                                         useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
-                                         cachedNode ? cachedNode->filePath : "<null>"));
+                printErrorMessage(
+                    FORMAT("Configuration cache verification failed: interface include path mismatch.\nTarget: "
+                           "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
+                           getPrintName(), i, useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
+                           cachedNode ? cachedNode->filePath : "<null>"));
             }
         }
     }
 
     if (configuration->evaluate(IsCppMod::YES))
     {
-        auto verifyHeaderNameMapping = [&](const flat_hash_map<string_view, HeaderFileOrUnit> &mapping,
+        auto verifyHeaderNameMapping = [&](const flat_hash_map<string_view, HfOrCppMod> &mapping,
                                            const string_view mapName) {
             const uint32_t cachedCount = readUint32(configCache.data(), bytesRead);
             uint32_t verifiedCount = 0;
@@ -2113,17 +2192,18 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
                 const auto it = mapping.find(cachedName);
                 if (it == mapping.end())
                 {
-                    printErrorMessage(FORMAT("{} configCache-verification failed: {}[{}] cached name\n\"{}\"\n"
-                                             "not found in current mapping\n",
+                    printErrorMessage(FORMAT("Configuration cache verification failed: cached logical name is "
+                                             "missing.\nTarget: {}\nMapping: {}\nEntry position: {}\nLogical name: {}",
                                              getPrintName(), mapName, i, cachedName));
                 }
                 else if (it->second.data.node != cachedNode)
                 {
-                    printErrorMessage(FORMAT("{} configCache-verification failed: {}[\"{}\"] node mismatch\n"
-                                             "current=\"{}\"  cached=\"{}\"\n",
-                                             getPrintName(), mapName, cachedName,
-                                             it->second.data.node ? it->second.data.node->filePath : "<null>",
-                                             cachedNode ? cachedNode->filePath : "<null>"));
+                    printErrorMessage(
+                        FORMAT("Configuration cache verification failed: logical-name path mismatch.\nTarget: "
+                               "{}\nMapping: {}\nLogical name: {}\nCurrent path: {}\nCached path: {}",
+                               getPrintName(), mapName, cachedName,
+                               it->second.data.node ? it->second.data.node->filePath : "<null>",
+                               cachedNode ? cachedNode->filePath : "<null>"));
                 }
                 ++verifiedCount;
             }
@@ -2132,15 +2212,15 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
             uint32_t currentNonUnitCount = 0;
             for (const auto &[s, h] : mapping)
             {
-                if (!h.isUnit)
+                if (h.type == FileType::HEADER_FILE)
                 {
                     ++currentNonUnitCount;
                 }
             }
             if (currentNonUnitCount != cachedCount)
             {
-                printErrorMessage(FORMAT("{} configCache-verification failed: {} non-unit count mismatch\n"
-                                         "current={}  cached={}\n",
+                printErrorMessage(FORMAT("Configuration cache verification failed: non-unit header count "
+                                         "mismatch.\nTarget: {}\nMapping: {}\nCurrent count: {}\nCached count: {}",
                                          getPrintName(), mapName, currentNonUnitCount, cachedCount));
             }
         };
@@ -2151,7 +2231,8 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
 
     if (configCache.size() != bytesRead)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed as configCache.size() != bytesRead {} vs {}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: entry size mismatch.\nTarget: {}\nEntry "
+                                 "size: {} bytes\nBytes consumed: {}",
                                  getPrintName(), configCache.size(), bytesRead));
     }
 }
@@ -2280,6 +2361,7 @@ template CppTarget &CppTarget::privateCompileDefines<>(const string &, const str
 template CppTarget &CppTarget::publicHUIncludes<>(NodeOrStr);
 template CppTarget &CppTarget::privateHUIncludes<>(NodeOrStr);
 template CppTarget &CppTarget::publicIncludesSource<>(NodeOrStr);
+template CppTarget &CppTarget::publicSystemIncludesSource<>(NodeOrStr);
 template CppTarget &CppTarget::privateIncludesSource<>(NodeOrStr);
 template CppTarget &CppTarget::publicIncludes<>(NodeOrStr);
 template CppTarget &CppTarget::privateIncludes<>(NodeOrStr);
@@ -2291,6 +2373,3 @@ template CppTarget &CppTarget::publicIncDirs<>(NodeOrStr, const string &);
 template CppTarget &CppTarget::privateIncDirs<>(NodeOrStr, const string &);
 template CppTarget &CppTarget::publicIncDirsRE<>(NodeOrStr, const string &, const string &);
 template CppTarget &CppTarget::privateIncDirsRE<>(NodeOrStr, const string &, const string &);
-
-template CppTarget &ObjectFileProducerWithDS<CppTarget>::publicDeps<>(CppTarget &);
-template CppTarget &ObjectFileProducerWithDS<CppTarget>::privateDeps<>(CppTarget &);

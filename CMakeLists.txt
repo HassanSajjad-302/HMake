@@ -55,6 +55,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/Manager.cpp
         hconfigure/src/BoostCppTarget.cpp
         hconfigure/src/CustomCodeGenerator.cpp
+        hconfigure/src/ue.cpp
         hconfigure/src/CustomAllocator.cpp)
 
 set(INCLUDE_BUILD ON)

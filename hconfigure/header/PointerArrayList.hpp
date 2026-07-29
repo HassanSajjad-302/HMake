@@ -2,9 +2,28 @@
 #ifndef HMAKE_POINTERARRAYLIST_HPP
 #define HMAKE_POINTERARRAYLIST_HPP
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 
-// This is a list backed by an array. It does not support deletion.
+/**
+ * @brief Non-owning, index-linked queue optimized for scheduler front insertion.
+ *
+ * The logical queue is a singly linked list whose links are integer slot indices into
+ * an append-only array. Every insertion consumes a new physical slot. Consumed and
+ * tombstoned slots are reclaimed together by `clear()` rather than individually.
+ *
+ * This lets the module scheduler remember an insertion index, tombstone that entry,
+ * and insert the same target at the front without searching the queue.
+ *
+ * `reserve()` and automatic growth preserve numeric slot indices and stored `T*`
+ * values. They invalidate raw pointers/references into `storage` or `array`. `clear()`
+ * retains capacity but semantically invalidates every previously returned index.
+ *
+ * The container does not own the pointed-to `T` objects and is not thread-safe.
+ */
 template <typename T> class PointerArrayList
 {
     struct ArrayListItem
@@ -13,83 +32,157 @@ template <typename T> class PointerArrayList
         uint32_t next;
     };
 
+    static constexpr uint32_t invalidIndex = std::numeric_limits<uint32_t>::max();
+    static constexpr uint32_t initialCapacity = 1024;
+
+    uint32_t capacity_ = 0;
+
+    void ensureCapacity()
+    {
+        if (arraySize < capacity_)
+        {
+            return;
+        }
+
+        if (arraySize == invalidIndex)
+        {
+            // The queue uses uint32_t links, so it cannot represent another entry.
+            std::abort();
+        }
+
+        const uint64_t doubled = static_cast<uint64_t>(capacity_) * 2;
+        reserve(static_cast<std::size_t>(std::min<uint64_t>(doubled, static_cast<uint64_t>(invalidIndex))));
+    }
+
   public:
+    // Exposed for the scheduler's indexed tombstoning. Do not retain a pointer/reference across reserve or insertion.
     ArrayListItem *storage = nullptr;
     ArrayListItem *array = nullptr;
-    uint32_t currentIndex = -1;
-    uint32_t last = 0;
+    /// Index of the next logical queue entry, or `invalidIndex` when exhausted.
+    uint32_t currentIndex = invalidIndex;
+    /// Last linked queue entry, or `invalidIndex` when empty.
+    uint32_t last = invalidIndex;
+    /// Physical slots used since `clear()`; this is not the number of live or allocated entries.
     uint32_t arraySize = 0;
 
+    /// Empties the queue, retains its allocation, and invalidates all previously returned slot indices.
     void clear()
     {
         array = storage;
-        currentIndex = -1;
-        last = 0;
+        currentIndex = invalidIndex;
+        last = invalidIndex;
         arraySize = 0;
-        // TODO
-        // arraySize should be recorded to report max array size to not get into memory issues.
     }
 
+    /// Returns physical slots used since the last `clear()`, including tombstones and consumed entries.
     uint32_t size() const
     {
         return arraySize;
     }
 
-    PointerArrayList()
+    /// Returns the number of physical slots available without reallocation.
+    uint32_t capacity() const noexcept
     {
-        storage = new ArrayListItem[1024 * 1024];
-        array = storage;
+        return capacity_;
     }
 
-    void emplace_back(T *bTarget)
+    /**
+     * @brief Ensures space for at least `requestedCapacity` physical slots.
+     *
+     * Numeric links and insertion indices remain valid. Raw pointers/references into
+     * `storage` or `array` are invalidated if growth occurs.
+     */
+    void reserve(const std::size_t requestedCapacity)
     {
-        array[arraySize].value = bTarget;
-        array[arraySize].next = -1;
+        if (requestedCapacity <= capacity_)
+        {
+            return;
+        }
+        if (requestedCapacity > invalidIndex)
+        {
+            std::abort();
+        }
+
+        const auto newCapacity = static_cast<uint32_t>(requestedCapacity);
+        ArrayListItem *newStorage = new ArrayListItem[newCapacity];
         if (arraySize)
         {
-            // array is not empty, so making the last array element point to the newly inserted one.
-            array[last].next = arraySize;
+            std::copy_n(storage, arraySize, newStorage);
         }
-        last = arraySize;
-        // just added a new item after we had exhausted the list in previous iteration.
-        if (currentIndex == -1)
-        {
-            currentIndex = last;
-        }
-        ++arraySize;
+        delete[] storage;
+        storage = newStorage;
+        array = storage;
+        capacity_ = newCapacity;
     }
 
-    void emplace_front(T *bTarget)
+    PointerArrayList()
     {
+        reserve(initialCapacity);
+    }
+
+    ~PointerArrayList()
+    {
+        delete[] storage;
+    }
+
+    PointerArrayList(const PointerArrayList &) = delete;
+    PointerArrayList &operator=(const PointerArrayList &) = delete;
+    PointerArrayList(PointerArrayList &&) = delete;
+    PointerArrayList &operator=(PointerArrayList &&) = delete;
+
+    /// Appends `bTarget` to the logical queue.
+    void emplace_back(T *bTarget)
+    {
+        ensureCapacity();
         array[arraySize].value = bTarget;
-        if (!arraySize)
+        array[arraySize].next = invalidIndex;
+        if (currentIndex == invalidIndex)
         {
-            array[arraySize].next = -1;
+            currentIndex = arraySize;
         }
         else
         {
-            // array is not empty, so making the newly inserted element point to the last one.
-            array[arraySize].next = currentIndex;
+            array[last].next = arraySize;
+        }
+        last = arraySize;
+        ++arraySize;
+    }
+
+    /// Inserts `bTarget` at the front of the logical queue.
+    void emplace_front(T *bTarget)
+    {
+        ensureCapacity();
+        array[arraySize].value = bTarget;
+        array[arraySize].next = currentIndex;
+        if (currentIndex == invalidIndex)
+        {
+            last = arraySize;
         }
         currentIndex = arraySize;
         ++arraySize;
     }
 
-    // at least one item should be present. there is no empty check.
+    /// Inserts at the front and returns the physical slot index used for later tombstoning.
     void emplace(T *bTarget, uint32_t &insertionIndex)
     {
+        ensureCapacity();
         insertionIndex = arraySize;
         array[arraySize].value = bTarget;
         array[arraySize].next = currentIndex;
+        if (currentIndex == invalidIndex)
+        {
+            last = arraySize;
+        }
         currentIndex = arraySize;
         ++arraySize;
     }
 
+    /// Consumes and returns the next live value, skipping tombstones; returns null when exhausted.
     T *getItem()
     {
         while (true)
         {
-            if (currentIndex == -1)
+            if (currentIndex == invalidIndex)
             {
                 return nullptr;
             }
@@ -103,11 +196,12 @@ template <typename T> class PointerArrayList
         }
     }
 
+    /// Peeks at the next live value, advancing past tombstones without consuming the live entry.
     T *hasElement()
     {
         while (true)
         {
-            if (currentIndex == -1)
+            if (currentIndex == invalidIndex)
             {
                 return nullptr;
             }
@@ -119,6 +213,7 @@ template <typename T> class PointerArrayList
         }
     }
 
+    /// Consumes the current live entry. Precondition: `hasElement()` returned non-null.
     void moveForward()
     {
         currentIndex = array[currentIndex].next;

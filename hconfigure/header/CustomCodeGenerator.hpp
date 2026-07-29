@@ -7,6 +7,13 @@
 #include "Node.hpp"
 #include "rapidhash/rapidhash.h"
 
+/// Minimal asynchronous generated-header target.
+///
+/// This example currently treats every successful invocation as an output change. A generator that can compare its
+/// previous and new outputs may instead apply HMake's unchanged-output cutoff: after a successful byte-for-byte or
+/// semantic comparison, set `updateStatus` to `UPDATE_NOT_NEEDED`. That single assignment is the complete cutoff
+/// operation; HMake conservatively re-evaluates affected dependents and preserves the cached `completionTime`. See
+/// "Unchanged-output cutoff" in the project README.
 struct HeaderGen : BTarget
 {
     string command;
@@ -15,6 +22,7 @@ struct HeaderGen : BTarget
     Node *sourceNode;
     Node *outputHeader;
     HeaderGen(const string &name, LOAT *codeGenerator_, const string &macroName, const string &macroValueFile);
+    void setUpdateStatus() override;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view message) override;
     void writeConfigCacheAtConfigTime(string &buffer) override;

@@ -91,7 +91,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
         {
             return;
         }
-        printErrorMessage(FORMAT("Empty build-dir provided for Prebuilt Library {}\n", name));
+        printErrorMessage(FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>",
+                                 name));
     }
 }
 
@@ -108,7 +109,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
         {
             return;
         }
-        printErrorMessage(FORMAT("Empty build-dir provided for Prebuilt Library {}\n", name));
+        printErrorMessage(FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>",
+                                 name));
     }
 }
 

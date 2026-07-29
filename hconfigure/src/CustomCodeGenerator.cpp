@@ -43,6 +43,31 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
     }
 }
 
+void HeaderGen::setUpdateStatus()
+{
+    RealBTarget &rb = realBTargets[0];
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+        return;
+    }
+
+    if (sourceNode->fileType == file_type::not_found)
+    {
+        printErrorMessage(FORMAT("Code-generator source file does not exist.\nTarget: {}\nSource file: {}", name,
+                                 sourceNode->filePath));
+    }
+
+    if (outputHeader->fileType == file_type::not_found)
+    {
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+        return;
+    }
+
+    const uint64_t contentHashes[] = {rapidhash(command.c_str(), command.size()), sourceNode->contentHash};
+    rb.cumulativeHash = rapidhash(contentHashes, sizeof(contentHashes));
+    BTarget::setUpdateStatus();
+}
+
 bool HeaderGen::isEventRegistered(Builder &builder)
 {
     RealBTarget &rb = realBTargets[0];
@@ -51,28 +76,11 @@ bool HeaderGen::isEventRegistered(Builder &builder)
         return false;
     }
 
-    if (rb.updateStatus == UpdateStatus::UNCHECKED)
-    {
-        if (sourceNode->fileType == file_type::not_found)
-        {
-            printErrorMessage(
-                FORMAT("Source-Node\n{}\nof Header-Gen target\n{}\ndoes not exit.", sourceNode->filePath, name));
-        }
-
-        const uint64_t arr2[] = {rapidhash(command.c_str(), command.size()), sourceNode->contentHash};
-        realBTargets[0].cumulativeHash = rapidhash(arr2, sizeof(arr2));
-
-        setUpdateStatus();
-    }
-
-    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
+    if (!refreshUpdateStatus())
     {
         return false;
     }
 
-    rb.launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     run.startAsyncProcess(command.c_str(), builder, this, false);
     return true;
 }
@@ -82,6 +90,8 @@ bool HeaderGen::isEventCompleted(Builder &builder, string_view)
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
         const uint64_t arr2[] = {rapidhash(command.c_str(), command.size()), sourceNode->contentHash};
+        // Recompute on completion because cumulativeHash may not have been initialized when update status was
+        // propagated by a dependency.
         realBTargets[0].cumulativeHash = rapidhash(arr2, sizeof(arr2));
         buildFooterUpdated = true;
     }

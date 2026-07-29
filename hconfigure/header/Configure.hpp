@@ -9,6 +9,7 @@
 #include "ConfigurationAssign.hpp"
 #include "CppMod.hpp"
 #include "CppTarget.hpp"
+#include "ue.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
 #include "JConsts.hpp"
@@ -19,27 +20,20 @@
 #include <thread>
 #include <utility>
 
-// TODO
-// HMake in future will only be available as module. Hence configuration will-be a split-second process.
-
-// TODO
-// HMake is designed to have all the build specification in a single-file. This might not be sufficient for really-big
-// projects. An approach to have a tugboat hmake.cpp that builds the cargo configure.dll, which then builds the project
-// will be explored.
-
-// TODO
-// Thread Sanitizer is used on Linux but not Sanitizer is used on Windows. There should be an option to use sanitizer on
-// Windows as well.
-
+/// User-defined function that declares the build graph.
 void buildSpecification();
+/// User-defined function that customizes one configuration.
 void configurationSpecification(Configuration &config);
+/// Invokes the registered `configurationSpecification` callback.
 void callConfigurationSpecification();
 
+/// Shared entry point used by generated configure and build executables.
 int main2(int argc, char **argv);
 
 inline void (*buildSpecificationFuncPtr)();
 inline void (*configurationSpecificationFuncPtr)(Configuration &config);
 
+/// Defines `main()` and registers `buildSpecification`. Place once in an `hmake.cpp` file.
 #define MAIN_FUNCTION                                                                                                  \
     int main(int argc, char **argv)                                                                                    \
     {                                                                                                                  \
@@ -47,6 +41,7 @@ inline void (*configurationSpecificationFuncPtr)(Configuration &config);
         return main2(argc, argv);                                                                                      \
     }
 
+/// Registers and immediately invokes `configurationSpecification`.
 #define CALL_CONFIGURATION_SPECIFICATION                                                                               \
     configurationSpecificationFuncPtr = &configurationSpecification;                                                   \
     callConfigurationSpecification();

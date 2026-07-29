@@ -7,6 +7,8 @@
 #include "LOAT.hpp"
 #include "ToolsCache.hpp"
 
+vector<Configuration *> allConfigurations;
+
 Configuration::Configuration(const string &name_) : BTarget(name_, false, BTargetType::CONFIGURATION)
 {
     if (standAlone)
@@ -238,7 +240,7 @@ CppTarget &Configuration::addStdCppDep(CppTarget &target)
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
     {
-        target.privateDeps(stdCppTarget->getSourceTarget());
+        target.addCompileDependency(DepType::PRIVATE, stdCppTarget->getSourceTarget());
     }
     return target;
 }
@@ -291,6 +293,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC(const string &name_, const bool d
     {
         return addStdDSCCppDep(getCppSharedDSC(name_, defines, std::move(define)));
     }
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, Node *myBuildDir, const string &name_,
@@ -304,6 +309,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, Node *m
     {
         return addStdDSCCppDep(getCppSharedDSC(explicitBuild, myBuildDir, name_, defines, std::move(define)));
     }
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppStaticDSC(const string &name_, const bool defines, string define)
@@ -345,7 +353,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, Node *myBu
     {
         return addStdDSCCppDep(getCppSharedDSC_P(name_, myBuildDir, defines, define));
     }
-    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName, Node *myBuildDir,
@@ -362,7 +372,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, const stri
         return addStdDSCCppDep(
             targets<DSC<CppTarget>>.emplace_back(cppTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
     }
-    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppStaticDSC_P(const string &name_, Node *myBuildDir, const bool defines,
@@ -523,6 +535,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSCNoName(const string &name_, const 
     {
         return addStdDSCCppDep(getCppSharedDSCNoName(name_, defines, std::move(define)));
     }
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBuild, Node *myBuildDir, const string &name_,
@@ -536,6 +551,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBuild, N
     {
         return addStdDSCCppDep(getCppSharedDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define)));
     }
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppStaticDSCNoName(const string &name_, const bool defines, string define)
@@ -577,7 +595,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, Node
     {
         return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, myBuildDir, defines, define));
     }
-    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
@@ -594,7 +614,9 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, cons
         return addStdDSCCppDep(
             targets<DSC<CppTarget>>.emplace_back(cppTarget, &getSharedPLOATNoName(prebuiltName, myBuildDir), defines));
     }
-    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
+                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppStaticDSC_PNoName(const string &name_, Node *myBuildDir, const bool defines,
@@ -639,5 +661,7 @@ bool operator<(const Configuration &lhs, const Configuration &rhs)
 
 Configuration &getConfiguration(const string &name)
 {
-    return targets<Configuration>.emplace_back(name);
+    Configuration &configuration = targets<Configuration>.emplace_back(name);
+    allConfigurations.emplace_back(&configuration);
+    return configuration;
 }

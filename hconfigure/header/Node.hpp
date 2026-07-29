@@ -41,19 +41,22 @@ struct NodeHash
 class Node
 {
   public:
-    // todo
-    // make this string_view to improve the initial load time from Nodes.bin
+    // This owns the path because nodes outlive the cache buffer from which they may be loaded.
     /// Normalized path (and lower-cased on Windows) for file or directory.
     string filePath;
 
     /// Cached last-write timestamp, assigned by `performSystemCheck()`.
-    uint64_t lastWriteTime = -1;
+    uint64_t lastWriteTime = UINT64_MAX;
 
     /// File size in bytes, populated by `performSystemCheck()` for regular files.
     uint64_t fileSize = 0;
 
     /// rapidhash of file contents, populated by `performContentHash()` when `doHashFile` is set.
+    /// Missing files use `missingContentHash`, distinct from the hash of an empty file.
     uint64_t contentHash = 0;
+
+    /// Sentinel used in fingerprints so deleting an empty header-file is observable.
+    inline static constexpr uint64_t missingContentHash = UINT64_MAX;
 
     /// Total number of `Node` instances constructed so far (next id to assign).
     inline static uint32_t idCount = 0;
@@ -62,7 +65,7 @@ class Node
     uint32_t myId;
 
     /// Cached filesystem type, assigned by `performSystemCheck()`.
-    file_type fileType;
+    file_type fileType = file_type::none;
 
     /// True after filesystem metadata has been fetched at least once.
     bool statCompleted{false};
@@ -83,10 +86,13 @@ class Node
     /// Returns basename without extension.
     string getFileStem() const;
     string getExtension() const;
+    /// Returns a non-owning view of filePath before its final host path separator.
+    /// The returned view never ends with slashc.
+    string_view getDirectoryStringView() const;
 
   private:
     friend class Builder;
-    /// Fetches filesystem metadata once and caches it in this object.
+    /// Refreshes cached filesystem metadata. Configure mode avoids duplicate checks.
     void performSystemCheck();
     void performContentHash();
 
@@ -103,7 +109,7 @@ class Node
     /// Retrieves/creates node without performing filesystem checks.
     static Node *getHalfNode(string_view filePath_);
 
-    /// Same as getHalfNode but accepts a non-normalized path and normalizes it internally.
+    /// Same as `getHalfNode`, but accepts a non-normalized path and normalizes it internally.
     static Node *getHalfNodeNonNormalized(string_view filePath_);
 
     /// Returns node by stable id index.

@@ -56,7 +56,9 @@ VSTools::VSTools(string batchFile, path toolBinDir, const Arch hostArch_, const 
     // tools will be installed. Support the vcvarsall.bat file code here and provide API about it.
     if (!hostSupported || !targetSupported)
     {
-        printErrorMessage("host or target not supported in VSTool\n");
+        printErrorMessage(FORMAT("Visual Studio toolchain does not support the requested architecture combination.\n"
+                                 "Host address model: {}\nTarget address model: {}",
+                                 static_cast<uint8_t>(hostAM), static_cast<uint8_t>(targetAM)));
     }
     compiler.bTFamily = linker.bTFamily = archiver.bTFamily = BTFamily::MSVC;
     compiler.bTVersion = linker.bTVersion = archiver.bTVersion = toolVersion;
@@ -85,7 +87,9 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
 
     if (const int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
     {
-        printErrorMessage("Error in Initializing Environment\n");
+        printErrorMessage(FORMAT("Could not initialize the Visual Studio build environment.\nCommand: {}\n"
+                                 "Exit code: {}",
+                                 finalCommand, code));
     }
     remove(temporaryBatchFilename);
 
@@ -157,7 +161,9 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
     remove(temporaryCppFile);
     if (r.exitStatus != EXIT_SUCCESS)
     {
-        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", *r.output));
+        printErrorMessage(FORMAT("Could not query the compiler environment.\nCompiler: {}\nCommand: {}\n"
+                                 "Exit code: {}\nCompiler output:\n{}",
+                                 compiler.bTPath, command, r.exitStatus, *r.output));
     }
 
     const vector<string_view> lines = split(*r.output, '\n');
@@ -400,7 +406,8 @@ ToolsCache::ToolsCache()
         }
         else
         {
-            printErrorMessage("Exiting in ToolsCache Constructor. HOME Environment variable not set\n");
+            printErrorMessage("Cannot locate the tool cache because HOME is not set.\nEnvironment variable: HOME\n"
+                              "Hint: set HOME to the current user's home directory.");
         }
     }
     else if constexpr (os == OS::NT)

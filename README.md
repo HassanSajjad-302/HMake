@@ -61,7 +61,7 @@ configure directory (see `initializeCache()` / `configureOrBuild()` in `BuildSys
 |------|----------------|----------|
 | `nodes` | Configure or build (if new paths appeared) | Interned path strings keyed by `Node::myId` |
 | `config-cache` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
-| `build-cache` | End of configure; updated after build | Per target: inline dependency list + sized body; optional 16-byte footer (`cumulativeHash`, `launchTime`) for process targets |
+| `build-cache` | End of configure; updated after build | Per target: inline dependency list + sized body; optional 16-byte footer (`cumulativeHash`, `completionTime`) for process targets |
 
 At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
 live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
@@ -84,9 +84,105 @@ the dependency is not scheduled twice). That prioritizes work with known waiters
 memory by reducing how long compiler processes sit idle.
 
 **Incremental decisions.** After `checkNodes(true)`, selective targets call `setUpdateStatus()`, which compares
-`Node::contentHash`, cached `cumulativeHash`, and dependency `launchTime` from the build-cache footer — not mtimes alone.
-When inputs change during the build, targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()` refreshes
-hashes and rewrites those entries before saving `build-cache`.
+`Node::contentHash`, cached `cumulativeHash`, and dependency `completionTime` from the build-cache footer — not mtimes
+alone. When inputs change during the build, targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()`
+refreshes hashes and rewrites those entries before saving `build-cache`.
+
+### Unchanged-output cutoff
+
+A process target can initially require an update, run successfully, and then discover that its observable output did
+not change. A code generator is the simplest example: its inputs or executable may have changed, but the newly generated
+file can still be identical to the existing file. In that case the target may change
+`realBTargets[0].updateStatus` from `UPDATE_NEEDED` to `UPDATE_NOT_NEEDED`. HMake then treats the execution as an
+unchanged-output cutoff: the target succeeds, but the unchanged result is not propagated as a rebuild reason to its
+dependents.
+
+HMake deliberately keeps this contract small and easy to adopt. Once a target has successfully proved that all of its
+observable outputs are unchanged, the cutoff itself is a single assignment to `updateStatus`; the target does not need
+to edit dependency edges, manipulate timestamps, or implement dependent cancellation. HMake owns those mechanics and
+conservatively re-evaluates affected targets at scheduler decision points before suppressing work.
+
+Process targets do not assign their own `completionTime`. At the scheduler commit point,
+`Builder::decrementFromDependents()` records the current time only when a process target completed successfully, its
+final status is `UPDATE_NEEDED`, and it marked its footer updated. Consequently, changing the final status to
+`UPDATE_NOT_NEEDED` both suppresses update propagation and preserves the cached completion time. The target can still
+set `buildFooterUpdated = true` to cache its new `cumulativeHash`; this accepts the input change without falsely
+claiming that the output changed, so the generator does not need to run again on the next HMake invocation.
+
+The essential completion pattern is:
+
+```cpp
+// After process completion and an application-specific output comparison:
+if (rb.exitStatus == EXIT_SUCCESS)
+{
+    if (outputsAreUnchanged)
+    {
+        rb.updateStatus = UpdateStatus::UPDATE_NOT_NEEDED;
+    }
+    buildFooterUpdated = true; // Cache the current cumulativeHash.
+}
+```
+
+Only apply this transition after a successful command, after proving that every observable output is unchanged, and
+after preparing the target's normal cache/footer update. Leave the target `UPDATE_NEEDED` when any output changed, and
+never convert a failed execution into a successful cutoff. With that ordinary completion bookkeeping in place, changing
+`updateStatus` is the complete cutoff operation: HMake clears stale dependency reasons and runs the target's full virtual
+update check again. If the target itself, a static dependency, or a dynamic dependency still requires an update, the
+work continues. This narrow contract makes unchanged-output cutoff both straightforward to use and conservative by
+construction.
+
+Prefer writing generated data to temporary files and replacing final outputs only when their contents differ; this also
+keeps the last successful output safe if the process fails or is cancelled.
+
+[`HeaderGen`](hconfigure/header/CustomCodeGenerator.hpp) is a minimal asynchronous code-generator model that can be
+extended with this comparison.
+
+#### C++ modules already in flight
+
+Module dependencies are not restricted to the initial static scheduling graph: a running compiler can discover a module
+or header-unit dependency over IPC and wait for it. Consequently, a `CppMod` consumer may already be running when the
+provider finishes and changes its status back to `UPDATE_NOT_NEEDED`.
+
+`CppMod::setUpdateStatus()` records the direct dependency that made the consumer stale in
+`RealBTarget::reasonForUpdate`. Once that recorded reason completes without changing its output, HMake performs a full
+re-evaluation while the consumer's cached `completionTime` is still visible. The check occurs before initial event
+registration, after a dependency wake-up, and before responding with a provider that had already completed:
+
+- If the consumer is still stale because of its own inputs or another dependency, compilation resumes and the
+  provider response is sent to the compiler.
+- If no rebuild reason remains, HMake terminates the speculative compiler process, records a successful completion, and
+  preserves the consumer's previous cached output time.
+
+`Builder` records `BTarget::initiationTime` once, immediately before the target's first `isEventRegistered()` call.
+Module resumptions do not change it. C++ source and module cache writers use this time to avoid accepting a header hash
+for a file modified after compilation began. `RealBTarget::completionTime` is committed separately, only at successful
+scheduler completion; cancelled and unchanged-output compilations therefore leave it untouched.
+
+The resume path is used for dependencies requested dynamically by the compiler; its recorded update reason can come
+from cached module dependencies or from static dependency evaluation. Every provider requested at runtime is added to
+the consumer's dependency set before re-evaluation, including a provider that already completed. Therefore an updated
+new provider keeps the consumer alive, while an unchanged provider cannot hide a different reason to rebuild. A null
+`reasonForUpdate` deliberately disables cancellation: it means the target is stale because of its own inputs, because a
+completed static dependency propagated the update, or that no direct dependency reason was recorded.
+
+Cancellation is permitted only after the recorded reason becomes `UPDATE_NOT_NEEDED` and a full re-evaluation finds no
+remaining reason to rebuild. This is the key correctness property of HMake's in-flight cutoff: speculative compilation
+is discarded only after the same target-specific update logic that launched it now proves it unnecessary.
+
+#### Compared with Ninja's `restat`
+
+HMake's unchanged-output cutoff shares the goal of [Ninja's `restat`](https://ninja-build.org/manual.html#ref_rule):
+avoid rebuilding reverse dependencies when a command ran but left its outputs unchanged. Ninja re-stats output
+timestamps and can remove pending reverse dependencies when their modification times did not change. HMake exposes the
+decision at the target-status level instead, allowing a target to use the proof appropriate to its output — for example,
+a byte-for-byte comparison, a semantic code-generator result, or a declaration hash — and report that proof with one
+state assignment.
+
+The distinction is most visible for dynamic modules. [Ninja's `dyndep`](https://ninja-build.org/manual.html#dynamic_dependencies)
+loads generated dependency information before the affected build statement proceeds. HMake can discover a dependency
+through compiler IPC after the consumer compiler is already running and waiting. It then adds the live dependency,
+re-evaluates the consumer, and can terminate only the speculative process that has become unnecessary. This handles a
+broader in-flight execution case; it is not, by itself, a claim that HMake is universally faster than Ninja.
 
 ---
 
@@ -161,11 +257,9 @@ htools
 
 **Build an example:**
 
-You can build any example by running `hhelper`, `hhelper`, `hbuild`
-
-1) Run hhelper — generates `cache.json`:
-2) Run hhelper — compiles `configure` and `build` executables, then runs `configure`:
-3) Run hbuild - runs `build` executable. Produces `{buildDir}/release/app`:
+The two `hhelper` invocations are intentional: the first creates `cache.json`; the second
+compiles the generated `configure` and `build` programs and runs the configure phase.
+`hbuild` then executes the cached build graph.
 
 ```bash
 cd HMake/Examples/Example1
@@ -173,6 +267,44 @@ mkdir build && cd build
 hhelper
 hhelper
 hbuild
+```
+
+For Example 1, the resulting executable is `build/Release/app/app` on Linux
+(`app.exe` on Windows).
+
+### Start a project
+
+Place an `hmake.cpp` beside your sources. This minimal specification creates one Release
+configuration and one executable:
+
+```cpp
+#include "Configure.hpp"
+
+void configurationSpecification(Configuration &config)
+{
+    config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");
+}
+
+void buildSpecification()
+{
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
+}
+
+MAIN_FUNCTION
+```
+
+The lifecycle is deliberately small:
+
+1. `buildSpecification()` creates configurations and assigns typed features.
+2. `CALL_CONFIGURATION_SPECIFICATION` invokes `configurationSpecification()` for the active configuration.
+3. The `getCpp*DSC()` factories declare compiled/linkable targets; add files and include paths through
+   `getSourceTarget()`, and dependencies through `privateDeps()`, `publicDeps()`, or `interfaceDeps()`.
+
+Feature assignments are evaluated left to right. Put broad presets before specific overrides, for example:
+
+```cpp
+getConfiguration("Debug").assign(ConfigType::DEBUG, Warnings::EXTRA, WarningsAsErrors::ON);
 ```
 
 <details>
@@ -803,7 +935,7 @@ MAIN_FUNCTION
 
 </details>
 
-`getConfiguration()` creates a default `Configuration` named `release` with `ConfigType::RELEASE`.
+`getConfiguration()` creates a default `Configuration` named `Release` with `ConfigType::RELEASE`.
 `CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in the
 build directory or a matching configuration subdirectory. This allows a multi-configuration project to build only the
 active configuration without running the others.

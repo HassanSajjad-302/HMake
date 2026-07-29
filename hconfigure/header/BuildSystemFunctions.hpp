@@ -1,6 +1,17 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 
+/**
+ * @file BuildSystemFunctions.hpp
+ * @brief Shared runtime state and utilities used by HMake's configure/build executables.
+ *
+ * This is primarily an internal support header. User specifications should include
+ * `Configure.hpp`; doing so exposes the supported build API and includes this file as
+ * needed. The generated configure and build programs compile the same sources with different
+ * `BUILD_MODE` values, so `bsMode` can be used in `if constexpr` branches when a
+ * declaration is phase-specific.
+ */
+
 #include "HashValues.hpp"
 #include "gtl/include/gtl/phmap.hpp"
 #include <deque>
@@ -10,14 +21,13 @@
 #include <string>
 #include <vector>
 
-using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector, std::vector,
+using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
     std::deque, gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
 
-// There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
-// there, some go here.
-
+/// Convenience wrapper used throughout the codebase for compile-time-checked `std::format` calls.
 #define FORMAT(formatStr, ...) std::format(formatStr, __VA_ARGS__)
 
+/// Host operating-system family used while generating commands and normalizing paths.
 enum class OS : uint8_t
 {
     AIX,
@@ -28,6 +38,7 @@ enum class OS : uint8_t
     VMS,
 };
 
+/// Compile-time representation of whether `NDEBUG` was defined for this executable.
 enum class NDEB
 {
     NO,
@@ -37,10 +48,10 @@ enum class NDEB
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
 #ifdef _WIN32
-inline char slashc = '\\';
+inline constexpr char slashc = '\\';
 inline constexpr OS os = OS::NT;
 #else
-inline char slashc = '/';
+inline constexpr char slashc = '/';
 inline constexpr OS os = OS::LINUX;
 #endif
 
@@ -50,24 +61,36 @@ inline constexpr NDEB ndeb = NDEB::YES;
 inline constexpr NDEB ndeb = NDEB::NO;
 #endif
 
+/// Whether diagnostic output is attached to a console that supports terminal formatting.
 inline bool isConsole = true;
 
+/// Target names explicitly requested on the `hbuild` command line.
 inline flat_hash_set<string> cmdTargets;
 inline string configCacheGlobal{};
 inline string buildCacheGlobal{};
 inline string nodesCacheGlobal{};
 
-// Node representing source dir
+/// Node representing the project source directory.
 inline class Node *srcNode;
 
-// Node representing configure dir
+// Base directory used by getNormalizedPath() for relative paths. It normally
+// views srcNode->filePath, but decentralized specifications temporarily point it
+// at the directory containing the active specification file.
+inline string_view normalizationBasePath;
+
+/// Node representing the active configure/build directory.
 inline Node *configureNode;
 
+/// Directory context currently used while reading a decentralized specification.
 inline Node *currentNode;
 
 inline uint32_t nodesSizeBefore = 0;
 
-enum class BSMode : uint8_t // Build System Mode
+/**
+ * Compile-time build-system phase. `BOTH` aliases the active phase so shared code can use
+ * one enumerator in phase-dependent conditions without adding runtime state.
+ */
+enum class BSMode : uint8_t
 {
     CONFIGURE = 0,
     BUILD = 1,
@@ -78,36 +101,35 @@ enum class BSMode : uint8_t // Build System Mode
 #endif
 };
 
-// By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
-
 #ifdef BUILD_MODE
 inline constexpr BSMode bsMode = BSMode::BUILD;
 #else
 inline constexpr BSMode bsMode = BSMode::CONFIGURE;
 #endif
 
-// In BsMode::BUILD, the build-system will just output the commands but not run them.
+/// Build-mode option that prints commands without launching them.
 inline bool dryRun = false;
 
-// In BsMode::BUILD, the build-system will only build hu in CppMod. Other types of CppMod will set exitStatus to
-// EXIT_FAILURE and return.
+/// Diagnostic option that dumps selected internal hash maps.
+inline bool printHashMap = false;
+
+/// Build-mode option that limits C++ module work to header units.
 inline bool huOnly = false;
 
-// In BsMode::BUILD, the build-system create script files for compiling the modules and header-units. This script will
-// first compile all the dependencies and will then compile the module or header-unit.
+/// Build-mode option that emits self-contained module/header-unit command scripts.
 inline bool standAlone = false;
 
-// Global variable for holding memory
+/// Stable-address storage for targets of type `T` during one HMake process.
 template <typename T> inline deque<T> targets;
 
-// Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
-// constructor.
+/// Registry populated by target constructors and used for whole-graph traversals.
 template <typename T> inline flat_hash_set<T *> targetPointers;
 
-// Builder instance that will be used in configuration and build steps.
+/// Builder instance that owns execution of the configured graph.
 inline class Builder *builderPtr;
 
 inline string currentMinusConfigure;
+/// Loads tool/cache-variable state and interns cached nodes for the active configure directory.
 void initializeCache();
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
@@ -410,17 +432,34 @@ inline const char *getColorCode(ColorIndex c)
     return ColorCodes[static_cast<uint32_t>(c)];
 }
 
-// While decompressing lz4 file, we allocate following + 1 the buffer size.
-// So, we have compressed filee * bufferMultiplier times the space.
-// Also, while storing we check that the original file size / compresseed file size
-// is not equal to or greater than bufferMultiplier. Hence validating our assumption.
+// LZ4 decompression allocates `(compressed size * bufferMultiplier) + 1` bytes.
+// Compression validates that the original-to-compressed size ratio fits within this bound.
 void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer);
+
+/// Compares equal-length byte strings. Despite the name, this is an equality test performed back to front.
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
+
+/// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);
+
+/**
+ * Makes a path absolute relative to `normalizationBasePath`, applies lexical normalization,
+ * and lowercases it on Windows. It does not access the filesystem or resolve symlinks.
+ */
 string getNormalizedPath(path filePath);
+
+/**
+ * Performs a byte-prefix containment check on paths that are already normalized.
+ * This helper does not normalize its inputs or validate a path-component boundary.
+ */
 bool childInParentPathNormalized(string_view parent, string_view child);
+
+/// Reads an entire file into a string. The file must exist and be readable.
 string fileToString(const string &fileName);
+/// Reads an entire file into caller-provided polymorphic-allocator storage.
 void fileToString(const string &fileName, std::pmr::string &buffer);
+
+/// Reads and decompresses an HMake cache file (or reads it directly when compression is disabled).
 string readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
@@ -430,14 +469,18 @@ string getBuildCache();
 string getThreadId();
 string getFileNameJsonOrOut(const string &name);
 
+/// Writes exactly `message` to stdout and flushes; no newline is appended.
 void printMessage(const string &message);
 void printMessage(const char *message);
 void printMessage(const std::pmr::string &message);
-void printErrorMessage(const string &message);
+/// Prints `error: <message>` to stderr with one terminating newline, then exits through `errorExit()`.
+[[noreturn]] void printErrorMessage(const string &message);
+/// Prints a standardized error without exiting. Use when assembling a multi-error diagnostic.
 void printErrorMessageNoReturn(const string &message);
 void printErrorMessageColor(const string &message, uint32_t color);
 
-#define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));
+#define HMAKE_HMAKE_INTERNAL_ERROR                                                                                     \
+    printErrorMessage(FORMAT("Internal HMake invariant failed.\nSource file: {}\nSource line: {}", __FILE__, __LINE__));
 
 string getLastNameAfterSlash(string_view name);
 string_view getLastNameAfterSlashV(string_view name);
@@ -446,39 +489,52 @@ string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
 string_view removeDashCppFromNameSV(string_view name);
-bool configureOrBuild();
-void constructGlobals();
-void destructGlobals();
-void errorExit();
 
+/// Executes the active phase and persists its caches. Returns true when the builder reported an error.
+bool configureOrBuild();
+
+/// Constructs manually managed process-wide storage. Paired with `destructGlobals()`.
+void constructGlobals();
+/// Releases storage initialized by `constructGlobals()`.
+void destructGlobals();
+[[noreturn]] void errorExit();
+
+/// Wraps text in ordinary double quotes.
 string addQuotes(string_view pstr);
+/// Wraps text in escaped double quotes suitable for embedding in another command string.
 string addEscapedQuotes(const string &pstr);
+
+/** Splits into non-owning views, preserving empty fields. The input storage must outlive the result. */
 vector<string_view> split(string_view str, char token);
+
+/// Formats a 32-bit value as exactly eight uppercase hexadecimal digits without a prefix.
 std::string toString(uint32_t value);
 
-template <typename T> void emplaceInVector(vector<T> &v, T &&t)
+/// Appends `value` only when no equal element is already present (linear search).
+template <typename T> void emplaceInVector(vector<T> &values, T &&value)
 {
-    for (const T &t_ : v)
+    for (const T &existing : values)
     {
-        if (t_ == t)
+        if (existing == value)
         {
             return;
         }
     }
-    auto a = v.emplace_back(std::forward<T>(t));
+    values.emplace_back(std::forward<T>(value));
 }
 
-/// Custom comparator for TargetCache like CppTarget and PLOAT based on cacheIndex
-/// Means that any dependency must be declared before the dependent.
+/// Priority-queue comparator for cache-backed targets. Lower cache indices sort first, so
+/// dependencies must be declared before their dependents.
 template <typename T> struct TPointerLess
 {
     bool operator()(const T *lhs, const T *rhs) const
     {
-        // Compare based on CppTarget::cacheIndex for ordering
         return lhs->cacheIndex > rhs->cacheIndex;
     }
 };
 
+// Internal raw-storage helpers. Objects declared with these macros must be placement-constructed
+// by constructGlobals() (or their owning type) before use and explicitly destroyed afterward.
 #define GLOBAL_VARIABLE(type, var)                                                                                     \
     alignas(16) inline char _##var[sizeof(type)];                                                                      \
     inline type &var = reinterpret_cast<type &>(_##var);

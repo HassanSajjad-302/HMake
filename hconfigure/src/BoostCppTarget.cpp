@@ -111,8 +111,8 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
             if (isCompile)
             {
-                CppTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName)
-                                           .privateDeps(mainTarget.getSourceTarget());
+                CppTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName);
+                cppTarget.addCompileDependency(DepType::PRIVATE, mainTarget.getSourceTarget());
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
                 if (testTarget)
@@ -176,7 +176,7 @@ BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
         {
             for (CppTarget *dep : cppTestDepsPrivate)
             {
-                testTarget.cppTarget->privateDeps(*dep);
+                testTarget.cppTarget->addCompileDependency(DepType::PRIVATE, *dep);
             }
         }
         else

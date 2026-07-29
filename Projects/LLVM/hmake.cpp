@@ -893,7 +893,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("standard");
+   // getConfiguration("standard");
     // Compilation does not work with big header-units.
     getConfiguration("standard");
     getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES, Optimization::OFF,

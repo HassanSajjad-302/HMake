@@ -112,7 +112,9 @@ void LOAT::completeRoundOne()
             }
             else
             {
-                printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
+                printErrorMessage(FORMAT("Link target has no object files.\nTarget: {}\n"
+                                         "Hint: add sources or object-producing dependencies before linking.",
+                                         name));
             }
         }
         else
@@ -131,6 +133,8 @@ void LOAT::completeRoundOne()
         {
             STACK_PMR_STRING(linkWithTargets, 64 * 1024)
             setLinkOrArchiveCommands(linkWithTargets, true);
+            linkWithTargets += config.linkDependenciesPrefix;
+            linkWithTargets += config.linkCommandSuffix;
             rb.cumulativeHash = rapidhash(linkWithTargets.data(), linkWithTargets.size());
         }
 
@@ -250,6 +254,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         return;
     }
 
+    linkWithTargets += config.linkDependenciesPrefix;
+
     if (linkTargetType == TargetType::LIBRARY_SHARED)
     {
         linkWithTargets += linkerFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
@@ -310,6 +316,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
             }
         }
     }
+
+    linkWithTargets += config.linkCommandSuffix;
 }
 
 bool LOAT::isEventRegistered(Builder &builder)
@@ -318,16 +326,10 @@ bool LOAT::isEventRegistered(Builder &builder)
     {
         return false;
     }
-    RealBTarget &rb = realBTargets[0];
 
     STACK_PMR_STRING(linkWithTargets, 64 * 1024)
     setLinkOrArchiveCommands(linkWithTargets, false);
-    if (rb.updateStatus == UpdateStatus::UNCHECKED)
-    {
-        setUpdateStatus();
-    }
-
-    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
+    if (!refreshUpdateStatus())
     {
         return false;
     }
@@ -338,9 +340,6 @@ bool LOAT::isEventRegistered(Builder &builder)
         return false;
     }
 
-    realBTargets[0].launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     run.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
     return true;
 }

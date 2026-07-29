@@ -1,6 +1,7 @@
 #include "Configure.hpp"
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -14,11 +15,13 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     {
         if (argc > 1)
         {
-            printErrorMessage("Unknown cmd arguments in configure mode\n");
+            string arguments;
             for (int i = 1; i < argc; ++i)
             {
-                printErrorMessage(argv[i]);
+                arguments += FORMAT("\n  - {}", argv[i]);
             }
+            printErrorMessage(
+                FORMAT("Configure mode does not accept command-line arguments.\nArguments:{}", arguments));
         }
     }
 
@@ -43,7 +46,10 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
         else
         {
-            printErrorMessage("cache.json could not be found in current dir and dirs above\n");
+            printErrorMessage(FORMAT("Could not find cache.json in the current directory or any parent directory.\n"
+                                     "Current directory: {}\n"
+                                     "Hint: run hhelper from the project's build directory first.",
+                                     current_path().string()));
         }
     }
     else
@@ -73,12 +79,20 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
             {
                 standAlone = true;
             }
+            if (argument == "-p")
+            {
+                printHashMap = true;
+            }
 
             string targetArgFullPath = (current_path() / argument).lexically_normal().string();
             lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
             if (targetArgFullPath.size() <= configureNode->filePath.size())
             {
-                printErrorMessage(FORMAT("Invalid Command-Line Argument {}\n", argument));
+                printErrorMessage(FORMAT("Build target resolves outside the configured project.\n"
+                                         "Argument: {}\n"
+                                         "Resolved path: {}\n"
+                                         "Configure directory: {}",
+                                         argument, targetArgFullPath, configureNode->filePath));
             }
             if (targetArgFullPath.ends_with(slashc))
             {
@@ -96,8 +110,9 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
 void callConfigurationSpecification()
 {
-    for (Configuration &config : targets<Configuration>)
+    for (Configuration *configPointer : allConfigurations)
     {
+        Configuration &config = *configPointer;
         if (config.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
         {
             config.initialize();
@@ -107,13 +122,100 @@ void callConfigurationSpecification()
     }
 }
 
+void printHashMapFile()
+{
+    string buffer;
+    for (Configuration *configPointer : allConfigurations)
+    {
+        Configuration &config = *configPointer;
+        for (CppTarget *t : config.cppTargets)
+        {
+            if (!t->useIPC)
+            {
+                continue;
+            }
+            buffer += "CppTarget " + t->name + '\n';
+            for (const auto &[req, hfOrCppMod] : t->reqHeaderNameMapping)
+            {
+                if (hfOrCppMod.type == FileType::HEADER_UNIT)
+                {
+                    buffer += "C++20-Header-Unit \n";
+                }
+                else if (hfOrCppMod.type == FileType::MODULE)
+                {
+                    buffer += "C++20-Module \n";
+                }
+                {
+                    buffer += "Header-File \n";
+                }
+                buffer += req;
+                buffer += '\n';
+                if (hfOrCppMod.type == FileType::HEADER_FILE)
+                {
+                    buffer += hfOrCppMod.data.node->filePath;
+                }
+                else
+                {
+                    buffer += hfOrCppMod.data.cppMod->node->filePath;
+                }
+                buffer += '\n';
+            }
+        }
+
+        for (const auto &[req, vec] : config.headerNameMapping)
+        {
+            for (const HfOrCppMod hfOrCppMod : vec)
+            {
+                if (hfOrCppMod.type == FileType::HEADER_UNIT)
+                {
+                    buffer += "C++20-Header-Unit \n";
+                }
+                else if (hfOrCppMod.type == FileType::MODULE)
+                {
+                    buffer += "C++20-Module \n";
+                }
+                {
+                    buffer += "Header-File \n";
+                }
+                buffer += req;
+                buffer += '\n';
+                if (hfOrCppMod.type == FileType::HEADER_FILE)
+                {
+                    buffer += hfOrCppMod.data.node->filePath;
+                }
+                else
+                {
+                    buffer += hfOrCppMod.data.cppMod->node->filePath;
+                }
+                buffer += '\n';
+            }
+        }
+    }
+    std::ofstream(configureNode->filePath + slashc + string("hash-map.txt")) << buffer;
+}
+
 int main2(const int argc, char **argv)
 {
     constructGlobals();
     parseCmdArgumentsAndSetConfigureNode(argc, argv);
     initializeCache();
     (*buildSpecificationFuncPtr)();
-    const bool errorHappened = configureOrBuild();
+    bool errorHappened = false;
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        if (printHashMap)
+        {
+            printHashMapFile();
+        }
+        else
+        {
+            errorHappened = configureOrBuild();
+        }
+    }
+    else
+    {
+        errorHappened = configureOrBuild();
+    }
     destructGlobals();
     fflush(stdout);
     fflush(stderr);

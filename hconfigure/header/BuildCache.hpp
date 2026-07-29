@@ -21,7 +21,7 @@ struct BuildCache
         vector<uint32_t> depsArray;
     };
 
-    // For LOAT, we don't store any-cache as we only needed commandHash and launchTime which are already stored
+    // For LOAT, we don't store any-cache as we only need commandHash and completionTime, which are already stored
 
     struct Configuration
     {

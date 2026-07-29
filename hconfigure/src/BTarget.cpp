@@ -22,6 +22,7 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
 
 void RealBTarget::sortGraph()
 {
+    cycle.clear();
     if (graphEdges.empty())
     {
         sorted.clear();
@@ -29,17 +30,26 @@ void RealBTarget::sortGraph()
         return;
     }
 
+    // Independent targets deliberately keep discovery order. Required ordering belongs in dependency edges, while
+    // this append-only frontier keeps Kahn's traversal O(V + E).
     vector<RealBTarget *> noEdges;
-    uint32_t noEdgesCount = 0;
+    noEdges.reserve(graphEdges.size());
+    size_t noEdgesIndex = 0;
 
     sorted.clear();
     sorted.resize(graphEdges.size());
     cycleExists = false;
 
-    uint32_t edgesCount = 0;
-    uint32_t index = graphEdges.size() - 1;
+    uint64_t edgesCount = 0;
+    size_t remaining = graphEdges.size();
     for (RealBTarget *r : graphEdges)
     {
+        constexpr size_t maxPackedTopologicalIndex = (size_t{1} << 29) - 1;
+        if (r->dependents.size() > maxPackedTopologicalIndex)
+        {
+            printErrorMessage(FORMAT("Build target has too many dependents.\nTarget: {}\nDependents: {}\nLimit: {}",
+                                     r->getBTarget()->getPrintName(), r->dependents.size(), maxPackedTopologicalIndex));
+        }
         r->indexInTopologicalSort = r->dependents.size();
         if (!r->indexInTopologicalSort)
         {
@@ -48,11 +58,10 @@ void RealBTarget::sortGraph()
         edgesCount += r->indexInTopologicalSort;
     }
 
-    while (noEdges.size() != noEdgesCount)
+    while (noEdgesIndex != noEdges.size())
     {
-        RealBTarget *rb = noEdges[noEdgesCount];
-        sorted[index] = rb;
-        --index;
+        RealBTarget *rb = noEdges[noEdgesIndex++];
+        sorted[--remaining] = rb;
         for (const RBTWithType &rbt : rb->dependencies)
         {
             --edgesCount;
@@ -61,7 +70,6 @@ void RealBTarget::sortGraph()
                 noEdges.emplace_back(rbt.getPointer());
             }
         }
-        ++noEdgesCount;
     }
 
     if (edgesCount)
@@ -77,6 +85,9 @@ void RealBTarget::sortGraph()
                 cycle.emplace_back(r);
             }
         }
+        std::ranges::sort(cycle, [](const RealBTarget *lhs, const RealBTarget *rhs) {
+            return lhs->getBTarget()->id < rhs->getBTarget()->id;
+        });
 
         string errorString;
 
@@ -108,33 +119,42 @@ bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &
     recursionStack.insert(node);
     currentPath.push_back(node);
 
-    // Only consider dependencies that are still part of the cycle
+    vector<RealBTarget *> remainingDependencies;
+    remainingDependencies.reserve(node->dependencies.size());
     for (const RBTWithType &rbt : node->dependencies)
     {
-        // Only follow edges to nodes that are part of the cycle
         if (rbt.getPointer()->indexInTopologicalSort > 0)
         {
-            if (recursionStack.find(rbt.getPointer()) != recursionStack.end())
+            remainingDependencies.emplace_back(rbt.getPointer());
+        }
+    }
+    std::ranges::sort(remainingDependencies, [](const RealBTarget *lhs, const RealBTarget *rhs) {
+        return lhs->getBTarget()->id < rhs->getBTarget()->id;
+    });
+
+    // Only consider dependencies that remain after Kahn's algorithm.
+    for (RealBTarget *dependency : remainingDependencies)
+    {
+        if (recursionStack.find(dependency) != recursionStack.end())
+        {
+            // Found a cycle. Print the path from dependency back to the current node.
+            if (auto cycleStart = find(currentPath.begin(), currentPath.end(), dependency);
+                cycleStart != currentPath.end())
             {
-                // Found a cycle! Print the path from dependency back to current node
-                if (auto cycleStart = find(currentPath.begin(), currentPath.end(), rbt.getPointer());
-                    cycleStart != currentPath.end())
+                errorString = "Dependency graph contains a cycle.\nCycle: ";
+                for (auto it = cycleStart; it != currentPath.end(); ++it)
                 {
-                    errorString += "Cycle found: ";
-                    for (auto it = cycleStart; it != currentPath.end(); ++it)
-                    {
-                        errorString += (*it)->getBTarget()->getPrintName() + " -> ";
-                    }
-                    errorString += rbt.getPointer()->getBTarget()->getPrintName() + "\n";
-                    return true;
+                    errorString += (*it)->getBTarget()->getPrintName() + " -> ";
                 }
+                errorString += dependency->getBTarget()->getPrintName() + "\n";
+                return true;
             }
-            else if (visited.find(rbt.getPointer()) == visited.end())
+        }
+        else if (visited.find(dependency) == visited.end())
+        {
+            if (findCycleDFS(dependency, visited, recursionStack, currentPath, errorString))
             {
-                if (findCycleDFS(rbt.getPointer(), visited, recursionStack, currentPath, errorString))
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }
@@ -153,28 +173,60 @@ void RealBTarget::printSortedGraph()
     fflush(stdout);
 }
 
-RealBTarget::RealBTarget(const unsigned short round_) : round(round_)
+namespace
 {
-    uint32_t i = BTarget::realBTargetsArrayCount[round];
+void registerRealBTarget(RealBTarget *target, const unsigned short round)
+{
+    if (round >= BTarget::realBTargetsGlobal.size())
+    {
+        printErrorMessage(FORMAT("Invalid build-graph round.\nRound: {}\nValid rounds: 0 and 1", round));
+    }
+
+    const uint32_t index = BTarget::realBTargetsArrayCount[round];
+    if (index >= BTarget::realBTargetsGlobal[round].size())
+    {
+        printErrorMessage(FORMAT("Maximum build-target count exceeded.\nRound: {}\nLimit: {}", round,
+                                 BTarget::realBTargetsGlobal[round].size()));
+    }
+
+    BTarget::realBTargetsGlobal[round][index] = target;
     ++BTarget::realBTargetsArrayCount[round];
-    BTarget::realBTargetsGlobal[round][i] = this;
+}
+} // namespace
+
+RealBTarget::RealBTarget(BTarget *owner_, const unsigned short round_) : owner(owner_), round(round_)
+{
+    registerRealBTarget(this, round_);
 }
 
-RealBTarget::RealBTarget(const unsigned short round_, const bool add) : round(round_)
+RealBTarget::RealBTarget(BTarget *owner_, const unsigned short round_, const bool add) : owner(owner_), round(round_)
 {
     if (add)
     {
-        const uint32_t i = BTarget::realBTargetsArrayCount[round];
-        ++BTarget::realBTargetsArrayCount[round];
-        BTarget::realBTargetsGlobal[round][i] = this;
+        registerRealBTarget(this, round_);
     }
 }
 
 bool RealBTarget::checkDepsChanged() const
 {
-    const char *ptr = bTargetCaches[getBTarget()->cacheIndex].depsCache.data();
+    const string_view cachedDependencies = bTargetCaches[getBTarget()->cacheIndex].depsCache;
+    if (cachedDependencies.size() < sizeof(uint32_t))
+    {
+        printErrorMessage(FORMAT("Build cache dependency list is truncated.\nTarget: {}\nEntry size: {} bytes\n"
+                                 "Minimum size: {} bytes",
+                                 getBTarget()->getPrintName(), cachedDependencies.size(), sizeof(uint32_t)));
+    }
+
+    const char *ptr = cachedDependencies.data();
     uint32_t bytesRead = 0;
     const uint32_t cachedCount = readUint32(ptr, bytesRead);
+    const uint64_t expectedSize = sizeof(uint32_t) + static_cast<uint64_t>(cachedCount) * sizeof(uint32_t);
+    if (cachedDependencies.size() != expectedSize)
+    {
+        printErrorMessage(FORMAT("Build cache dependency list has an invalid size.\nTarget: {}\n"
+                                 "Dependency count: {}\nExpected size: {} bytes\nActual size: {} bytes",
+                                 getBTarget()->getPrintName(), cachedCount, expectedSize, cachedDependencies.size()));
+    }
 
     if (cachedCount != dependenciesSize)
     {
@@ -183,8 +235,20 @@ bool RealBTarget::checkDepsChanged() const
 
     for (uint32_t i = 0; i < cachedCount; ++i)
     {
-        BTarget *bt = bTargetCaches[readUint32(ptr, bytesRead)].bTarget;
-        if (!bt || !dependencies.contains(&bt->realBTargets[0]))
+        const uint32_t cacheIndex = readUint32(ptr, bytesRead);
+        if (cacheIndex >= bTargetCaches.size())
+        {
+            printErrorMessage(FORMAT("Build cache dependency index is out of range.\nTarget: {}\n"
+                                     "Dependency position: {}\nCache index: {}\nCache entry count: {}",
+                                     getBTarget()->getPrintName(), i, cacheIndex, bTargetCaches.size()));
+        }
+        BTarget *bt = bTargetCaches[cacheIndex].bTarget;
+        if (!bt)
+        {
+            return true;
+        }
+        const auto dependency = dependencies.find(&bt->realBTargets[0]);
+        if (dependency == dependencies.end() || !isBlockingRelation(dependency->getRelationType()))
         {
             return true;
         }
@@ -198,7 +262,7 @@ void RealBTarget::getAllWaitDepsTopological(
 {
     for (const RBTWithType &rbt : dependencies)
     {
-        if (rbt.getRelationType() == RelationType::FULL || rbt.getRelationType() == RelationType::WAIT)
+        if (isBlockingRelation(rbt.getRelationType()))
         {
             BTarget *bt = rbt.getPointer()->getBTarget();
             if (allDepsTransitive.emplace(bt).second)
@@ -217,19 +281,15 @@ static string lowerCase(string str)
 
 namespace
 {
-uint64_t idCount = 0;
-flat_hash_map<BTarget *, uint64_t> bTargetIndexAndMyIdHashMap;
-uint64_t myId = 0;
+flat_hash_map<uint64_t, BTarget *> liveTargetsByCacheName;
 
-void checkForSameTargetName(BTarget *bTarget, const uint64_t targetName)
+void checkForSameCacheKey(BTarget *bTarget, const uint64_t cacheName)
 {
-    myId = idCount;
-    ++idCount;
-    if (auto [pos, ok] = bTargetIndexAndMyIdHashMap.emplace(bTarget, targetName); !ok)
+    if (auto [position, inserted] = liveTargetsByCacheName.emplace(cacheName, bTarget); !inserted)
     {
-        printErrorMessage(FORMAT("Attempting to add 2 targets\n{}\n{} with same cache-name {} in config-cache.json\n",
-                                 pos->first->getPrintName(), bTarget->getPrintName(), targetName));
-        errorExit();
+        printErrorMessage(FORMAT("Two targets use the same cache key.\nExisting target: {}\nNew target: {}\n"
+                                 "Cache key: {}",
+                                 position->second->getPrintName(), bTarget->getPrintName(), cacheName));
     }
 }
 } // namespace
@@ -240,6 +300,8 @@ void BTarget::initializeBTarget(bool makeDirectory)
     ++total;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        // Reject duplicates before either target can overwrite the cache slot's live back-pointer.
+        checkForSameCacheKey(this, cacheName);
         if (makeDirectory)
         {
             create_directory(configureNode->filePath + slashc + name);
@@ -253,21 +315,24 @@ void BTarget::initializeBTarget(bool makeDirectory)
         {
             cacheIndex = bTargetCaches.size();
             bTargetCaches.emplace_back().name = cacheName;
+            if (!nameToIndexMap.emplace(cacheName, cacheIndex).second)
+            {
+                printErrorMessage(FORMAT("Could not register a new target cache key.\nTarget: {}\nCache key: {}",
+                                         getPrintName(), cacheName));
+            }
             newlyAdded = true;
         }
         else
         {
             cacheIndex = it->second;
         }
-
-        checkForSameTargetName(this, cacheName);
     }
     else
     {
         if (it == nameToIndexMap.end())
         {
-            printErrorMessage(FORMAT("Target\nname: {}\ncacheName: {}\n not found in config-cache.\nMaybe you need to "
-                                     "run hhelper first to update the target-cache.\n",
+            printErrorMessage(FORMAT("Target is missing from the configuration cache.\nTarget: {}\nCache key: {}\n"
+                                     "Hint: run hhelper to regenerate the project cache.",
                                      name, cacheName));
         }
         cacheIndex = it->second;
@@ -277,7 +342,7 @@ void BTarget::initializeBTarget(bool makeDirectory)
             RealBTarget &rb = realBTargets[0];
             const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
             uint32_t bytesRead = 8;
-            rb.launchTime = readUint64(ptr, bytesRead);
+            rb.completionTime = readUint64(ptr, bytesRead);
         }
     }
     bTargetCaches[cacheIndex].bTarget = this;
@@ -285,7 +350,7 @@ void BTarget::initializeBTarget(bool makeDirectory)
 
 BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType type_)
     : name(lowerCase(std::move(name_))), cacheName(rapidhash(name.data(), name.size())), bTargetType(type_),
-      launchesProcess(launchesProcess_), realBTargets{RealBTarget(0), RealBTarget(1)}
+      launchesProcess(launchesProcess_), realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
     initializeBTarget(false);
 }
@@ -293,7 +358,8 @@ BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType ty
 BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType type_, const bool buildExplicit_,
                  bool makeDirectory)
     : name(lowerCase(std::move(name_))), cacheName(rapidhash(name.data(), name.size())), bTargetType(type_),
-      launchesProcess(launchesProcess_), buildExplicit(buildExplicit_), realBTargets{RealBTarget(0), RealBTarget(1)}
+      launchesProcess(launchesProcess_), buildExplicit(buildExplicit_),
+      realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
     initializeBTarget(makeDirectory);
 }
@@ -302,14 +368,14 @@ BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType ty
                  bool makeDirectory, const bool add0, const bool add1)
     : name(lowerCase(std::move(name_))), cacheName(rapidhash(name.data(), name.size())), bTargetType(type_),
       launchesProcess(launchesProcess_), buildExplicit(buildExplicit_),
-      realBTargets{RealBTarget(0, add0), RealBTarget(1, add1)}
+      realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}
 {
     initializeBTarget(makeDirectory);
 }
 
 BTarget::BTarget(string name_, const uint64_t cacheName_, const bool launchesProcess_, const BTargetType type_)
     : name(lowerCase(std::move(name_))), cacheName(cacheName_), bTargetType(type_), launchesProcess(launchesProcess_),
-      realBTargets{RealBTarget(0), RealBTarget(1)}
+      realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
     initializeBTarget(false);
 }
@@ -317,7 +383,7 @@ BTarget::BTarget(string name_, const uint64_t cacheName_, const bool launchesPro
 BTarget::BTarget(string name_, const uint64_t cacheName_, const bool launchesProcess_, const BTargetType type_,
                  const bool buildExplicit_, bool makeDirectory)
     : name(lowerCase(std::move(name_))), cacheName(cacheName_), bTargetType(type_), launchesProcess(launchesProcess_),
-      buildExplicit(buildExplicit_), realBTargets{RealBTarget(0), RealBTarget(1)}
+      buildExplicit(buildExplicit_), realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
     initializeBTarget(makeDirectory);
 }
@@ -325,7 +391,7 @@ BTarget::BTarget(string name_, const uint64_t cacheName_, const bool launchesPro
 BTarget::BTarget(string name_, const uint64_t cacheName_, const bool launchesProcess_, const BTargetType type_,
                  const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1)
     : name(lowerCase(std::move(name_))), cacheName(cacheName_), bTargetType(type_), launchesProcess(launchesProcess_),
-      buildExplicit(buildExplicit_), realBTargets{RealBTarget(0, add0), RealBTarget(1, add1)}
+      buildExplicit(buildExplicit_), realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}
 {
     initializeBTarget(makeDirectory);
 }
@@ -337,7 +403,7 @@ BTarget::~BTarget()
 void BTarget::writeBuildCacheFooterAtBuildTime(string &buffer) const
 {
     writeUint64(buffer, realBTargets[0].cumulativeHash);
-    writeUint64(buffer, realBTargets[0].launchTime);
+    writeUint64(buffer, realBTargets[0].completionTime);
 }
 
 string BTarget::getPrintName() const
@@ -355,6 +421,8 @@ void BTarget::completeRoundOne()
 
 bool BTarget::isEventRegistered(Builder &builder)
 {
+    // Non-process aggregate targets still need to discard a provisional reason before their status is propagated.
+    refreshUpdateStatus();
     return false;
 }
 
@@ -363,13 +431,36 @@ bool BTarget::isEventCompleted(Builder &builder, string_view message)
     return false;
 }
 
+bool BTarget::refreshUpdateStatus()
+{
+    RealBTarget &rb = realBTargets[0];
+
+    // If we previously said UPDATE_NEEDED because of reasonForUpdate, but that
+    // reason no longer needs an update, invalidate our status so it gets rechecked.
+    const bool invalidated = rb.updateStatus == UpdateStatus::UPDATE_NEEDED && rb.reasonForUpdate &&
+                                 rb.reasonForUpdate->realBTargets[0].updateStatus == UpdateStatus::UPDATE_NOT_NEEDED;
+    if (invalidated)
+    {
+        rb.updateStatus = UpdateStatus::UNCHECKED;
+        rb.reasonForUpdate = nullptr;
+    }
+
+    if (rb.updateStatus == UpdateStatus::UNCHECKED)
+    {
+        setUpdateStatus();
+    }
+
+    return rb.updateStatus == UpdateStatus::UPDATE_NEEDED;
+}
+
 void BTarget::setUpdateStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus != UpdateStatus::UNCHECKED)
     {
-       return;
+        return;
     }
+    rb.reasonForUpdate = nullptr;
 
     uint64_t highestTime;
     if (launchesProcess)
@@ -381,7 +472,7 @@ void BTarget::setUpdateStatus()
             rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
             return;
         }
-        highestTime = rb.launchTime;
+        highestTime = rb.completionTime;
     }
     else
     {
@@ -390,7 +481,7 @@ void BTarget::setUpdateStatus()
 
     for (const RBTWithType &rbt : rb.dependencies)
     {
-        if (rbt.getRelationType() == RelationType::FULL || rbt.getRelationType() == RelationType::WAIT)
+        if (isBlockingRelation(rbt.getRelationType()))
         {
         }
         else
@@ -407,17 +498,19 @@ void BTarget::setUpdateStatus()
         if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
             rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+            rb.reasonForUpdate = depRb->getBTarget();
             return;
         }
 
-        if (depRb->launchTime > highestTime)
+        if (depRb->completionTime > highestTime)
         {
             if (launchesProcess)
             {
                 rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+                rb.reasonForUpdate = depRb->getBTarget();
                 return;
             }
-            highestTime = depRb->launchTime;
+            highestTime = depRb->completionTime;
         }
     }
 
@@ -425,8 +518,8 @@ void BTarget::setUpdateStatus()
 
     if (!launchesProcess)
     {
-        // highest time is set as the highest time of one of our dependencies.
-        rb.launchTime = highestTime;
+        // Completion time is the newest completion among this aggregate target's dependencies.
+        rb.completionTime = highestTime;
     }
 }
 
@@ -454,8 +547,9 @@ void BTarget::verifyBuildCache(string_view buildCache) const
     {
         if (buildCache.size() != 16)
         {
-            printErrorMessage(
-                FORMAT("{} caching-verification failed as buildCache size is not equal to 16.\n", getPrintName()));
+            printErrorMessage(FORMAT("Build cache verification failed: footer size mismatch.\nTarget: {}\n"
+                                     "Expected size: 16 bytes\nActual size: {} bytes",
+                                     getPrintName(), buildCache.size()));
         }
         uint32_t bytesRead = 0;
         verifyBTargetHeader(buildCache, bytesRead);
@@ -471,21 +565,23 @@ void BTarget::verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) c
     }
     if (buildCache.size() < 16)
     {
-        printErrorMessage(
-            FORMAT("{} caching-verification failed as buildCache size is less than 16.\n", getPrintName()));
+        printErrorMessage(FORMAT("Build cache verification failed: footer is truncated.\nTarget: {}\n"
+                                 "Minimum size: 16 bytes\nActual size: {} bytes",
+                                 getPrintName(), buildCache.size()));
     }
     if (const uint64_t commandHash = readUint64(buildCache.data(), bytesRead);
         commandHash != realBTargets[0].cumulativeHash)
     {
-        printErrorMessage(
-            FORMAT("{} caching-verification failed as command-hashes don't reconcile.\ncached vs current: {} vs {}",
-                   getPrintName(), commandHash, realBTargets[0].cumulativeHash));
+        printErrorMessage(FORMAT("Build cache verification failed: command hash mismatch.\nTarget: {}\n"
+                                 "Current hash: {}\nCached hash: {}",
+                                 getPrintName(), realBTargets[0].cumulativeHash, commandHash));
     }
-    if (const uint64_t launchTime = readUint64(buildCache.data(), bytesRead); launchTime != realBTargets[0].launchTime)
+    if (const uint64_t completionTime = readUint64(buildCache.data(), bytesRead);
+        completionTime != realBTargets[0].completionTime)
     {
-        printErrorMessage(
-            FORMAT("{} caching-verification failed as launch-times don't reconcile.\ncached vs current: {} vs {}",
-                   getPrintName(), launchTime, realBTargets[0].launchTime));
+        printErrorMessage(FORMAT("Build cache verification failed: completion time mismatch.\nTarget: {}\n"
+                                 "Current time: {}\nCached time: {}",
+                                 getPrintName(), realBTargets[0].completionTime, completionTime));
     }
 }
 

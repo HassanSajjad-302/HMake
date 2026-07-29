@@ -1,5 +1,5 @@
 /// \file
-/// Defines CppTarget class
+/// Defines the high-level C and C++ target API.
 
 #ifndef HMAKE_CPPTARGET_HPP
 #define HMAKE_CPPTARGET_HPP
@@ -13,28 +13,31 @@
 
 using std::same_as;
 
-/// Lightweight wrapper accepted by all user-facing CppTarget path parameters.
-/// Implicitly constructible from const string&, const char*, or Node* so callers
-/// that already hold a Node* skip the getNodeNonNormalized lookup entirely.
+/// Path argument accepted by the user-facing `CppTarget` APIs.
+///
+/// Callers may pass a string-like path or an existing `Node*`. Existing nodes avoid another normalization and lookup.
 struct NodeOrStr
 {
     /// Pre-resolved node when the caller already has a `Node*` (skips path normalization lookup).
-    Node       *node_ = nullptr;
+    Node *node_ = nullptr;
     /// Path string used when `hasNode_` is false.
     string_view str_;
     /// If true, use `node_`; otherwise resolve `str_` via `Node::getNodeNonNormalized()`.
-    bool        hasNode_;
+    bool hasNode_ = false;
 
-    NodeOrStr(Node *n)           : node_(n),  hasNode_(true)  {}
-    NodeOrStr(const string &s)   : str_(s),   hasNode_(false) {}
-    NodeOrStr(string_view s)     : str_(s),   hasNode_(false) {}
-    NodeOrStr(const char *s)     : str_(s),   hasNode_(false) {}
+    NodeOrStr(Node *node) : node_(node), hasNode_(true) {}
+    NodeOrStr(const string &path) : str_(path) {}
+    NodeOrStr(string_view path) : str_(path) {}
+    NodeOrStr(const char *path) : str_(path) {}
 
     /// Resolve to a Node*, performing the lookup only when a string was supplied.
     /// \p isFile matches the second argument of Node::getNodeNonNormalized.
     Node *resolve(bool isFile) const
     {
-        if (hasNode_) return node_;
+        if (hasNode_)
+        {
+            return node_;
+        }
         return Node::getNodeNonNormalized(string(str_), isFile);
     }
 };
@@ -74,9 +77,14 @@ struct NodeOrStr
 /// functions that do not take the prefix add the fileName as the logical-name for header-files and header-units.
 ///
 ///
-class CppTarget : public ObjectFileProducerWithDS<CppTarget>
+class CppTarget : public ObjectFileProducer
 {
   public:
+    // Compile dependencies. These are unused at build time. reqDeps is ordered because setCompileCommand relies on
+    // deterministic dependency traversal.
+    btree_set<CppTarget *, TPointerLess<CppTarget>> reqDeps;
+    flat_hash_set<CppTarget *> useReqDeps;
+
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
 
@@ -101,11 +109,11 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>
 
     /// Stores the req header-names mapping with header-file or header-unit. Cached at config-time. It is the lookup
     /// table that is used to retrieve the header-file or header-unit when the compiler sends the header-name
-    flat_hash_map<string_view, HeaderFileOrUnit> reqHeaderNameMapping;
+    flat_hash_map<string_view, HfOrCppMod> reqHeaderNameMapping;
 
     /// Used only at config-time. It is the lookup table that is used to retrieve the header-file or header-unit when
     /// the compiler sends the include-name. At build-time, however, Configuration::headerNameMapping is used instead.
-    flat_hash_map<string_view, HeaderFileOrUnit> useReqHeaderNameMapping;
+    flat_hash_map<string_view, HfOrCppMod> useReqHeaderNameMapping;
 
     /// Used only at configure-time. Used to check if any of header-files has changed to header-unit or vice versa. Also
     /// checks if same node is specified twice.
@@ -187,13 +195,15 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>
     void getObjectFiles(vector<const ObjectFile *> *objectFiles) const override;
 
     void populateTransitiveProperties();
+    void addCompileDependency(DepType depType, CppTarget &dependency);
+    void populateReqAndUseReqDeps();
 
     void actuallyAddSourceFileConfigTime(const Node *node);
     static string getExportNameFromFirstLine(const Node *node);
     void actuallyAddModuleFileConfigTime(const Node *node, string exportName);
     void checkSameHeaderNameMapping(string_view headerName);
     void populateNameMappingsAndNodesType();
-    void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq);
+    void emplaceInHeaderNameMapping(string_view headerName, HfOrCppMod hfOrCppMod, bool addInReq);
     void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
     const Node *getIncludeNode(bool isHeaderFile, const string &includeName, bool addInReq, bool addInUseReq);
     void makeHeaderFileHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
@@ -204,7 +214,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>
     void addHeaderUnit(const string &includeName, const Node *headerUnit, bool addInReq, bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
                                 bool addInReq, bool addInUseReq);
-    static void parseAndAddInComposingHeaders(CppMod &hu, const string &headerNames);
+    void parseAndAddInComposingHeaders(CppMod &hu, const string &headerNames);
     void addComposingHeadersMSVC();
     void addComposingHeadersLinux();
     CppMod *getPublicBigHu(bool addNew);
@@ -320,6 +330,9 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>
                                   U... includeDirectoryString);
     /// In IsCppMod::NO, adds public include-dir. Does nothing in IsCppMod::YES.
     template <typename... U> CppTarget &publicIncludesSource(NodeOrStr include, U... includeDirectoryString);
+    /// As publicIncludesSource(), but emits system/external include flags. This
+    /// maps to APIs such as UBT ModuleRules.PublicSystemIncludePaths.
+    template <typename... U> CppTarget &publicSystemIncludesSource(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::NO, adds private include-dir. Does nothing in IsCppMod::YES.
     template <typename... U> CppTarget &privateIncludesSource(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::NO, adds interface include-dir. Does nothing in IsCppMod::YES.
@@ -914,6 +927,15 @@ template <typename... U> CppTarget &CppTarget::publicIncludesSource(NodeOrStr in
     }
 }
 
+template <typename... U> CppTarget &CppTarget::publicSystemIncludesSource(NodeOrStr include, U... includeDirectoryString)
+{
+    const bool wasSystem = isSystem;
+    isSystem = true;
+    publicIncludesSource(include, includeDirectoryString...);
+    isSystem = wasSystem;
+    return *this;
+}
+
 template <typename... U> CppTarget &CppTarget::privateIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -1352,6 +1374,7 @@ extern template CppTarget &CppTarget::privateCompileDefines<>(const string &, co
 extern template CppTarget &CppTarget::publicHUIncludes<>(NodeOrStr);
 extern template CppTarget &CppTarget::privateHUIncludes<>(NodeOrStr);
 extern template CppTarget &CppTarget::publicIncludesSource<>(NodeOrStr);
+extern template CppTarget &CppTarget::publicSystemIncludesSource<>(NodeOrStr);
 extern template CppTarget &CppTarget::privateIncludesSource<>(NodeOrStr);
 extern template CppTarget &CppTarget::publicIncludes<>(NodeOrStr);
 extern template CppTarget &CppTarget::privateIncludes<>(NodeOrStr);
@@ -1363,8 +1386,5 @@ extern template CppTarget &CppTarget::publicIncDirs<>(NodeOrStr, const string &)
 extern template CppTarget &CppTarget::privateIncDirs<>(NodeOrStr, const string &);
 extern template CppTarget &CppTarget::publicIncDirsRE<>(NodeOrStr, const string &, const string &);
 extern template CppTarget &CppTarget::privateIncDirsRE<>(NodeOrStr, const string &, const string &);
-
-extern template CppTarget &ObjectFileProducerWithDS<CppTarget>::publicDeps<>(CppTarget &);
-extern template CppTarget &ObjectFileProducerWithDS<CppTarget>::privateDeps<>(CppTarget &);
 
 #endif // HMAKE_CPPTARGET_HPP

@@ -69,8 +69,10 @@ void initializeCache()
     currentNode = Node::getHalfNode(current_path().string());
     if (currentNode->filePath.size() < configureNode->filePath.size())
     {
-        printErrorMessage(FORMAT("HMake internal error. configureNode size {} less than currentNode size{}\n",
-                                 configureNode->filePath.size(), currentNode->filePath.size()));
+        printErrorMessage(FORMAT("Internal path invariant failed: current path is shorter than configure path.\n"
+                                 "Configure path: {}\nConfigure path length: {}\nCurrent path: {}\nCurrent path length: {}",
+                                 configureNode->filePath, configureNode->filePath.size(), currentNode->filePath,
+                                 currentNode->filePath.size()));
     }
     if (currentNode->filePath.size() != configureNode->filePath.size())
     {
@@ -87,7 +89,7 @@ void initializeCache()
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
+            printErrorMessage(FORMAT("Required cache file does not exist.\nPath: {}\nBuild mode: BUILD", p.string()));
             errorExit();
         }
     }
@@ -104,7 +106,7 @@ void initializeCache()
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
+            printErrorMessage(FORMAT("Required cache file does not exist.\nPath: {}\nBuild mode: BUILD", p.string()));
             errorExit();
         }
     }
@@ -135,20 +137,48 @@ void printMessage(const std::pmr::string &message)
     fflush(stdout);
 }
 
-void printErrorMessage(const string &message)
+namespace
 {
-    std::print(stderr, "{}", message);
+void writeStandardError(const string_view message)
+{
+    // Callers provide the diagnostic body; this function owns its presentation so all errors remain consistent.
+    string_view body = message;
+    if (body.starts_with("Error: "))
+    {
+        body.remove_prefix(7);
+    }
+    else if (body.starts_with("error: "))
+    {
+        body.remove_prefix(7);
+    }
+
+    std::print(stderr, "error: {}", body);
+    if (!body.ends_with('\n'))
+    {
+        std::print(stderr, "\n");
+    }
+    fflush(stderr);
+}
+} // namespace
+
+[[noreturn]] void printErrorMessage(const string &message)
+{
+    writeStandardError(message);
     errorExit();
 }
 
 void printErrorMessageNoReturn(const string &message)
 {
-    std::print(stderr, "{}", message);
+    writeStandardError(message);
 }
 
 bool configureOrBuild()
 {
     builderPtr = new Builder{};
+    if (dryRun)
+    {
+        return builderPtr->errorHappenedInRoundMode;
+    }
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -186,8 +216,7 @@ void constructGlobals()
     for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
     {
         constexpr uint32_t count = 128 * 1024;
-        const auto buffer = new char[sizeof(RealBTarget) * count];
-        realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), count);
+        realBTargets = span(new RealBTarget *[count], count);
     }
     std::construct_at(&nodeIndices);
     nodeIndices.reserve(128 * 1024);
@@ -213,15 +242,34 @@ void constructGlobals()
 
 void destructGlobals()
 {
-#ifndef _WIN32
+    delete builderPtr;
+    builderPtr = nullptr;
+
+    for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
+    {
+        delete[] realBTargets.data();
+        realBTargets = {};
+    }
+
+#ifdef _WIN32
+    delete[] eventData;
+    eventData = nullptr;
+    std::destroy_at(&unusedKeysIndices);
+#else
+    std::destroy_at(&eventData);
     for (string *ptr : freeOutputStrings)
     {
         delete ptr;
     }
+    std::destroy_at(&freeOutputStrings);
 #endif
+
+    std::destroy_at(&cache);
+    std::destroy_at(&nodeAllFiles);
+    std::destroy_at(&nodeIndices);
 }
 
-void errorExit()
+[[noreturn]] void errorExit()
 {
     fflush(stdout);
     fflush(stderr);
@@ -304,7 +352,7 @@ RHPOStream::~RHPOStream()
     int result = fclose(fp);
     if (result != 0)
     {
-        printErrorMessage("Error closing the file \n");
+        printErrorMessage(FORMAT("Could not close a cache file.\nSystem error: {}", P2978::getErrorString()));
     }
 }
 
@@ -317,7 +365,7 @@ void RHPOStream::Flush()
 {
     if (int result = fflush(fp); result != 0)
     {
-        printErrorMessage("Error flushing the file \n");
+        printErrorMessage(FORMAT("Could not flush a cache file.\nSystem error: {}", P2978::getErrorString()));
     }
 }
 
@@ -512,7 +560,7 @@ string getBuildCache()
                 if (bt->launchesProcess)
                 {
                     writeUint64(buildCache, bt->realBTargets[0].cumulativeHash);
-                    writeUint64(buildCache, bt->realBTargets[0].launchTime);
+                    writeUint64(buildCache, bt->realBTargets[0].completionTime);
                 }
             }
             else
@@ -627,7 +675,8 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
         {
-            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", P2978::getErrorString()));
+            printErrorMessage(FORMAT("Could not open the temporary output file.\nPath: {}\nSystem error: {}", str,
+                                     P2978::getErrorString()));
         }
 
         // Content to write to the file
@@ -636,18 +685,23 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Write to the file
         if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
         {
-            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", P2978::getErrorString()));
+            printErrorMessage(FORMAT("Could not write the temporary output file.\nPath: {}\nRequested bytes: {}\n"
+                                     "System error: {}",
+                                     str, bufferSize, P2978::getErrorString()));
             CloseHandle(hFile);
         }
 
         if (!FlushFileBuffers(hFile))
         {
-            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", P2978::getErrorString()));
+            printErrorMessage(FORMAT("Could not flush the temporary output file.\nPath: {}\nSystem error: {}", str,
+                                     P2978::getErrorString()));
         }
 
         if (bytesWritten != bufferSize)
         {
-            printErrorMessage("Failed to write the full file\n");
+            printErrorMessage(FORMAT("Temporary output file was only partially written.\nPath: {}\nRequested bytes: {}\n"
+                                     "Written bytes: {}",
+                                     str, bufferSize, bytesWritten));
         }
 
         // Close the file handle
@@ -694,7 +748,9 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
             // If ReplaceFile fails (e.g., target doesn't exist), fall back to MoveFileEx
             if (!MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             {
-                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", P2978::getErrorString(), fileName));
+                printErrorMessage(FORMAT("Could not replace the destination file atomically.\nTemporary path: {}\n"
+                                         "Destination path: {}\nSystem error: {}",
+                                         str, fileName, P2978::getErrorString()));
             }
         }
 #else
@@ -766,7 +822,7 @@ string getNormalizedPath(path filePath)
 {
     if (filePath.is_relative())
     {
-        filePath = path(srcNode->filePath) / filePath;
+        filePath = path(normalizationBasePath) / filePath;
     }
     filePath = filePath.lexically_normal();
 

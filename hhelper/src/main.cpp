@@ -121,7 +121,8 @@ int main(int argc, char **argv)
 
     if (THROW)
     {
-        printErrorMessage("Macros Required for hhelper are not provided.\n");
+        printErrorMessage("hhelper was built without its required path macros.\n"
+                          "Reconfigure and rebuild the HMake hhelper target.");
         exit(EXIT_FAILURE);
     }
 
@@ -134,7 +135,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            printErrorMessage("Unknown Argument provided to hhelper.\n");
+            printErrorMessage(FORMAT("Unknown hhelper argument.\nArgument: {}\nSupported argument: --configure", argv[1]));
         }
     }
 
@@ -188,7 +189,8 @@ int main(int argc, char **argv)
             if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
             {
                 printErrorMessage(
-                    "No compiler found from ToolsCache variable. Please ensure htools has been run as admin before\n");
+                    "No compiler is available in the tool cache.\n"
+                    "Hint: run htools with administrator privileges, then retry hhelper.");
                 exit(EXIT_FAILURE);
             }
 
@@ -234,7 +236,9 @@ int main(int argc, char **argv)
     {
         if (!exists(path(configureExePath)))
         {
-            printErrorMessage("configure.exe does not exists\n");
+            printErrorMessage(FORMAT("Generated configure executable does not exist.\nPath: {}\n"
+                                     "Hint: run hhelper without --configure to create it first.",
+                                     configureExePath));
             exit(EXIT_FAILURE);
         }
         return std::system(configureExePath.c_str());
@@ -246,7 +250,11 @@ int main(int argc, char **argv)
     cacheJson.Parse(content.c_str());
     if (cacheJson.HasParseError())
     {
-        printErrorMessage("Error parsing cache.json\n");
+        printErrorMessage(FORMAT("Could not parse the project cache file.\nFile: {}\nParser error code: {}\n"
+                                 "Byte offset: {}",
+                                 (current_path() / "cache.json").string(),
+                                 static_cast<unsigned>(cacheJson.GetParseError()),
+                                 cacheJson.GetErrorOffset()));
         exit(EXIT_FAILURE);
     }
     
@@ -290,12 +298,14 @@ int main(int argc, char **argv)
 
     if (cacheLocal.configureExeBuildScript.empty())
     {
-        printErrorMessage("No script provided for building configure executable\n");
+        printErrorMessage("The project cache does not define a configure build command.\n"
+                          "File: cache.json\nField: configureExeBuildScript");
         exit(EXIT_FAILURE);
     }
     if (cacheLocal.buildExeBuildScript.empty())
     {
-        printErrorMessage("No script provided for building build executable\n");
+        printErrorMessage("The project cache does not define a build-executable command.\n"
+                          "File: cache.json\nField: buildExeBuildScript");
         exit(EXIT_FAILURE);
     }
 
@@ -373,7 +383,9 @@ int main(int argc, char **argv)
             }
             else
             {
-                printErrorMessage(*configureRun.output);
+                printErrorMessage(FORMAT("Generated configure executable failed.\nExecutable: {}\nExit code: {}\n"
+                                         "Process output:\n{}",
+                                         configureExePath, configureRun.exitStatus, *configureRun.output));
             }
         }
     };

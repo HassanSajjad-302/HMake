@@ -35,8 +35,7 @@ struct OurTarget2 : BTarget
         b->addDep<0>(c);
 
         uint32_t insertionIndex;
-        builder.updateBTargets.emplace(&c->realBTargets[0], insertionIndex);
-        builder.updateBTargetsSizeGoal += 3;
+        builder.readyBTargets.emplace(&c->realBTargets[0], insertionIndex);
         return false;
     }
 };

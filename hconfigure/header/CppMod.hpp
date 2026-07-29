@@ -1,5 +1,5 @@
 /// \file
-/// This file defines CppSrc and CppMod
+/// Defines source-file and C++ module compilation targets.
 
 #ifndef HMAKE_CPPMOD_HPP
 #define HMAKE_CPPMOD_HPP
@@ -16,12 +16,12 @@ using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr,
 
 class CppTarget;
 class CppSrc;
-struct HeaderFileOrUnit;
+struct HfOrCppMod;
 
 struct CompareCppSrc
 {
-    using is_transparent = void; // for example with void,
-    // but could be int or struct CanSearchOnId;
+    /// Enables heterogeneous lookup by either `CppSrc` or its source `Node`.
+    using is_transparent = void;
     bool operator()(const CppSrc &lhs, const CppSrc &rhs) const;
     bool operator()(const Node *lhs, const CppSrc &rhs) const;
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
@@ -35,26 +35,24 @@ enum class SourceType : uint8_t
     ASSEMBLY,
 };
 
-/// Responsible for compiling C++ source-files. Inherits from ObjectFile which has Node pinter ObjectFile::objectNode
+/// Compiles one C, C++, or assembly translation unit into an object file.
 class CppSrc : public ObjectFile
 {
   public:
-    /// header-files discovered during the build. MSVC can output duplicate files. Also, while compiling modules we can
-    /// get same header-file from multiple header-unit or module-deps. So, a set is used to remove duplicates to keep
-    /// the build-cache small.
+    /// Headers discovered during compilation. A set removes duplicate compiler output and keeps the cache compact.
     flat_hash_set<Node *> headerFiles;
 
     /// The back pointer to the CppTarget owning this in srcFileDeps.
     CppTarget *target;
 
-    /// Node pointer to the source-file
+    /// Source file.
     const Node *node;
 
     /// Hash of the compile command for this file (flags, defines, includes, etc.). Set in `CppTarget::setCommandHashes()`.
     /// Combined with source/header content hashes to form `RealBTarget::cumulativeHash`.
     uint64_t commandHash;
 
-    /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
+    /// Language inferred from the source extension.
     SourceType sourceType = SourceType::CPP;
 
     /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setUpdateStatus()`.
@@ -66,11 +64,11 @@ class CppSrc : public ObjectFile
     bool ignoreHeaderFile(string_view child) const;
     /// MSVC prints header-files with the compilation output. This function parses them out from that output.
     void parseDepsFromMSVCTextOutput(string &output, bool isClang);
-    /// GCC outputs header-files in a .d file. This function parses that
+    /// Parses header dependencies from a GCC-compatible `.d` file.
     void parseHeadersFromGccDepsOutput(Builder &builder);
-    /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
+    /// Dispatches to the dependency parser for the selected compiler.
     void parseHeaderDeps(string &output, Builder &builder);
-    /// This compares lastWrite of source-node with object-node and header-files
+    /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
     bool isEventRegistered(Builder &builder) override;
@@ -158,19 +156,14 @@ class CppMod : public CppSrc
     /// Used only if configuration->evaluate(DuplicationWarning::YES). Otherwise, CppSrc::headerFiles is used.
     flat_hash_map<Node *, CppMod *> headerNodeCppMod;
 
-    /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
-    /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
-    /// rebuilds.
+    /// Headers composed directly into this module or header unit. Unlike `CppSrc::headerFiles`, this excludes headers
+    /// inherited from dependencies.
     flat_hash_map<string, Node *> composingHeaders;
 
     vector<string_view> composingNames;
 
-    /// include-name in-case of header-unit and export-name in-case of module.
+    /// Include name for a header unit, or exported name for a module.
     string_view logicalName;
-
-    /// Snapshot of `realBTargets[0].launchTime` taken when IPC compilation starts; used to detect header changes that
-    /// occurred after launch when writing the cumulative-hash to the build-cache.
-    uint64_t originalLaunchTime;
 
     /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
     Node *interfaceNode;
@@ -194,7 +187,7 @@ class CppMod : public CppSrc
     /// Following is used only at config-time. Describes whether hu is interface hu of the CppTarget.
     bool isUseReqHu = false;
 
-    /// Composing headers are only sent with the first IPC message. This keeps tracks of that
+    /// Whether composing headers have already been sent in the first IPC message.
     bool firstMessageSent = false;
 
     /// True after `makeMemoryFileMapping()` has mapped `interfaceNode` and recorded `interfaceFileSize`.
@@ -209,8 +202,7 @@ class CppMod : public CppSrc
 
     CppMod(CppTarget *target_, const Node *node_, CppModType cppModType);
 
-    /// Following ensures that build-system creates shared-memory bmi file before sending it to the compiler. if the
-    /// file is updated, then the compiler creates the mapping. if not then the build-system.
+    /// Ensures that a shared-memory BMI exists before it is sent to the compiler.
     void makeMemoryFileMapping();
 
     void populateAllDeps();
@@ -228,18 +220,26 @@ class CppMod : public CppSrc
     /// Looks for the received header-name in CppTarget::reqHeaderNameMapping and Configuration::headerNameMapping
     /// (which has useReqHeaderNameMapping of all CppTarget of the Configuration) While compiling the big-hu, a request
     /// for any composing-header will map to the big-hu in these lookup tables.
-    HeaderFileOrUnit findHeaderFileOrUnit(string_view headerName) const;
+    std::optional<HfOrCppMod> findHfOrCppMod(string_view headerName) const;
 
-    /// launches the module process if it needs to be compiled
+    /// Launches the module process when recompilation is required.
     bool isEventRegistered(Builder &builder) override;
+
+    /// Resumes an already-running compiler after its dynamically requested module/header-unit finishes. If the recorded
+    /// update reason has completed with `UPDATE_NOT_NEEDED`, fully re-evaluates the consumer against its still-cached
+    /// completion time. A now-unneeded speculative compiler is terminated; otherwise it receives the provider response
+    /// and continues.
+    /// This is separate from `isEventCompleted()` so an empty message remains an unambiguous process-exit sentinel.
+    /// See "Unchanged-output cutoff" in the project README.
+    bool resumeAfterDependency(Builder &builder);
 
     void completeModuleCompilation(const Builder &builder);
 
-    /// \param message message of the c++ module or hu process if it is waiting on another dependency.
-    /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
+    /// \param message A nonempty CTB protocol payload, or an empty view only when Builder has reaped the compiler.
+    /// \returns true when another compiler message is expected; false when compilation has completed.
     bool isEventCompleted(Builder &builder, string_view message) override;
 
-    /// prints short status string if there is no output. prints full command + output, if there is output
+    /// Prints a short status line on success, or the full command and compiler output when present.
     void print(const Builder &builder, const string &output) const;
 
     enum class CommandType
@@ -251,7 +251,7 @@ class CppMod : public CppSrc
 
     void getCompileCommand(std::pmr::string &compileCommand, CommandType commandType, string_view mockFilePath) const;
 
-    /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
+    /// Computes the module input fingerprint and updates its round-0 `UpdateStatus`.
     void setUpdateStatus() override;
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run

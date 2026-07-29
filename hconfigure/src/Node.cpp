@@ -1,4 +1,5 @@
 #include "Node.hpp"
+#include "Manager.hpp"
 #include "rapidhash/rapidhash.h"
 
 #include <fcntl.h>
@@ -68,12 +69,11 @@ std::size_t NodeHash::operator()(const string_view &str) const
     return rapidhash(str.data(), str.size());
 }
 
-Node::Node(const string_view filePath_) : filePath(filePath_)
+Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
 {
-    myId = idCount++;
     if (myId >= 128 * 1024)
     {
-        printErrorMessage("Error: Maximum node count (128k) exceeded.\n");
+        printErrorMessage(FORMAT("Maximum node count exceeded.\nLimit: {}\nPath: {}", 128 * 1024, filePath));
     }
     nodeIndices.emplace_back(this);
 }
@@ -210,17 +210,14 @@ void Node::performSystemCheck()
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
-#ifdef BUILD_MODE
-   // printErrorMessage(FORMAT("For filePath {}\n Node::getNode is called at build-time.\n", filePath_));
-#endif
-
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
     Node *node = &const_cast<Node &>(*it);
 
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
     {
-        printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", node->filePath, isFile ? "regular" : "dir",
+        printErrorMessage(FORMAT("Filesystem entry has the wrong type.\nPath: {}\nExpected type: {}\nActual status:{}",
+                                 node->filePath, isFile ? "regular file" : "directory",
                                  getStatusString(node->filePath)));
     }
     return node;
@@ -228,9 +225,17 @@ Node *Node::getNode(const string_view filePath_, const bool isFile, const bool m
 
 void Node::performContentHash()
 {
+    if (fileType != file_type::regular)
+    {
+        printErrorMessage(FORMAT("Cannot hash a filesystem entry that is not a regular file.\nPath: {}\n"
+                                 "File type: {}",
+                                 filePath, static_cast<int>(fileType)));
+    }
+
     if (fileSize == 0)
     {
         contentHash = 0;
+        hashCompleted = true;
         return;
     }
 
@@ -238,32 +243,31 @@ void Node::performContentHash()
     {
         return;
     }
-    hashCompleted = true;
-
 #ifdef _WIN32
     HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        contentHash = 0;
-        return;
+        printErrorMessage(FORMAT("Could not open a file for content hashing.\nPath: {}\nOperation: CreateFileA\n"
+                                 "System error: {}",
+                                 filePath, P2978::getErrorString()));
     }
     HANDLE hMap = CreateFileMappingA(hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
     if (!hMap)
     {
-        contentHash = 0;
-        CloseHandle(hFile);
-        return;
+        printErrorMessage(FORMAT("Could not create a file mapping for content hashing.\nPath: {}\n"
+                                 "Operation: CreateFileMappingA\nSystem error: {}",
+                                 filePath, P2978::getErrorString()));
     }
     const void *view = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
     if (!view)
     {
-        contentHash = 0;
-        CloseHandle(hMap);
-        CloseHandle(hFile);
-        return;
+        printErrorMessage(FORMAT("Could not map a file for content hashing.\nPath: {}\nOperation: MapViewOfFile\n"
+                                 "System error: {}",
+                                 filePath, P2978::getErrorString()));
     }
     contentHash = rapidhash(view, fileSize);
+    hashCompleted = true;
     UnmapViewOfFile(view);
     CloseHandle(hMap);
     CloseHandle(hFile);
@@ -271,25 +275,45 @@ void Node::performContentHash()
     const int fd = open(filePath.c_str(), O_RDONLY | O_CLOEXEC);
     if (fd == -1)
     {
-        contentHash = 0;
-        return;
+        printErrorMessage(FORMAT("Could not open a file for content hashing.\nPath: {}\nOperation: open\n"
+                                 "System error: {}",
+                                 filePath, P2978::getErrorString()));
     }
     void *mapping = mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd); // safe to close before hashing; mapping remains valid
     if (mapping == MAP_FAILED)
     {
-        contentHash = 0;
-        return;
+        const string systemError = P2978::getErrorString();
+        close(fd);
+        printErrorMessage(FORMAT("Could not map a file for content hashing.\nPath: {}\nOperation: mmap\n"
+                                 "File size: {} bytes\nSystem error: {}",
+                                 filePath, fileSize, systemError));
     }
+    close(fd); // safe to close before hashing; mapping remains valid
     madvise(mapping, fileSize, MADV_SEQUENTIAL);
     contentHash = rapidhash(mapping, fileSize);
-    munmap(mapping, fileSize);
+    hashCompleted = true;
+    if (munmap(mapping, fileSize) == -1)
+    {
+        printErrorMessage(FORMAT("Could not unmap a file after content hashing.\nPath: {}\nOperation: munmap\n"
+                                 "System error: {}",
+                                 filePath, P2978::getErrorString()));
+    }
 #endif
 }
 
 Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
 {
     return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
+}
+
+string_view Node::getDirectoryStringView() const
+{
+    const size_t separator = filePath.find_last_of(slashc);
+    if (separator == string::npos)
+    {
+        return {};
+    }
+    return string_view(filePath).substr(0, separator);
 }
 
 Node *Node::getHalfNode(const string_view filePath_)

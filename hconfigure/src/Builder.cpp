@@ -7,6 +7,7 @@
 #include "Node.hpp"
 #include "RunCommand.hpp"
 
+#include <cerrno>
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -36,12 +37,14 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
 {
     if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
     {
-        if (!PostQueuedCompletionStatus((HANDLE)consoleHandlerBuilder->serverFd, 0, -1, NULL))
+        if (consoleHandlerBuilder &&
+            !PostQueuedCompletionStatus((HANDLE)consoleHandlerBuilder->serverFd, 0, static_cast<ULONG_PTR>(-1), NULL))
         {
             P2978::getErrorString("PostQueuedCompletionStatus");
         }
         return TRUE;
     }
+    return FALSE;
 }
 #endif
 
@@ -55,11 +58,20 @@ static uint64_t createMultiplex()
     );
     if (iocp == nullptr)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not create the Windows build event loop.\nOperation: CreateIoCompletionPort\n"
+                                 "System error: {}",
+                                 P2978::getErrorString()));
     }
     return reinterpret_cast<uint64_t>(iocp);
 #else
-    return epoll_create1(0);
+    const int epollFd = epoll_create1(EPOLL_CLOEXEC);
+    if (epollFd == -1)
+    {
+        printErrorMessage(FORMAT("Could not create the Linux build event loop.\nOperation: epoll_create1\n"
+                                 "System error: {}",
+                                 P2978::getErrorString()));
+    }
+    return static_cast<uint64_t>(epollFd);
 #endif
 }
 
@@ -81,6 +93,7 @@ Builder::Builder()
     // The graph now knows the complete initial node set, so snapshot its relevant file state in parallel.
     checkNodes(true);
     delete[] BTarget::realBTargetsGlobal[1].data();
+    BTarget::realBTargetsGlobal[1] = {};
     --round;
     executeRoundZero();
 
@@ -101,6 +114,9 @@ void Builder::executeRoundOne()
     // Seed the readiness frontier from a topological order. `execute()` extends it synchronously as nodes complete.
     RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
+    readyBTargetsSizeGoal = RealBTarget::sorted.size();
+    updatedCount = 0;
+    readyBTargets.reserve(RealBTarget::sorted.size());
 
     for (RealBTarget *rb : RealBTarget::sorted)
     {
@@ -111,26 +127,16 @@ void Builder::executeRoundOne()
     }
 
     execute();
-}
-
-static void checkDepsChanged(RealBTarget &rb)
-{
-    // The cache records the dependency contract of the completed build. A later build compares that contract with its
-    // current graph to decide whether a selectively requested target must be rebuilt.
-    const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
-    BTargetCache &fc = bTargetCaches[cacheIdx];
-
-    string *const newDeps = new string();
-    newDeps->reserve(4 + 4 * rb.dependenciesSize);
-    writeUint32(*newDeps, rb.dependenciesSize);
-    for (const RBTWithType &rbt : rb.dependencies)
+    if (updatedCount != readyBTargetsSizeGoal)
     {
-        if (const RelationType kind = rbt.getRelationType(); kind == RelationType::FULL || kind == RelationType::WAIT)
-        {
-            writeUint32(*newDeps, rbt.getPointer()->getBTarget()->cacheIndex);
-        }
+        // Unreachable for a closed, immutable, acyclic graph whose FULL/WAIT edge counts are symmetric. Retain the
+        // check as a cheap guard against future custom targets mutating raw scheduler state during round one.
+        printErrorMessage(FORMAT("Internal round-one scheduler invariant failed.\nCompleted targets: {}\n"
+                                 "Expected targets: {}\n"
+                                 "Hint: a target, blocking edge, dependency count, or queue entry changed during "
+                                 "round-one execution.",
+                                 updatedCount, readyBTargetsSizeGoal));
     }
-    fc.depsCache = *newDeps;
 }
 
 void Builder::executeRoundZero()
@@ -158,9 +164,10 @@ void Builder::executeRoundZero()
                     const uint32_t cacheIndex = target.getBTarget()->cacheIndex;
                     BTargetCache &targetCache = bTargetCaches[cacheIndex];
 
-                    string *const updatedDependencies = new string();
-                    updatedDependencies->reserve(4 + 4 * target.dependenciesSize);
-                    writeUint32(*updatedDependencies, target.dependenciesSize);
+                    string &updatedDependencies = *new string();
+                    updatedDependencies.reserve(sizeof(uint32_t) + sizeof(uint32_t) * target.dependenciesSize);
+                    writeUint32(updatedDependencies, target.dependenciesSize);
+                    uint32_t observedBlockingDependencies = 0;
                     target.updateStatus = UpdateStatus::UPDATE_NEEDED;
 
                     for (const RBTWithType &dependency : target.dependencies)
@@ -173,12 +180,21 @@ void Builder::executeRoundZero()
                             dependencyTarget->selectiveBuild = true;
                         }
 
-                        if (relationType == RelationType::FULL || relationType == RelationType::WAIT)
+                        if (isBlockingRelation(relationType))
                         {
-                            writeUint32(*updatedDependencies, dependencyTarget->cacheIndex);
+                            writeUint32(updatedDependencies, dependencyTarget->cacheIndex);
+                            ++observedBlockingDependencies;
                         }
                     }
-                    targetCache.depsCache = *updatedDependencies;
+                    if (observedBlockingDependencies != target.dependenciesSize)
+                    {
+                        printErrorMessage(FORMAT("Internal dependency-count invariant failed.\nTarget: {}\n"
+                                                 "Recorded blocking count: {}\nObserved blocking dependencies: {}",
+                                                 target.getBTarget()->getPrintName(),
+                                                 static_cast<uint32_t>(target.dependenciesSize),
+                                                 observedBlockingDependencies));
+                    }
+                    targetCache.depsCache = updatedDependencies;
                 }
                 else
                 {
@@ -199,6 +215,9 @@ void Builder::executeRoundZero()
     // be promoted later, reducing the number of idle compiler processes.
     uint32_t readyTargetCount = 0;
     readyBTargets.clear();
+    // Most targets consume one queue slot. Dynamic module promotions may add tombstoned replacement slots later,
+    // for which PointerArrayList retains geometric growth.
+    readyBTargets.reserve(RealBTarget::sorted.size());
     for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
     {
         RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
@@ -216,15 +235,15 @@ void Builder::executeRoundZero()
 
     // One limit caps active child processes; the other limits aggregate compiler pressure. A fully idle scheduler may
     // still start one process, so conservative throttling cannot prevent the graph from making initial progress.
-    uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
-    maxRunningProcessAllowed = 20;
+    const uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
     availableProcessSlots = maxRunningProcessAllowed;
-    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 8;
 
     if (!availableProcessSlots)
     {
-        printErrorMessage("number of maximum parallel process is 0\n");
+        printErrorMessage("Invalid process limit.\nConfigured parallel-process count: 0\nHint: set it to at least 1.");
     }
+    const uint32_t hardwareThreads = std::max(1u, std::thread::hardware_concurrency());
+    maxSimultaneousProcessDesired = hardwareThreads * 8;
 
 #ifdef _WIN32
     consoleHandlerBuilder = this;
@@ -240,17 +259,22 @@ void Builder::executeRoundZero()
     sigemptyset(&mask);
     if (sigaddset(&mask, SIGINT) == -1 || sigaddset(&mask, SIGTERM) == -1)
     {
-        printErrorMessage(FORMAT("sigaddset failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(
+            FORMAT("Could not add SIGINT/SIGTERM to the build signal set.\nSystem error: {}", P2978::getErrorString()));
     }
     if (sigprocmask(SIG_BLOCK, &mask, &oldMask) == -1)
     {
-        printErrorMessage(FORMAT("sigprocmask(SIG_BLOCK) failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not block build termination signals.\nOperation: sigprocmask(SIG_BLOCK)\n"
+                                 "System error: {}",
+                                 P2978::getErrorString()));
     }
 
     const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (sfd == -1)
     {
-        printErrorMessage(FORMAT("signalfd failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not create the build signal file descriptor.\nOperation: signalfd\n"
+                                 "System error: {}",
+                                 P2978::getErrorString()));
     }
 
     epoll_event ev{};
@@ -258,7 +282,9 @@ void Builder::executeRoundZero()
     ev.data.fd = sfd;
     if (epoll_ctl(serverFd, EPOLL_CTL_ADD, sfd, &ev) == -1)
     {
-        printErrorMessage(FORMAT("epoll_ctl add signalfd failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not register the signal file descriptor with the event loop.\n"
+                                 "Operation: epoll_ctl(EPOLL_CTL_ADD)\nFile descriptor: {}\nSystem error: {}",
+                                 sfd, P2978::getErrorString()));
     }
 
 #endif
@@ -272,13 +298,13 @@ void Builder::executeRoundZero()
             {
                 break;
             }
-            const uint64_t pid = next->getBTarget()->run.pid;
+            BTarget *const target = next->getBTarget();
+            const uint64_t pid = target->run.pid;
 
-            // Resuming an existing process does not add process pressure. Starting a child consumes a slot and usually
-            // observes both limits; the idle exception ensures that the first runnable target can always launch.
             bool launchNewOne;
             if (pid != -1)
             {
+                // Resuming an existing process does not add process pressure.
                 launchNewOne = availableProcessSlots > 0;
             }
             else
@@ -297,8 +323,21 @@ void Builder::executeRoundZero()
 
             readyBTargets.moveForward();
 
-            if (next->getBTarget()->isEventRegistered(*this))
+            if (!target->initiationTime)
             {
+                target->initiationTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::system_clock::now().time_since_epoch())
+                                             .count();
+            }
+
+            if (target->isEventRegistered(*this))
+            {
+                if (!availableProcessSlots)
+                {
+                    printErrorMessage(FORMAT("Internal process-slot underflow before target launch.\nTarget: {}\n"
+                                             "Configured slots: {}",
+                                             target->getPrintName(), maxRunningProcessAllowed));
+                }
                 --availableProcessSlots;
             }
             else
@@ -322,33 +361,42 @@ void Builder::executeRoundZero()
 #ifdef _WIN32
         OVERLAPPED_ENTRY completionEvents[128];
         ULONG completionEventCount = 0;
-        if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, completionEvents, 128, &completionEventCount, INFINITE, FALSE))
+        if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, completionEvents, 128, &completionEventCount, INFINITE,
+                                         FALSE))
         {
-            printErrorMessage(P2978::getErrorString());
+            printErrorMessage(FORMAT("Could not read events from the Windows build event loop.\n"
+                                     "Operation: GetQueuedCompletionStatusEx\nSystem error: {}",
+                                     P2978::getErrorString()));
         }
 
-        if constexpr (ndeb == NDEB::NO)
-        {
-            if (completionEventCount > activeEventCount)
-            {
-                printErrorMessage(
-                    FORMAT("completionEventCount > activeEventCount, completionEventCount {} activeEventCount {}\n",
-                           completionEventCount, activeEventCount));
-            }
-        }
         for (ULONG completionEventIndex = 0; completionEventIndex < completionEventCount; completionEventIndex++)
         {
             const uint64_t eventIndex = completionEvents[completionEventIndex].lpCompletionKey;
             if (eventIndex == -1)
             {
-                string buffer;
-                writeBuildBuffer(buffer);
-                exit(EXIT_SUCCESS);
+                const string buildCache = getBuildCache();
+                writeNodesCacheIfNewNodesAdded();
+                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // Preserve the previous cache in that case. Replacing it with an empty file makes the next
+                // configure/build invocation interpret missing records as a serialized build cache.
+                if (!buildCache.empty())
+                {
+                    writeBufferToCompressedFile(
+                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                }
+                std::_Exit(EXIT_SUCCESS);
+            }
+            if (eventIndex >= currentIndex)
+            {
+                printErrorMessage(FORMAT("Windows build event has an invalid completion key.\n"
+                                         "Completion key: {}\nAllocated keys: {}",
+                                         eventIndex, currentIndex));
             }
             CompletionKey &completionKey = eventData[eventIndex];
             if constexpr (ndeb == NDEB::NO)
             {
-                if (&(OVERLAPPED &)completionKey.overlappedBuffer != completionEvents[completionEventIndex].lpOverlapped)
+                if (&(OVERLAPPED &)completionKey.overlappedBuffer !=
+                    completionEvents[completionEventIndex].lpOverlapped)
                 {
                     // printErrorMessage("completion event does not match its completion key\n");
                 }
@@ -356,12 +404,33 @@ void Builder::executeRoundZero()
 
             if (BTarget *target = completionKey.target; target)
             {
-                completeTargetForEvent(target, eventIndex);
+                if (!callIsEventCompleted(target, eventIndex))
+                {
+                    decrementFromDependents(target->realBTargets[0]);
+                    if (availableProcessSlots >= maxRunningProcessAllowed)
+                    {
+                        printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
+                                                 "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
+                                                 target->getPrintName(), availableProcessSlots,
+                                                 maxRunningProcessAllowed));
+                    }
+                    ++availableProcessSlots;
+                }
             }
         }
 #else
         epoll_event readyEvents[128];
         const int readyEventCount = epoll_wait(serverFd, readyEvents, 128, -1);
+        if (readyEventCount == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            printErrorMessage(FORMAT("Could not read events from the Linux build event loop.\n"
+                                     "Operation: epoll_wait\nSystem error: {}",
+                                     P2978::getErrorString()));
+        }
 
         if constexpr (ndeb == NDEB::NO)
         {
@@ -392,23 +461,43 @@ void Builder::executeRoundZero()
                     {
                         continue;
                     }
-                    printErrorMessage(FORMAT("read(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
+                    printErrorMessage(FORMAT("Could not read a build termination signal.\nFile descriptor: {}\n"
+                                             "Operation: read(signalfd)\nSystem error: {}",
+                                             sfd, P2978::getErrorString()));
                 }
                 if (bytesRead != sizeof(signalInfo))
                 {
-                    printErrorMessage("Short read from signalfd\n");
+                    printErrorMessage(FORMAT("Build termination signal was truncated.\nFile descriptor: {}\n"
+                                             "Expected bytes: {}\nRead bytes: {}",
+                                             sfd, sizeof(signalInfo), bytesRead));
                 }
 
                 const string buildCache = getBuildCache();
                 writeNodesCacheIfNewNodesAdded();
                 writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                             buildCache);
-
                 std::_Exit(EXIT_SUCCESS);
             }
-            if (BTarget *bt = eventData[eventFd]; !callIsEventCompleted(bt, eventFd))
+            if (eventFd < 0 || static_cast<size_t>(eventFd) >= eventData.size())
+            {
+                printErrorMessage(FORMAT("Linux build event has an invalid file descriptor.\n"
+                                         "File descriptor: {}\nEvent table size: {}",
+                                         eventFd, eventData.size()));
+            }
+            BTarget *bt = eventData[eventFd];
+            if (!bt)
+            {
+                printErrorMessage(FORMAT("Linux build event has no target.\nFile descriptor: {}", eventFd));
+            }
+            if (!callIsEventCompleted(bt, eventFd))
             {
                 decrementFromDependents(bt->realBTargets[0]);
+                if (availableProcessSlots >= maxRunningProcessAllowed)
+                {
+                    printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
+                                             "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
+                                             bt->getPrintName(), availableProcessSlots, maxRunningProcessAllowed));
+                }
                 ++availableProcessSlots;
             }
         }
@@ -427,23 +516,65 @@ void Builder::executeRoundZero()
             printMessage(readyBTargets.array[i].value->bTarget->getPrintName() + '\n');
         }*/
         RealBTarget::sortGraph();
-        printErrorMessage("HMake API misuse.\n");
+
+        string blockedTargets;
+        uint32_t reported = 0;
+        for (const RealBTarget *target : RealBTarget::sorted)
+        {
+            if (target->isCompleted)
+            {
+                continue;
+            }
+            blockedTargets += FORMAT("\n  - {} (remaining blocking dependencies: {})",
+                                     target->getBTarget()->getPrintName(), target->dependenciesSize);
+            if (++reported == 12)
+            {
+                break;
+            }
+        }
+        printErrorMessage(FORMAT("Build graph could not make progress.\nCompleted targets: {}\nExpected targets: {}\n"
+                                 "Blocked targets:{}\nHint: inspect FULL/WAIT dependencies and target process state.",
+                                 updatedCount, readyBTargetsSizeGoal,
+                                 blockedTargets.empty() ? "\n  - <none reported>" : blockedTargets));
     }
 
 #ifndef _WIN32
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, sfd, nullptr) == -1)
     {
-        printErrorMessage(FORMAT("epoll_ctl del signalfd failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not unregister the signal descriptor from the event loop.\n"
+                                 "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_DEL)\nSystem error: {}",
+                                 sfd, P2978::getErrorString()));
     }
     if (close(sfd) == -1)
     {
-        printErrorMessage(FORMAT("close(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not close the signal descriptor.\nFile descriptor: {}\nSystem error: {}", sfd,
+                                 P2978::getErrorString()));
     }
     if (sigprocmask(SIG_SETMASK, &oldMask, nullptr) == -1)
     {
-        printErrorMessage(FORMAT("sigprocmask(SIG_SETMASK) failed. Error\n{}\n", P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not restore the process signal mask.\nOperation: sigprocmask(SIG_SETMASK)\n"
+                                 "System error: {}",
+                                 P2978::getErrorString()));
+    }
+    if (close(static_cast<int>(serverFd)) == -1)
+    {
+        printErrorMessage(FORMAT("Could not close the Linux build event loop.\nFile descriptor: {}\nSystem error: {}",
+                                 serverFd, P2978::getErrorString()));
+    }
+#else
+    if (!SetConsoleCtrlHandler(ConsoleHandler, FALSE))
+    {
+        printErrorMessage(
+            FORMAT("Could not unregister the Windows console handler.\nSystem error: {}", P2978::getErrorString()));
+    }
+    consoleHandlerBuilder = nullptr;
+    if (!CloseHandle((HANDLE)serverFd))
+    {
+        printErrorMessage(
+            FORMAT("Could not close the Windows build event loop.\nSystem error: {}", P2978::getErrorString()));
     }
 #endif
+    serverFd = static_cast<uint64_t>(-1);
 }
 
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
@@ -488,8 +619,9 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
     ev.data.fd = fd;
     if (epoll_ctl(serverFd, EPOLL_CTL_ADD, fd, &ev) == -1)
     {
-        printErrorMessage(FORMAT("Failed to add BTarget\n{}\nread in epoll list. Error\n{}", target_->getPrintName(),
-                                 P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not register target output with the build event loop.\nTarget: {}\n"
+                                 "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_ADD)\nSystem error: {}",
+                                 target_->getPrintName(), fd, P2978::getErrorString()));
         HMAKE_HMAKE_INTERNAL_ERROR
     }
     return fd;
@@ -511,6 +643,8 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 
     while (true)
     {
+        // A valid framed payload is nonempty. The empty value is reserved for COMPLETE_PROCESS after the child has
+        // been reaped; scheduler wakeups must use their own callback path rather than impersonating process EOF.
         string message;
         if (completeReadType == CompleteReadType::COMPLETE_MESSAGE)
         {
@@ -529,6 +663,8 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
             {
                 return true;
             }
+            // Windows may observe EOF synchronously while starting the next overlapped read.
+            completeReadType = CompleteReadType::COMPLETE_PROCESS;
         }
         else
         {
@@ -548,8 +684,9 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
     // The child has been reaped before this point, so this descriptor can no longer produce useful scheduler events.
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {
-        printErrorMessage(FORMAT("Failed to remove BTarget\n{}\nread from epoll list. Error\n{}",
-                                 eventData[index]->getPrintName(), P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not unregister target output from the build event loop.\nTarget: {}\n"
+                                 "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_DEL)\nSystem error: {}",
+                                 eventData[index]->getPrintName(), index, P2978::getErrorString()));
         HMAKE_HMAKE_INTERNAL_ERROR
     }
     eventData[index] = nullptr;
@@ -569,7 +706,7 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-template <typename T> void divideInChunk(std::pmr::vector<std::span<T>> &result, std::pmr::vector<T> &v, uint16_t n)
+template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T> &v, uint16_t n)
 {
     // Produce non-owning partitions for regular-cost work. Content hashing uses a different strategy below because
     // file sizes make its individual items highly uneven.
@@ -609,8 +746,10 @@ template <typename T> void divideInChunk(std::pmr::vector<std::span<T>> &result,
 
 void Builder::checkNodes(const bool isFirstTime)
 {
-    STACK_PMR_VECTOR(Node *, statNodes, 256 * 1024)
-    STACK_PMR_VECTOR(Node *, hashNodes, 256 * 1024)
+    vector<Node *> statNodes;
+    vector<Node *> hashNodes;
+    statNodes.reserve(Node::idCount);
+    hashNodes.reserve(Node::idCount);
 
     if (isFirstTime)
     {
@@ -653,8 +792,9 @@ void Builder::checkNodes(const bool isFirstTime)
         return;
     }
     {
-        STACK_PMR_VECTOR(std::span<Node *>, chunks, 4 * 1024)
         const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
+        vector<std::span<Node *>> chunks;
+        chunks.reserve(workerCount);
         divideInChunk(chunks, statNodes, workerCount);
 
         vector<thread> workers;
@@ -692,7 +832,8 @@ void Builder::checkNodes(const bool isFirstTime)
     {
         if (hashNodes[i]->fileType == file_type::not_found)
         {
-            hashNodes[i]->contentHash = 0;
+            hashNodes[i]->contentHash = Node::missingContentHash;
+            hashNodes[i]->hashCompleted = true;
             std::swap(hashNodes[i], hashNodes[--validCount]);
             // i stays: the swapped-in element must be rechecked.
         }
@@ -760,6 +901,11 @@ void Builder::decrementFromDependents(RealBTarget &rb)
 {
     // This is the graph's commit point: propagate rebuild/failure state and one predecessor completion to each FULL
     // consumer. A consumer becomes runnable exactly when its final prerequisite commits here.
+    if (rb.isCompleted)
+    {
+        printErrorMessage(FORMAT("Build target completed more than once.\nTarget: {}\nRound: {}",
+                                 rb.getBTarget()->getPrintName(), static_cast<uint32_t>(rb.round)));
+    }
     ++updatedCount;
 
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
@@ -769,11 +915,20 @@ void Builder::decrementFromDependents(RealBTarget &rb)
     }
 
     const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATE_NEEDED;
+    if (const BTarget *const target = rb.getBTarget();
+        rb.round == 0 && setToNeedsUpdate && rb.exitStatus == EXIT_SUCCESS && target->launchesProcess &&
+        target->buildFooterUpdated)
+    {
+        rb.completionTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+    }
+
     rb.isCompleted = true;
 
     for (const RBTWithType rbt : rb.dependents)
     {
-        if (rbt.getRelationType() == RelationType::FULL)
+        if (isBlockingRelation(rbt.getRelationType()))
         {
             RealBTarget *dependent = rbt.getPointer();
             if (setToNeedsUpdate)
@@ -784,7 +939,14 @@ void Builder::decrementFromDependents(RealBTarget &rb)
             {
                 dependent->exitStatus = EXIT_FAILURE;
             }
-            dependent->dependenciesSize -= 1;
+            if (!dependent->dependenciesSize)
+            {
+                printErrorMessage(FORMAT("Build dependency count underflow.\nCompleted dependency: {}\n"
+                                         "Dependent target: {}\nRound: {}",
+                                         rb.getBTarget()->getPrintName(), dependent->getBTarget()->getPrintName(),
+                                         static_cast<uint32_t>(dependent->round)));
+            }
+            --dependent->dependenciesSize;
             if (!dependent->dependenciesSize)
             {
                 uint32_t insertionIndex;

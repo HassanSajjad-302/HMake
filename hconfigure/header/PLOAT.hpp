@@ -122,12 +122,6 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
     {
         BTarget *us = static_cast<BTarget *>(this);
         BTarget *ourDep = static_cast<BTarget *>(&ploat);
-        if (ourDep->cacheIndex > us->cacheIndex)
-        {
-            printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
-                                     "declaration before the dependent is an invariant in HMake.",
-                                     bTargetCaches[ourDep->cacheIndex].name, bTargetCaches[us->cacheIndex].name));
-        }
 
         if (depType == DepType::PUBLIC)
         {

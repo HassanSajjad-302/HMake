@@ -178,7 +178,7 @@ TEST(AExamplesTest, Example_A4)
     int exitStatus;
     ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
     ASSERT_EQ(exitStatus, EXIT_FAILURE);
-    string str = "Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1\n";
+    string str = "error: Dependency graph contains a cycle.\nCycle: Cat1 -> Cat2 -> Cat3 -> Cat1\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }
@@ -234,7 +234,7 @@ TEST(AExamplesTest, Example_A7)
     int exitStatus;
     ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
     ASSERT_EQ(exitStatus, EXIT_FAILURE);
-    string str = "Cycle found: b -> c -> b\n";
+    string str = "error: Dependency graph contains a cycle.\nCycle: b -> c -> b\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }

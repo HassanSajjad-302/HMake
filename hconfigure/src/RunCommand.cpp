@@ -57,20 +57,26 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
                                              PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, 0, 0, INFINITE, NULL);
     if (readPipeHandle == INVALID_HANDLE_VALUE)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not create the child-process IPC pipe.\nPipe name: {}\n"
+                                 "Operation: CreateNamedPipeA\nSystem error: {}",
+                                 readPipeName, P2978::getErrorString()));
     }
 
     index = builder.registerEventData(bTarget, (uint64_t)readPipeHandle);
     if (!CreateIoCompletionPort(readPipeHandle, (HANDLE)builder.serverFd, index, 0))
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not attach the child-process pipe to the build event loop.\nPipe name: {}\n"
+                                 "Operation: CreateIoCompletionPort\nSystem error: {}",
+                                 readPipeName, P2978::getErrorString()));
     }
 
     if (CompletionKey &k = eventData[index];
         !ConnectNamedPipe(readPipeHandle, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer)) &&
         GetLastError() != ERROR_IO_PENDING)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not connect the child-process IPC pipe.\nPipe name: {}\n"
+                                 "Operation: ConnectNamedPipe\nSystem error: {}",
+                                 readPipeName, P2978::getErrorString()));
     }
 
     // Get an inheritable write-end handle for the child process.
@@ -80,7 +86,9 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (!DuplicateHandle(GetCurrentProcess(), outputWriteHandle, GetCurrentProcess(), &child_pipe, 0, TRUE,
                          DUPLICATE_SAME_ACCESS))
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not create an inheritable child-process pipe handle.\nPipe name: {}\n"
+                                 "Operation: DuplicateHandle\nSystem error: {}",
+                                 readPipeName, P2978::getErrorString()));
     }
     CloseHandle(outputWriteHandle);
 
@@ -109,7 +117,9 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (!CreateProcessA(NULL, (char *)command, NULL, NULL,
                         /* inherit handles */ TRUE, process_flags, NULL, NULL, &startup_info, &process_info))
     {
-        printErrorMessage(FORMAT("CreateProcessA failed for Command\n{}\nError\n", command, P2978::getErrorString()));
+        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nCommand: {}\n"
+                                 "Operation: CreateProcessA\nSystem error: {}",
+                                 command, P2978::getErrorString()));
     }
 
     // Close the pipe handle used only by the child.
@@ -163,7 +173,9 @@ bool RunCommand::startRead()
         return true;
     }
 
-    printErrorMessage(P2978::getErrorString());
+    printErrorMessage(FORMAT("Could not start reading child-process output.\nEvent index: {}\n"
+                             "Operation: ReadFile\nSystem error: {}",
+                             index, P2978::getErrorString()));
     return true;
 }
 
@@ -178,7 +190,9 @@ CompleteReadType RunCommand::completeRead()
             output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
             return CompleteReadType::COMPLETE_PROCESS;
         }
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not complete the child-process output read.\nEvent index: {}\n"
+                                 "Operation: GetOverlappedResult\nSystem error: {}",
+                                 index, P2978::getErrorString()));
     }
     output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
 
@@ -195,16 +209,22 @@ void RunCommand::reapProcess(Builder &builder)
     --builder.simultaneousProcessCount;
     if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not wait for the child process.\nProcess handle: {}\n"
+                                 "Operation: WaitForSingleObject\nSystem error: {}",
+                                 pid, P2978::getErrorString()));
     }
     if (!GetExitCodeProcess((HANDLE)pid, (LPDWORD)&exitStatus))
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not read the child-process exit code.\nProcess handle: {}\n"
+                                 "Operation: GetExitCodeProcess\nSystem error: {}",
+                                 pid, P2978::getErrorString()));
     }
 
     if (!CloseHandle((HANDLE)pid) || !CloseHandle((HANDLE)readPipe))
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not close child-process resources.\nProcess handle: {}\nPipe handle: {}\n"
+                                 "System error: {}",
+                                 pid, readPipe, P2978::getErrorString()));
     }
 }
 
@@ -216,7 +236,9 @@ void RunCommand::killModuleProcess(Builder &builder) const
 
     if (!TerminateProcess((HANDLE)pid, exitCode))
     {
-        printErrorMessage(("Killing Process\n"));
+        printErrorMessage(FORMAT("Could not terminate the module process.\nProcess handle: {}\nExit code: {}\n"
+                                 "System error: {}",
+                                 pid, exitCode, P2978::getErrorString()));
     }
 
     CloseHandle((HANDLE)pid); // Cleanup process handle.
@@ -230,16 +252,19 @@ void RunCommand::killModuleProcess(Builder &builder) const
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
     wordexp_t p;
-    if (wordexp(command, &p, 0) != 0)
+    if (wordexp(command, &p, WRDE_NOCMD) != 0)
     {
-        printErrorMessage("wordexp failed\n");
+        printErrorMessage(FORMAT("Could not parse the asynchronous command line.\nCommand: {}\nOperation: wordexp",
+                                 command));
         return -1;
     }
 
     int stdoutPipesLocal[2];
     if (pipe2(stdoutPipesLocal, O_CLOEXEC) == -1)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not create the asynchronous process output pipe.\nCommand: {}\n"
+                                 "System error: {}",
+                                 command, P2978::getErrorString()));
     }
     readPipe = stdoutPipesLocal[0];
 
@@ -247,7 +272,9 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (haveWritePipe)
     {
         if (pipe2(stdinPipesLocal, O_CLOEXEC) == -1)
-            printErrorMessage(P2978::getErrorString());
+            printErrorMessage(FORMAT("Could not create the asynchronous process input pipe.\nCommand: {}\n"
+                                     "System error: {}",
+                                     command, P2978::getErrorString()));
         writePipe = stdinPipesLocal[1];
     }
     else
@@ -258,12 +285,23 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     pid = vfork(); // vfork is intentional here.
     if (pid == -1)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nCommand: {}\nOperation: vfork\n"
+                                 "System error: {}",
+                                 command, P2978::getErrorString()));
     }
 
     if (pid == 0)
     {
         // Child process: only async-signal-safe calls are allowed before exec.
+        // The scheduler blocks termination signals so signalfd can consume them.
+        // Children must not inherit that mask, and should die if the scheduler exits.
+        sigset_t terminationSignals;
+        sigemptyset(&terminationSignals);
+        sigaddset(&terminationSignals, SIGINT);
+        sigaddset(&terminationSignals, SIGTERM);
+        sigprocmask(SIG_UNBLOCK, &terminationSignals, nullptr);
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+
         dup2(stdoutPipesLocal[1], STDOUT_FILENO);
         dup2(stdoutPipesLocal[1], STDERR_FILENO);
         close(stdoutPipesLocal[0]);
@@ -336,7 +374,9 @@ CompleteReadType RunCommand::completeRead()
 
     if (readSize == -1)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not read asynchronous child-process output.\nFile descriptor: {}\n"
+                                 "System error: {}",
+                                 readPipe, P2978::getErrorString()));
     }
     if (readSize == 0)
     {
@@ -355,7 +395,8 @@ void RunCommand::runProcess(const char *command)
     int stdPipesLocal[2];
     if (pipe(stdPipesLocal) == -1)
     {
-        printErrorMessage("Error Creating Pipes\n");
+        printErrorMessage(FORMAT("Could not create the process output pipe.\nCommand: {}\nSystem error: {}", command,
+                                 P2978::getErrorString()));
     }
 
     readPipe = stdPipesLocal[0];
@@ -363,7 +404,8 @@ void RunCommand::runProcess(const char *command)
     pid = fork();
     if (pid == -1)
     {
-        printErrorMessage("fork");
+        printErrorMessage(FORMAT("Could not create the child process.\nCommand: {}\nOperation: fork\nSystem error: {}",
+                                 command, P2978::getErrorString()));
     }
     if (pid == 0)
     {
@@ -378,7 +420,7 @@ void RunCommand::runProcess(const char *command)
         close(stdPipesLocal[1]);
 
         wordexp_t p;
-        if (wordexp(command, &p, 0) != 0)
+        if (wordexp(command, &p, WRDE_NOCMD) != 0)
         {
             perror("wordexp");
             _exit(127);
@@ -411,7 +453,9 @@ void RunCommand::runProcess(const char *command)
         } while (readSize == -1 && errno == EINTR);
         if (readSize == -1)
         {
-            printErrorMessage("read");
+            printErrorMessage(FORMAT("Could not read child-process output.\nCommand: {}\nFile descriptor: {}\n"
+                                     "System error: {}",
+                                     command, readPipe, P2978::getErrorString()));
         }
         if (readSize > 0)
         {
@@ -433,9 +477,24 @@ void RunCommand::runProcess(const char *command)
     int status;
     if (waitpid(pid, &status, 0) < 0)
     {
-        printErrorMessage("waitpid");
+        printErrorMessage(FORMAT("Could not wait for the child process.\nCommand: {}\nProcess ID: {}\nSystem error: {}",
+                                 command, pid, P2978::getErrorString()));
     }
-    exitStatus = WEXITSTATUS(status);
+    if (WIFEXITED(status))
+    {
+        exitStatus = WEXITSTATUS(status);
+    }
+    else if (WIFSIGNALED(status))
+    {
+        // Follow the shell convention so callers can distinguish a signal from successful exit.
+        // Calling WEXITSTATUS() for a signalled process commonly produced zero for SIGSEGV, causing
+        // hhelper to report a crashed configure executable as successful.
+        exitStatus = 128 + WTERMSIG(status);
+    }
+    else
+    {
+        exitStatus = EXIT_FAILURE;
+    }
 }
 
 void RunCommand::reapProcess(Builder &builder)
@@ -444,18 +503,24 @@ void RunCommand::reapProcess(Builder &builder)
     int status;
     if (waitpid(pid, &status, 0) < 0)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not reap the asynchronous child process.\nProcess ID: {}\n"
+                                 "Operation: waitpid\nSystem error: {}",
+                                 pid, P2978::getErrorString()));
     }
     if (close(readPipe) == -1)
     {
-        printErrorMessage(P2978::getErrorString());
+        printErrorMessage(FORMAT("Could not close the child-process output pipe.\nFile descriptor: {}\n"
+                                 "System error: {}",
+                                 readPipe, P2978::getErrorString()));
     }
 
     if (writePipe != -1)
     {
         if (close(writePipe) == -1)
         {
-            printErrorMessage(P2978::getErrorString());
+            printErrorMessage(FORMAT("Could not close the child-process input pipe.\nFile descriptor: {}\n"
+                                     "System error: {}",
+                                     writePipe, P2978::getErrorString()));
         }
     }
 
@@ -478,9 +543,34 @@ void RunCommand::killModuleProcess(Builder &builder) const
     --builder.simultaneousProcessCount;
     if (kill(pid, SIGKILL) != 0)
     {
-        printErrorMessage("Killing process");
+        printErrorMessage(FORMAT("Could not terminate the module process.\nProcess ID: {}\nSignal: SIGKILL\n"
+                                 "System error: {}",
+                                 pid, P2978::getErrorString()));
     }
     builder.unregisterEventDataAtIndex(readPipe);
+    int status = 0;
+    while (waitpid(pid, &status, 0) == -1)
+    {
+        if (errno == EINTR)
+        {
+            continue;
+        }
+        printErrorMessage(FORMAT("Could not reap the terminated module process.\nProcess ID: {}\n"
+                                 "Operation: waitpid\nSystem error: {}",
+                                 pid, P2978::getErrorString()));
+    }
+    if (close(readPipe) == -1)
+    {
+        printErrorMessage(FORMAT("Could not close the terminated module output pipe.\nFile descriptor: {}\n"
+                                 "System error: {}",
+                                 readPipe, P2978::getErrorString()));
+    }
+    if (writePipe != -1 && close(writePipe) == -1)
+    {
+        printErrorMessage(FORMAT("Could not close the terminated module input pipe.\nFile descriptor: {}\n"
+                                 "System error: {}",
+                                 writePipe, P2978::getErrorString()));
+    }
 }
 
 #endif
@@ -495,16 +585,24 @@ string RunCommand::pruneOutput()
     const uint32_t outputSize = output->size();
     if (outputSize < 4 + strlen(P2978::delimiter))
     {
-        printErrorMessage("Received string only has delimiter but not the size of payload\n");
+        printErrorMessage(FORMAT("Malformed child-process message: payload size is missing.\n"
+                                 "Output size: {} bytes\nMinimum size: {} bytes",
+                                 outputSize, sizeof(uint32_t) + strlen(P2978::delimiter)));
     }
 
     uint32_t payloadSize = 0;
     const size_t delimiterSize = strlen(P2978::delimiter);
     const size_t payloadSizeOffset = outputSize - (sizeof(uint32_t) + delimiterSize);
     memcpy(&payloadSize, output->data() + payloadSizeOffset, sizeof(payloadSize));
+    if (!payloadSize)
+    {
+        printErrorMessage("Malformed child-process message: protocol payloads must not be empty.");
+    }
     if (outputSize < sizeof(uint32_t) + delimiterSize + payloadSize)
     {
-        printErrorMessage("Invalid output payload size while pruning output\n");
+        printErrorMessage(FORMAT("Malformed child-process message: declared payload exceeds available output.\n"
+                                 "Output size: {} bytes\nPayload size: {} bytes\nProtocol overhead: {} bytes",
+                                 outputSize, payloadSize, sizeof(uint32_t) + delimiterSize));
     }
     const char *payloadStart = output->data() + (outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 

@@ -36,7 +36,7 @@ string getActualNameFromTargetName(const TargetType bTargetType, const OS osLoca
         actualName += osLocal == OS::NT ? ".dll" : ".so";
         return actualName;
     }
-    printErrorMessage("Other Targets Are Not Supported Yet.\n");
+    printErrorMessage("Unsupported target platform.\nOnly the currently configured host target is supported.");
 }
 
 string getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const string &actualName)
@@ -65,7 +65,7 @@ string getTargetNameFromActualName(const TargetType bTargetType, const OS osLoca
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
-    printErrorMessage("Other Targets Are Not Supported Yet.\n");
+    printErrorMessage("Unsupported target platform.\nOnly the currently configured host target is supported.");
 }
 
 string getSlashedExecutableName(const string &name)

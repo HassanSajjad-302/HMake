@@ -21,7 +21,7 @@ static void touchFile(const path &filePath)
     std::ofstream file(filePath, std::ios::app);
     if (!file)
     {
-        printErrorMessage(FORMAT("touchFile: could not open: {}\n", filePath.string()));
+        printErrorMessage(FORMAT("Test setup could not open a file for touching.\nPath: {}", filePath.string()));
         return;
     }
     file << '\n';
@@ -36,8 +36,8 @@ static void removeFilePath(const path &filePath, bool removeDirContents = false)
             error_code ec;
             if (const bool removed = remove(c, ec); !removed || ec)
             {
-                printErrorMessage(
-                    FORMAT("Could Not Remove the filePath {}\nError {}", c.path().string(), ec ? ec.message() : ""));
+                printErrorMessage(FORMAT("Test cleanup could not remove a directory entry.\nPath: {}\nSystem error: {}",
+                                         c.path().string(), ec ? ec.message() : "unknown error"));
             }
         }
         return;
@@ -46,8 +46,8 @@ static void removeFilePath(const path &filePath, bool removeDirContents = false)
     error_code ec;
     if (const bool removed = remove(filePath, ec); !removed || ec)
     {
-        printErrorMessage(
-            FORMAT("Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : ""));
+        printErrorMessage(FORMAT("Test cleanup could not remove a file.\nPath: {}\nSystem error: {}", filePath.string(),
+                                 ec ? ec.message() : "unknown error"));
     }
 }
 
@@ -56,8 +56,8 @@ static void removeDirectory(const path &filePath)
     error_code ec;
     if (const bool removed = remove_all(filePath, ec); !removed || ec)
     {
-        printErrorMessage(
-            FORMAT("Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : ""));
+        printErrorMessage(FORMAT("Test cleanup could not remove a directory tree.\nPath: {}\nSystem error: {}",
+                                 filePath.string(), ec ? ec.message() : "unknown error"));
     }
 }
 
@@ -67,8 +67,9 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     if (const bool copied = copy_file(sourceFilePath, destinationFilePath, copy_options::overwrite_existing, ec);
         !copied || ec)
     {
-        printErrorMessage(FORMAT("Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.string(),
-                                 destinationFilePath.string(), ec ? ec.message() : ""));
+        printErrorMessage(FORMAT("Test setup could not copy a file.\nSource: {}\nDestination: {}\nSystem error: {}",
+                                 sourceFilePath.string(), destinationFilePath.string(),
+                                 ec ? ec.message() : "unknown error"));
     }
     if constexpr (os == OS::NT)
     {
@@ -715,8 +716,10 @@ TEST(StageTests, Test5)
         int exitStatus = r.exitStatus;
         string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
-        const string str1 = "Cycle found: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
-        const string str2 = "Cycle found: " + tenPath + " -> " + twoPath + " -> " + tenPath + "\n";
+        const string str1 =
+            "error: Dependency graph contains a cycle.\nCycle: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
+        const string str2 =
+            "error: Dependency graph contains a cycle.\nCycle: " + tenPath + " -> " + twoPath + " -> " + tenPath + "\n";
         const string result = removeColorCodes(output);
         printMessage("comparing output\n");
         ASSERT_TRUE(result == str1 || result == str2) << "Actual output was: " << result;
@@ -743,8 +746,8 @@ TEST(StageTests, Test5)
         int exitStatus = r.exitStatus;
         string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
-        const string str =
-            "Cycle found: " + sevenPath + " -> " + fourteenPath + " -> " + fifteenPath + " -> " + sevenPath + "\n";
+        const string str = "error: Dependency graph contains a cycle.\nCycle: " + sevenPath + " -> " + fourteenPath +
+                           " -> " + fifteenPath + " -> " + sevenPath + "\n";
         const string result = removeColorCodes(output);
         ASSERT_EQ(result, str);
     }

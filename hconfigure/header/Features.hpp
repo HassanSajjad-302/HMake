@@ -1,6 +1,23 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
 
+/**
+ * @file Features.hpp
+ * @brief Strongly typed compiler, linker, and target properties.
+ *
+ * A normal `hmake.cpp` applies these values through `Configuration::assign()`:
+ *
+ * @code{.cpp}
+ * getConfiguration("Debug").assign(ConfigType::DEBUG, CxxSTD::V_23,
+ *                                    Warnings::EXTRA, WarningsAsErrors::ON);
+ * @endcode
+ *
+ * Variadic assignments are processed from left to right. This matters for preset properties:
+ * put `ConfigType` first and any deliberate optimization/debug overrides after it. The member
+ * initializers in the feature structs below are the authoritative defaults; an enum's first
+ * enumerator is not necessarily its default.
+ */
+
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 
@@ -9,33 +26,39 @@
 
 using std::vector;
 
+/// Selects the C-source flavor when the compiler feature set is shared with a C target.
 enum class CSourceTargetEnum
 {
     NO,
     YES
 };
 
+/// Controls the default copy of runtime DLL dependencies beside executables on NT-family systems.
 enum class CopyDLLToExeDirOnNTOs : bool
 {
     NO,
     YES
 };
 
+/// Controls whether a shared-library export definition is present while compiling the library itself.
 enum class DefineDLLPrivate : bool
 {
     YES,
     NO,
 };
 
+/// Controls whether a shared-library import definition is propagated to consumers.
 enum class DefineDLLInterface : bool
 {
     YES,
     NO,
 };
 
-// In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
-// all optional features have extra enum value OFF declared here. A feature default value is given by the first value
-// listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
+// The feature vocabulary is inspired by Boost.Build. Optional properties use explicit OFF/NONE values so that every
+// feature has a concrete state and can be compared with evaluate(). Defaults are declared on the feature structs.
+
+/// @name Platform and ABI features
+/// @{
 
 enum class Arch : uint8_t // Architecture
 {
@@ -56,16 +79,19 @@ enum class AddressModel : uint8_t // AddressModel
 };
 
 
+/// Raw compiler flags appended to a target through `Configuration::assign()`.
 struct CxxFlags : string
 {
 };
 
+/// Requests a compiler-specific maximum template instantiation depth.
 struct TemplateDepth
 {
     unsigned long long templateDepth;
     explicit TemplateDepth(unsigned long long templateDepth_);
 };
 
+/// A preprocessor definition. An empty value emits a name-only definition.
 struct Define
 {
     string name;
@@ -73,9 +99,10 @@ struct Define
     Define() = default;
     explicit Define(string name_, string value_ = "");
 };
+/// @}
 
-
-
+/// @name Diagnostics, runtime, and code-generation features
+/// @{
 enum class Threading : bool
 {
     SINGLE,
@@ -141,6 +168,7 @@ enum class Visibility : uint8_t
     PROTECTED,
 };
 
+/// Broad build presets. Later assignments can override individual values selected by a preset.
 enum class ConfigType : uint8_t
 {
     DEBUG,
@@ -215,11 +243,18 @@ enum class RuntimeDebugging : bool
     OFF,
     ON
 };
+/// @}
 
+/// Maps a logical target name to the platform-specific file name (for example, `libname.a`).
 string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
+/// Recovers HMake's logical target name from a platform-specific artifact name.
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
+/// Returns the platform-appropriate command path for an executable (`./name` or `name.exe`).
 string getSlashedExecutableName(const string &name);
 
+/// @name Language and optimization features
+/// @{
+/// C++ language-standard spellings supported by HMake's compiler adapters.
 enum class CxxSTD : uint8_t
 {
     V_98,
@@ -331,20 +366,26 @@ enum class DebugStore : bool
     OBJECT,
     DATABASE,
 };
+/// @}
 
+/// Export/import-definition settings needed by a prebuilt side of a DSC.
 struct DSCPrebuiltFeatures
 {
     DefineDLLInterface defineDllInterface = DefineDLLInterface::NO;
 };
 
+/// Export/import-definition settings for a DSC that compiles its own sources.
 struct DSCFeatures : DSCPrebuiltFeatures
 {
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
 
+/// Link behavior that applies specifically when consuming prebuilt artifacts.
 struct PrebuiltLinkerFeatures
 {
     CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
+
+    /// Returns whether the supplied prebuilt-link property is currently selected.
     template <typename T> bool evaluate(T property) const;
 };
 
@@ -366,6 +407,13 @@ template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
 
 
 
+/**
+ * @brief Typed settings used to construct linker and archiver command lines.
+ *
+ * Users usually update this object indirectly through `Configuration::assign()`, which
+ * keeps compile and link properties such as sanitizers, LTO, and runtime mode in sync.
+ * Direct assignment is useful for advanced integrations that own a standalone link step.
+ */
 struct LinkerFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
@@ -409,12 +457,23 @@ struct LinkerFeatures
 
     TargetType libraryType;
     LinkerFeatures();
+
+    /// Produces flags for the selected linker and current feature values.
     string getLinkerFlags();
+
+    /// Produces the command prefix used to link an executable or shared library.
     string getLinkCommand() const;
+
+    /// Produces the command prefix used to create a static archive.
     string getArchiveCommand() const;
+
+    /// Applies the debug/release/profile preset represented by `configType`.
     void setConfigType(ConfigType configType);
+
+    /// Returns whether a supported typed property is currently selected.
     template <typename T> bool evaluate(T property) const;
 
+    /** Applies typed properties from left to right and returns `*this` for chaining. */
     template <typename T, typename... Property>
     LinkerFeatures &assign(T property, Property... properties) {
         if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
@@ -452,6 +511,7 @@ struct LinkerFeatures
         }
     }
 
+    /// Applies the entire property pack only when `assignBool` is true.
     template <typename T, typename... Condition>
     LinkerFeatures &assign(bool assignBool, T property, Condition... conditions)
     {
@@ -576,6 +636,13 @@ template <typename T> bool LinkerFeatures::evaluate(T property) const
 
 
 
+/**
+ * @brief Typed settings used to select a compiler and construct C/C++ compile commands.
+ *
+ * `initialize()` fills host/tool-dependent values that were left unspecified. In
+ * particular, `ConfigType::NONE` becomes the release preset. Prefer assigning an explicit
+ * `ConfigType` in multi-configuration projects so output intent is visible in `hmake.cpp`.
+ */
 struct CppCompilerFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
@@ -632,15 +699,25 @@ struct CppCompilerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
+    /// Resolves host defaults and the selected compiler. Called by `getCompileCommand()`.
     void initialize();
 
     void setCpuType();
     bool isCpuTypeG7();
+
+    /// Applies a configuration preset and records it in `configType`.
     void setConfigType(ConfigType configType_);
+
+    /// Produces flags for the selected compiler and current feature values.
     string getCompilerFlags() const;
+
+    /// Resolves defaults and returns the compiler executable plus its flags.
     string getCompileCommand();
+
+    /// Returns whether a supported typed property is currently selected.
     template <typename T> bool evaluate(T property) const;
 
+    /** Applies typed properties from left to right and returns `*this` for chaining. */
     template <typename T, typename... Property>
     CppCompilerFeatures &assign(T property, Property... properties) {
         if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
@@ -686,6 +763,7 @@ struct CppCompilerFeatures
         }
     }
 
+    /// Applies the entire property pack only when `assignBool` is true.
     template <typename T, typename... Condition>
     CppCompilerFeatures &assign(bool assignBool, T property, Condition... conditions)
     {

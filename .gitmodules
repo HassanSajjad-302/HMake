@@ -1,12 +1,6 @@
-[submodule "rang"]
-	directoryPath = rang
-	url = https://github.com/agauniyal/rang
 [submodule "googletest"]
 	path = googletest
 	url = https://github.com/google/googletest
-[submodule "json"]
-	path = 3rdParty/json
-	url = https://www.github.com/nlohmann/json
 [submodule "rapidjson"]
 	path = 3rdParty/rapidjson
 	url = https://github.com/Tencent/rapidjson

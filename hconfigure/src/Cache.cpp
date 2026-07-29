@@ -52,6 +52,7 @@ void Cache::initializeCacheVariableFromCacheFile()
             srcPath = srcPath.parent_path();
         }
         srcNode = Node::getHalfNode(srcPath.string());
+        normalizationBasePath = srcNode->filePath;
     }
 
     if (cacheFileJson.HasMember(JConsts::isCompilerInToolsArray.c_str()))

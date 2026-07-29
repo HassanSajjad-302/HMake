@@ -70,10 +70,10 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
     const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
 
     cachedHeaderFiles = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), headerFilesSize};
-    for (uint32_t i = 0; i < headerFilesSize; ++i)
+    bytesRead += headerFilesSize * 4;
+    for (const uint32_t headerNode : cachedHeaderFiles)
     {
-        Node *headerNode = readHalfNode(ptr, bytesRead);
-        headerNode->doHashFile = true;
+        Node::getHalfNode(headerNode)->doHashFile = true;
     }
 
     if (bytesRead != buildCache.size())
@@ -146,7 +146,7 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
         uint32_t start = 0;
         for (uint64_t i = str.find('\n', start); i != string::npos; start = i + 1, i = str.find('\n', start))
         {
-            if (string_view line = str.substr(start, i - start + 1); !line.contains(includeFileNote))
+            if (string_view line = string_view(str).substr(start, i - start + 1); !line.contains(includeFileNote))
             {
                 output += string(line);
             }
@@ -222,7 +222,9 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
             }
             else
             {
-                printErrorMessage(FORMAT("Empty Header Include {}\n", std::string(line)));
+                printErrorMessage(FORMAT("Dependency output contains an empty header path.\nTarget: {}\n"
+                                         "Source file: {}\nCompiler output line: {}",
+                                         target->name, node->filePath, std::string(line)));
             }
         }
         else
@@ -320,7 +322,8 @@ void CppSrc::setUpdateStatus()
 
     if (node->fileType == file_type::not_found)
     {
-        printErrorMessage(FORMAT("Source-File {}\n of target {}\n not found.\n", node->filePath, target->name));
+        printErrorMessage(
+            FORMAT("Source file does not exist.\nTarget: {}\nSource file: {}", target->name, node->filePath));
     }
 
     if (objectNode->fileType == file_type::not_found)
@@ -329,8 +332,8 @@ void CppSrc::setUpdateStatus()
         return;
     }
 
-    // command-hash + source-hash + cacheHeaderFiles. 8 for uint64_t
-    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() * 8 + 2)
+    // `STACK_PMR_VECTOR` takes an element count, not a byte count, and reserves it before the first insertion.
+    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -348,12 +351,7 @@ bool CppSrc::isEventRegistered(Builder &builder)
     {
         return false;
     }
-    const RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus == UpdateStatus::UNCHECKED)
-    {
-        setUpdateStatus();
-    }
-    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
+    if (!refreshUpdateStatus())
     {
         return false;
     }
@@ -367,9 +365,6 @@ bool CppSrc::isEventRegistered(Builder &builder)
         return false;
     }
 
-    realBTargets[0].launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
     return true;
 }
@@ -437,21 +432,12 @@ void CppSrc::writeBuildCacheAtConfigTime(string &buffer)
 void CppSrc::writeBuildCacheAtBuildTime(string &buffer)
 {
     RealBTarget &rb = realBTargets[0];
-    // command-hash + source-hash + headerFiles. 8 for uint64_t
-    STACK_PMR_VECTOR(uint64_t, contentHashes, headerFiles.size() * 8 + 2)
+    STACK_PMR_VECTOR(uint64_t, contentHashes, headerFiles.size() + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
-    for (const Node *headerNode : headerFiles) // headerFiles, not cachedHeaderFiles
+    for (const Node *headerNode : headerFiles)
     {
-        if (headerNode->lastWriteTime > rb.launchTime)
-        {
-            // File was modified after process launched — hash is stale.
-            contentHashes.emplace_back(0);
-        }
-        else
-        {
-            contentHashes.emplace_back(headerNode->contentHash);
-        }
+        contentHashes.emplace_back(headerNode->lastWriteTime > initiationTime ? 0 : headerNode->contentHash);
     }
     rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
     writeUint32(buffer, headerFiles.size());
@@ -467,47 +453,37 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        // Recompute cumulativeHash and dump to debug file for comparison.
-        std::vector<uint64_t> contentHashes;
-        contentHashes.reserve(1 + 1 + headerFiles.size());
+        vector<uint64_t> contentHashes;
+        contentHashes.reserve(headerFiles.size() + 2);
         contentHashes.emplace_back(commandHash);
         contentHashes.emplace_back(node->contentHash);
         for (const Node *headerNode : headerFiles)
         {
-            if (headerNode->lastWriteTime > rb.launchTime)
-            {
-                contentHashes.emplace_back(0);
-            }
-            else
-            {
-                contentHashes.emplace_back(headerNode->contentHash);
-            }
+            contentHashes.emplace_back(headerNode->lastWriteTime > initiationTime ? 0 : headerNode->contentHash);
         }
 
+        const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+        const path debugFile = target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
+        if (std::ofstream out(debugFile, std::ios::app); out)
         {
-            const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
-            const path debugFile =
-                target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
-            if (std::ofstream out(debugFile, std::ios::app); out)
+            out << "commandHash:       " << commandHash << '\n';
+            out << "node->contentHash: " << node->contentHash << '\n';
+            size_t contentHashIndex = 2;
+            for (const Node *headerNode : headerFiles)
             {
-                out << "commandHash:       " << commandHash << '\n';
-                out << "node->contentHash: " << node->contentHash << '\n';
-                uint32_t i = 0;
-                for (const Node *headerNode : headerFiles)
-                {
-                    out << "header[" << i++ << "] " << (headerNode ? headerNode->filePath : "<null>")
-                        << " hash=" << contentHashes[i + 1] << '\n'; // +2 offset: [0]=commandHash [1]=node->contentHash
-                }
-                out << "recomputedHash: " << recomputedHash << '\n';
-                out << "storedHash:     " << rb.cumulativeHash << '\n';
+                out << "header " << (headerNode ? headerNode->filePath : "<null>")
+                    << " hash=" << contentHashes[contentHashIndex++] << '\n';
             }
+            out << "recomputedHash: " << recomputedHash << '\n';
+            out << "storedHash:     " << rb.cumulativeHash << '\n';
+        }
 
-            if (recomputedHash != rb.cumulativeHash)
-            {
-                printErrorMessage(FORMAT("{} caching-verification failed as recomputed cumulativeHash != stored\n"
-                                         "recomputed={} stored={}\n",
-                                         getPrintName(), recomputedHash, rb.cumulativeHash));
-            }
+        if (recomputedHash != rb.cumulativeHash)
+        {
+            printErrorMessage(FORMAT("Build cache verification failed: content hash mismatch.\nTarget: {}\n"
+                                     "Debug dump: {}\nRecomputed hash: {}\nCached hash: {}\nHeader count: {}",
+                                     getPrintName(), debugFile.string(), recomputedHash, rb.cumulativeHash,
+                                     headerFiles.size()));
         }
     }
 
@@ -516,8 +492,8 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
     const uint32_t cachedHeaderFilesSize = readUint32(buildCache.data(), bytesRead);
     if (headerFiles.size() != cachedHeaderFilesSize)
     {
-        printErrorMessage(FORMAT("{} caching-verification failed as headerFiles.size() != cached headerFilesSize\n"
-                                 "current={} cached={}\n",
+        printErrorMessage(FORMAT("Build cache verification failed: header count mismatch.\nTarget: {}\n"
+                                 "Current count: {}\nCached count: {}",
                                  getPrintName(), headerFiles.size(), cachedHeaderFilesSize));
     }
 
@@ -526,8 +502,8 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
         const Node *cachedNode = readHalfNode(buildCache.data(), bytesRead);
         if (!headerFiles.contains(cachedNode))
         {
-            printErrorMessage(FORMAT("{} caching-verification failed as cached headerFile\n{} at index {}\n"
-                                     "is not present in current headerFiles\n",
+            printErrorMessage(FORMAT("Build cache verification failed: cached header is not a current dependency.\n"
+                                     "Target: {}\nHeader: {}\nCache index: {}",
                                      getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
         }
     }
@@ -535,7 +511,8 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
     verifyBTargetHeader(buildCache, bytesRead);
     if (buildCache.size() != bytesRead)
     {
-        printErrorMessage(FORMAT("{} caching-verification failed as buildCache.size() != bytesRead {} vs {}\n",
+        printErrorMessage(FORMAT("Build cache verification failed: entry size mismatch.\nTarget: {}\n"
+                                 "Entry size: {} bytes\nBytes consumed: {}",
                                  getPrintName(), buildCache.size(), bytesRead));
     }
 }
@@ -602,27 +579,29 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
 
                 if (isReqHu)
                 {
-                    target->reqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(this, target->isSystem));
+                    target->reqHeaderNameMapping.emplace(headerFileName,
+                                                         HfOrCppMod(this, FileType::HEADER_UNIT, target->isSystem));
                 }
 
                 if (isUseReqHu)
                 {
                     const auto &[it, ok] =
-                        target->configuration->headerNameMapping.emplace(headerFileName, vector<HeaderFileOrUnit>{});
-                    it->second.emplace_back(target->cacheIndex, this, target->isSystem);
+                        target->configuration->headerNameMapping.emplace(headerFileName, vector<HfOrCppMod>{});
+                    it->second.emplace_back(target->cacheIndex, this, FileType::HEADER_UNIT, target->isSystem);
                 }
             }
 
             if (isReqHu)
             {
-                target->reqHeaderNameMapping.emplace(logicalName, HeaderFileOrUnit(this, target->isSystem));
+                target->reqHeaderNameMapping.emplace(logicalName,
+                                                     HfOrCppMod(this, FileType::HEADER_UNIT, target->isSystem));
             }
 
             if (isUseReqHu)
             {
                 const auto &[it, ok] =
-                    target->configuration->headerNameMapping.emplace(logicalName, vector<HeaderFileOrUnit>{});
-                it->second.emplace_back(target->cacheIndex, this, target->isSystem);
+                    target->configuration->headerNameMapping.emplace(logicalName, vector<HfOrCppMod>{});
+                it->second.emplace_back(target->cacheIndex, this, FileType::HEADER_UNIT, target->isSystem);
             }
         }
 
@@ -648,10 +627,10 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
     const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
 
     cachedHeaderFiles = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), headerFilesSize};
-    for (uint32_t i = 0; i < headerFilesSize; ++i)
+    bytesRead += headerFilesSize * 4;
+    for (const uint32_t headerNode : cachedHeaderFiles)
     {
-        Node *headerNode = readHalfNode(ptr, bytesRead);
-        headerNode->doHashFile = true;
+        Node::getHalfNode(headerNode)->doHashFile = true;
     }
 
     const uint32_t cachedDepsSize = readUint32(ptr, bytesRead);
@@ -686,8 +665,9 @@ void CppMod::makeMemoryFileMapping()
     file.filePath = interfaceNode->filePath;
     if (const auto &r = IPCManagerBS::createSharedMemoryBMIFile(file); !r)
     {
-        printErrorMessage(FORMAT("Could not make mapping for the file {}\n of target {}\n. Error {}\n", node->filePath,
-                                 target->name, r.error()));
+        printErrorMessage(FORMAT("Could not map the shared-memory BMI file.\nTarget: {}\nSource file: {}\n"
+                                 "BMI file: {}\nSystem error: {}",
+                                 target->name, node->filePath, interfaceNode->filePath, r.error()));
     }
     interfaceFileSize = file.fileSize;
     memoryMappingCompleted = true;
@@ -719,9 +699,6 @@ void CppMod::populateAllDeps()
 
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
-    realBTargets[0].launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     // todo
     // write this buffer directly.
 
@@ -755,8 +732,9 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
 
     if (const auto &r2 = ipcManager->sendMessage(btcModule); !r2)
     {
-        printErrorMessage(FORMAT("send-message fail of module-file {}\n for module-file {}\n of target {}\n.",
-                                 mod.node->filePath, node->filePath, target->name));
+        printErrorMessage(FORMAT("Could not send a module dependency to the compiler.\nTarget: {}\n"
+                                 "Compiling file: {}\nDependency module: {}\nIPC error: {}",
+                                 target->name, node->filePath, mod.node->filePath, r2.error()));
     }
 }
 
@@ -856,10 +834,6 @@ P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
 
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
-    realBTargets[0].launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
-
     hu.makeMemoryFileMapping();
     hu.populateAllDeps();
 
@@ -945,9 +919,10 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 
     if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
     {
-        printErrorMessage(FORMAT("send-message fail of header-unit {}\n for {} {}\n of target {}\n.", hu.node->filePath,
-                                 type == CppModType::HEADER_UNIT ? "header-unit" : "module-filee", node->filePath,
-                                 target->name));
+        printErrorMessage(FORMAT("Could not send a header-unit dependency to the compiler.\nTarget: {}\n"
+                                 "Compiling kind: {}\nCompiling file: {}\nHeader unit: {}\nIPC error: {}",
+                                 target->name, type == CppModType::HEADER_UNIT ? "header unit" : "module",
+                                 node->filePath, hu.node->filePath, r2.error()));
     }
 }
 
@@ -972,7 +947,7 @@ CppMod *CppMod::findModule(const string_view moduleName) const
     return nullptr;
 }
 
-HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) const
+std::optional<HfOrCppMod> CppMod::findHfOrCppMod(const string_view headerName) const
 {
     if (const auto &it = target->reqHeaderNameMapping.find(headerName); it != target->reqHeaderNameMapping.end())
     {
@@ -989,18 +964,19 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) cons
             return it->second[0];
         }
 
-        for (const vector<HeaderFileOrUnit> &configHeaderFilesOrUnits = it->second;
-             const HeaderFileOrUnit &headerFileOrUnit : configHeaderFilesOrUnits)
+        for (const vector<HfOrCppMod> &configHeaderFilesOrUnits = it->second;
+             const HfOrCppMod &hfOrCppMod : configHeaderFilesOrUnits)
         {
-            if (std::ranges::find(target->cachedReqDeps, headerFileOrUnit.targetIndex) != target->cachedReqDeps.end())
+            if (std::ranges::find(target->cachedReqDeps, hfOrCppMod.data.cppMod->target->cacheIndex) !=
+                target->cachedReqDeps.end())
             {
-                // this headerFileOrUnit is provided by one of our dependency cpp-target.
-                return headerFileOrUnit;
+                // this hfOrCppMod is provided by one of our dependency cpp-target.
+                return hfOrCppMod;
             }
         }
     }
 
-    return {static_cast<Node *>(nullptr), false};
+    return {};
 }
 
 bool CppMod::isEventRegistered(Builder &builder)
@@ -1008,7 +984,7 @@ bool CppMod::isEventRegistered(Builder &builder)
     // an optimization is to increase/decrease the activeEventCount for less stack.
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        assert("CppMod::updateBTarget cannot be called in Configure Mode\n");
+        HMAKE_HMAKE_INTERNAL_ERROR
     }
 
     if (!selectiveBuild)
@@ -1019,7 +995,7 @@ bool CppMod::isEventRegistered(Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
-        return isEventCompleted(builder, string_view{});
+        return resumeAfterDependency(builder);
     }
 
     isScheduled = true;
@@ -1035,11 +1011,7 @@ bool CppMod::isEventRegistered(Builder &builder)
         return false;
     }
 
-    if (rb.updateStatus == UpdateStatus::UNCHECKED)
-    {
-        setUpdateStatus();
-    }
-    if (rb.updateStatus != UpdateStatus::UPDATE_NEEDED)
+    if (!refreshUpdateStatus())
     {
         return false;
     }
@@ -1055,23 +1027,52 @@ bool CppMod::isEventRegistered(Builder &builder)
 
     if (!target->useIPC)
     {
-        rb.launchTime =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
         run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
-        originalLaunchTime = rb.launchTime;
         return true;
     }
 
     isAllDepsPopulated = true;
 
-    rb.launchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
-    originalLaunchTime = rb.launchTime;
     ipcManager = new IPCManagerBS(run.writePipe);
 
+    return true;
+}
+
+bool CppMod::resumeAfterDependency(Builder &builder)
+{
+    if (!waitingFor)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
+
+    RealBTarget &rb = realBTargets[0];
+    CppMod *completedDependency = waitingFor;
+    waitingFor = nullptr;
+
+    if (completedDependency->realBTargets[0].exitStatus != EXIT_SUCCESS)
+    {
+        run.killModuleProcess(builder);
+        rb.exitStatus = EXIT_FAILURE;
+        return false;
+    }
+
+    if (!refreshUpdateStatus())
+    {
+        run.killModuleProcess(builder);
+        return false;
+    }
+
+    if (completedDependency->type == CppModType::HEADER_UNIT)
+    {
+        makeAndSendBTCNonModule(*completedDependency);
+    }
+    else
+    {
+        makeAndSendBTCModule(*completedDependency);
+    }
+
+    // The existing event registration remains active; the compiler can now issue its next nonempty CTB message.
     return true;
 }
 
@@ -1101,8 +1102,9 @@ void CppMod::completeModuleCompilation(const Builder &builder)
         P2978::BMIFile file{.filePath = interfaceNode->filePath};
         if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
         {
-            printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
-                                     interfaceNode->filePath, target->name));
+            printErrorMessage(FORMAT("Could not create the shared-memory BMI file.\nTarget: {}\nSource file: {}\n"
+                                     "BMI file: {}\nSystem error: {}",
+                                     target->name, node->filePath, interfaceNode->filePath, r2.error()));
         }
         interfaceFileSize = file.fileSize;
         memoryMappingCompleted = true;
@@ -1167,43 +1169,35 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         return false;
     }
 
-    if (waitingFor)
-    {
-        if (waitingFor->realBTargets[0].exitStatus != EXIT_SUCCESS)
-        {
-            waitingFor = nullptr;
-            run.killModuleProcess(builder);
-            rb.exitStatus = EXIT_FAILURE;
-            return false;
-        }
-
-        if (waitingFor->type == CppModType::HEADER_UNIT)
-        {
-            makeAndSendBTCNonModule(*waitingFor);
-        }
-        else
-        {
-            makeAndSendBTCModule(*waitingFor);
-        }
-
-        waitingFor = nullptr;
-
-        // Wait for more input
-        return true;
-    }
-
+    // Builder reserves an empty view for EOF after reaping the compiler. CTB messages always contain at least their
+    // one-byte request type, while dependency wakeups use resumeAfterDependency() and never enter this function.
     if (message.empty())
     {
+        if (waitingFor)
+        {
+            printErrorMessage(FORMAT("Compiler exited while blocked on a dynamic dependency.\n"
+                                     "This violates the module IPC protocol: a compiler waiting for a BTC response "
+                                     "must keep its pipe open.\nTarget: {}\nCompiling file: {}\nWaited-on file: {}",
+                                     target->name, node->filePath, waitingFor->node->filePath));
+        }
         completeModuleCompilation(builder);
         return false;
+    }
+
+    if (waitingFor)
+    {
+        printErrorMessage(FORMAT("Compiler sent another IPC request before its dependency response.\n"
+                                 "Target: {}\nCompiling file: {}\nWaited-on file: {}",
+                                 target->name, node->filePath, waitingFor->node->filePath));
     }
 
     char buffer[320];
     P2978::CTB requestType;
     if (const auto &r = IPCManagerBS::receiveMessage(buffer, requestType, message); !r)
     {
-        printErrorMessage(
-            FORMAT("receive-message fail for module-file {}\n of target {}\n.", node->filePath, target->name));
+        printErrorMessage(FORMAT("Could not receive a compiler IPC request.\nTarget: {}\nCompiling file: {}\n"
+                                 "IPC error: {}",
+                                 target->name, node->filePath, r.error()));
     }
 
     CppMod *found;
@@ -1212,22 +1206,22 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     {
         auto &[isHURequested, headerName] = reinterpret_cast<P2978::CTBNonModule &>(buffer);
 
-        HeaderFileOrUnit f = findHeaderFileOrUnit(headerName);
-        if (!f.data.cppMod)
+        std::optional<HfOrCppMod> f = findHfOrCppMod(headerName);
+        if (!f)
         {
             if (target->configuration->evaluate(UseConfigurationScope::YES))
             {
-                printErrorMessageNoReturn(FORMAT(
-                    "No File in the configuration\n{}\n provides this header \n{}\n requested in {}\n of target {}\n",
-                    target->configuration->name, headerName, node->filePath, target->name));
+                printErrorMessageNoReturn(FORMAT("No file provides the requested header.\nConfiguration: {}\n"
+                                                 "Target: {}\nCompiling file: {}\nRequested header: {}",
+                                                 target->configuration->name, target->name, node->filePath,
+                                                 headerName));
             }
             else
             {
-
-                printErrorMessageNoReturn(
-                    FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this "
-                           "header \n{}\n requested in {}\n",
-                           target->name, target->getDependenciesString(), headerName, node->filePath));
+                printErrorMessageNoReturn(FORMAT("No file provides the requested header.\nTarget: {}\n"
+                                                 "Compiling file: {}\nRequested header: {}\nDependencies: {}",
+                                                 target->name, node->filePath, headerName,
+                                                 target->getDependenciesString()));
             }
 
             run.killModuleProcess(builder);
@@ -1239,24 +1233,25 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         // included in the big header with same logical-name as they are meant to be used in other files. So we
         // can use the same headerName to search whether we have a composing header specified. Otherwise, it
         // would be diagnosed as cyclic dependency.
-        if (f.data.cppMod == this && !firstMessageSent)
+        if (f->data.cppMod == this && !firstMessageSent)
         {
             if (const auto it = composingHeaders.find(headerName); it != composingHeaders.end())
             {
-                f = HeaderFileOrUnit{(it->second), false};
+                f = HfOrCppMod(it->second, FileType::HEADER_FILE, false);
             }
         }
 
-        if (f.isUnit)
+        if (f->type == FileType::HEADER_UNIT)
         {
-            found = f.data.cppMod;
+            found = f->data.cppMod;
         }
         else
         {
             if (isHURequested)
             {
-                printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
-                                         headerName, node->filePath, target->name));
+                printErrorMessage(FORMAT("Requested header unit was not found.\nTarget: {}\nCompiling file: {}\n"
+                                         "Requested header unit: {}",
+                                         target->name, node->filePath, headerName));
             }
 
             STACK_PMR_STRING(toBeSend, 64 * 1024)
@@ -1264,18 +1259,18 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             // BTCNonModule::isHeaderUnit
             writeBool(toBeSend, false);
             // BTCNonModule::isSystem
-            writeBool(toBeSend, f.isSystem);
-            uint32_t placeHolderIndex = toBeSend.size();
-            uint32_t count = 0;
+            writeBool(toBeSend, f->isSystem);
+            const uint32_t placeHolderIndex = toBeSend.size();
 
             bool addedInComposingHeader = false;
             if (!firstMessageSent)
             {
+                uint32_t count = 0;
                 writeUint32(toBeSend, -1); // placeholder
                 firstMessageSent = true;
                 for (const auto &[str, composingNode] : composingHeaders)
                 {
-                    if (f.data.node == composingNode && headerName == str)
+                    if (f->data.node == composingNode && headerName == str)
                     {
                         addedInComposingHeader = true;
                         continue;
@@ -1298,22 +1293,24 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             }
 
             // BTCNonModule::filePath
-            writeStringView(toBeSend, f.data.node->filePath);
+            writeStringView(toBeSend, f->data.node->filePath);
             toBeSend.push_back('\n');
             toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
             if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
             {
-                printErrorMessage(FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
-                                         f.data.node->filePath, node->filePath, target->name));
+                printErrorMessage(FORMAT("Could not send a header dependency to the compiler.\nTarget: {}\n"
+                                         "Compiling file: {}\nHeader file: {}\nIPC error: {}",
+                                         target->name, node->filePath, f->data.node->filePath, r2.error()));
             }
 
             if (!addedInComposingHeader)
             {
-                if (!composingHeaders.emplace(headerName, f.data.node).second)
+                if (!composingHeaders.emplace(headerName, f->data.node).second)
                 {
-                    printErrorMessage(FORMAT("An already sent header-file \n{}\n re-requested in file.\n{}\n",
-                                             f.data.node->filePath, node->filePath));
+                    printErrorMessage(FORMAT("Compiler requested the same composing header more than once.\n"
+                                             "Target: {}\nCompiling file: {}\nHeader file: {}\nLogical name: {}",
+                                             target->name, node->filePath, f->data.node->filePath, headerName));
                 }
             }
 
@@ -1329,14 +1326,15 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         {
             if (moduleName.contains(':'))
             {
-                printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n requested in file {}",
-                                         target->name, moduleName, node->filePath));
+                printErrorMessage(FORMAT("No file provides the requested module partition.\nTarget: {}\n"
+                                         "Compiling file: {}\nRequested module: {}",
+                                         target->name, node->filePath, moduleName));
             }
             else
             {
-                printErrorMessage(FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides "
-                                         "this module\n{}.\n requested in file {}",
-                                         target->name, target->getDependenciesString(), moduleName, node->filePath));
+                printErrorMessage(FORMAT("No file provides the requested module.\nTarget: {}\nCompiling file: {}\n"
+                                         "Requested module: {}\nDependencies: {}",
+                                         target->name, node->filePath, moduleName, target->getDependenciesString()));
             }
         }
     }
@@ -1345,22 +1343,25 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (!ok)
     {
-        printErrorMessage(FORMAT("HMake Internal Error: Already sent the module {}\n with logical-name {}\n requested in {}\n.",
-                                 found->node->filePath, found->logicalName, node->filePath));
+        printErrorMessage(FORMAT("Internal error: compiler requested a module that was already sent.\nTarget: {}\n"
+                                 "Compiling file: {}\nModule file: {}\nLogical name: {}",
+                                 target->name, node->filePath, found->node->filePath, found->logicalName));
     }
 
     RealBTarget &foundRb = found->realBTargets[0];
 
+    // Record every runtime provider before re-evaluation, including one that already completed. This ensures a newly
+    // discovered provider that changed remains a rebuild reason and prevents an incorrect in-flight cutoff.
+    foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
+    const bool insertSucceeded = rb.dependencies.emplace(&foundRb, RelationType::FULL, BTargetType::CPP_MOD).second;
+
     if (!foundRb.isCompleted)
     {
         waitingFor = found;
-
-        // This is the only place where dependency-relationship is being added dynamically. We are sure that
-        // decrementFromDependents has not been called for our dependency.
-
-        foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
-        rb.dependencies.emplace(&foundRb, RelationType::FULL, BTargetType::CPP_MOD);
-        ++rb.dependenciesSize;
+        if (insertSucceeded)
+        {
+            ++rb.dependenciesSize;
+        }
 
         // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
         if (!found->isScheduled && foundRb.dependenciesSize == 0)
@@ -1377,17 +1378,16 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         return true;
     }
 
-    if (target->configuration->evaluate(StandAloneCommand::YES))
-    {
-        // insertion is expensive so it is in if condition
-        foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
-        rb.dependencies.emplace(&foundRb, RelationType::FULL, BTargetType::CPP_MOD);
-    }
-
     if (foundRb.exitStatus != EXIT_SUCCESS)
     {
         run.killModuleProcess(builder);
         rb.exitStatus = EXIT_FAILURE;
+        return false;
+    }
+
+    if (!refreshUpdateStatus())
+    {
+        run.killModuleProcess(builder);
         return false;
     }
 
@@ -1440,8 +1440,9 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
 {
     if (sourceType != SourceType::CPP && type != CppModType::PRIMARY_IMPLEMENTATION)
     {
-        printErrorMessage(FORMAT("Module-File {}\nof CppTarget {}\n is implementation-unit but not a C++ file\n",
-                                 node->filePath, target->name));
+        printErrorMessage(FORMAT("A module implementation unit must be a C++ source file.\nTarget: {}\n"
+                                 "Module file: {}\nDetected source type: {}",
+                                 target->name, node->filePath, static_cast<uint8_t>(sourceType)));
     }
 
     if (sourceType == SourceType::CPP)
@@ -1556,6 +1557,7 @@ void CppMod::setUpdateStatus()
     {
         return;
     }
+    rb.reasonForUpdate = nullptr;
 
     if (node->fileType == file_type::not_found)
     {
@@ -1573,7 +1575,8 @@ void CppMod::setUpdateStatus()
             str = "C++InterfaceModule";
         }
 
-        printErrorMessage(FORMAT("{} {}\n of target {}\n not found.\n", str, node->filePath, target->name));
+        printErrorMessage(FORMAT("Required compilation input does not exist.\nTarget: {}\nInput kind: {}\nPath: {}",
+                                 target->name, str, node->filePath));
     }
 
     rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
@@ -1618,19 +1621,21 @@ void CppMod::setUpdateStatus()
 
         if (depRb->updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
+            rb.reasonForUpdate = cppMod;
             return;
         }
 
-        if (depRb->launchTime > rb.launchTime)
+        if (depRb->completionTime > rb.completionTime)
         {
+            rb.reasonForUpdate = cppMod;
             return;
         }
     }
 
     rb.updateStatus = UpdateStatus::UNCHECKED;
 
-    // command-hash + source-hash + cachedHeaderFiles. 8 for uint64_t
-    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() * 8 + 2)
+    // command-hash + source-hash + cachedHeaderFiles
+    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -1823,8 +1828,8 @@ void CppMod::verifyConfigCache(const string_view configCache) const
         if (const Node *cachedInterfaceNode = readHalfNode(configCache.data(), bytesRead);
             interfaceNode != cachedInterfaceNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: interfaceNode mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: BMI path mismatch.\nTarget: {}\n"
+                                     "Current path: {}\nCached path: {}",
                                      getPrintName(), interfaceNode ? interfaceNode->filePath : "<null>",
                                      cachedInterfaceNode ? cachedInterfaceNode->filePath : "<null>"));
         }
@@ -1834,8 +1839,8 @@ void CppMod::verifyConfigCache(const string_view configCache) const
             const string_view cachedLogicalName = readStringView(configCache.data(), bytesRead);
             if (logicalName.empty() || logicalName != cachedLogicalName)
             {
-                printErrorMessage(FORMAT("{} configCache-verification failed: logicalName mismatch\n"
-                                         "current=\"{}\"  cached=\"{}\"\n",
+                printErrorMessage(FORMAT("Configuration cache verification failed: logical name mismatch.\n"
+                                         "Target: {}\nCurrent name: {}\nCached name: {}",
                                          getPrintName(), logicalName, cachedLogicalName));
             }
         }
@@ -1846,8 +1851,8 @@ void CppMod::verifyConfigCache(const string_view configCache) const
         const Node *cachedObjectNode = readHalfNode(configCache.data(), bytesRead);
         if (objectNode != cachedObjectNode)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: objectNode mismatch\n"
-                                     "current=\"{}\"  cached=\"{}\"\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: object path mismatch.\nTarget: {}\n"
+                                     "Current path: {}\nCached path: {}",
                                      getPrintName(), objectNode ? objectNode->filePath : "<null>",
                                      cachedObjectNode ? cachedObjectNode->filePath : "<null>"));
         }
@@ -1857,23 +1862,25 @@ void CppMod::verifyConfigCache(const string_view configCache) const
         const bool cachedIsReqHu = readBool(configCache.data(), bytesRead);
         if (isReqHu != cachedIsReqHu)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: isReqHu mismatch current={} cached={}\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: private header-unit flag mismatch.\n"
+                                     "Target: {}\nCurrent value: {}\nCached value: {}",
                                      getPrintName(), isReqHu, cachedIsReqHu));
         }
 
         const bool cachedIsUseReqHu = readBool(configCache.data(), bytesRead);
         if (isUseReqHu != cachedIsUseReqHu)
         {
-            printErrorMessage(FORMAT("{} configCache-verification failed: isUseReqHu mismatch current={} cached={}\n",
+            printErrorMessage(FORMAT("Configuration cache verification failed: interface header-unit flag mismatch.\n"
+                                     "Target: {}\nCurrent value: {}\nCached value: {}",
                                      getPrintName(), isUseReqHu, cachedIsUseReqHu));
         }
 
         const uint32_t cachedComposingHeadersSize = readUint32(configCache.data(), bytesRead);
         if (composingHeaders.size() != cachedComposingHeadersSize)
         {
-            printErrorMessage(
-                FORMAT("{} configCache-verification failed: composingHeaders size mismatch current={} cached={}\n",
-                       getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
+            printErrorMessage(FORMAT("Configuration cache verification failed: composing-header count mismatch.\n"
+                                     "Target: {}\nCurrent count: {}\nCached count: {}",
+                                     getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
         }
 
         for (uint32_t i = 0; i < cachedComposingHeadersSize; ++i)
@@ -1882,9 +1889,10 @@ void CppMod::verifyConfigCache(const string_view configCache) const
             const auto it = composingHeaders.find(cachedHeaderName);
             if (it == composingHeaders.end())
             {
-                printErrorMessage(FORMAT("{} configCache-verification failed: cached composingHeader[{}] name\n\"{}\"\n"
-                                         "is not present in current composingHeaders\n",
-                                         getPrintName(), i, cachedHeaderName));
+                printErrorMessage(
+                    FORMAT("Configuration cache verification failed: cached composing header is missing.\n"
+                           "Target: {}\nHeader name: {}\nCache index: {}",
+                           getPrintName(), cachedHeaderName, i));
             }
 
             if (target->useIPC)
@@ -1893,8 +1901,8 @@ void CppMod::verifyConfigCache(const string_view configCache) const
                 if (it != composingHeaders.end() && it->second != cachedHeaderNode)
                 {
                     printErrorMessage(
-                        FORMAT("{} configCache-verification failed: composingHeader \"{}\" node mismatch\n"
-                               "current=\"{}\"  cached=\"{}\"\n",
+                        FORMAT("Configuration cache verification failed: composing-header path mismatch.\n"
+                               "Target: {}\nHeader name: {}\nCurrent path: {}\nCached path: {}",
                                getPrintName(), cachedHeaderName, it->second ? it->second->filePath : "<null>",
                                cachedHeaderNode ? cachedHeaderNode->filePath : "<null>"));
                 }
@@ -1904,7 +1912,8 @@ void CppMod::verifyConfigCache(const string_view configCache) const
 
     if (configCache.size() != bytesRead)
     {
-        printErrorMessage(FORMAT("{} configCache-verification failed as configCache.size() != bytesRead {} vs {}\n",
+        printErrorMessage(FORMAT("Configuration cache verification failed: entry size mismatch.\nTarget: {}\n"
+                                 "Entry size: {} bytes\nBytes consumed: {}",
                                  getPrintName(), configCache.size(), bytesRead));
     }
 }
@@ -1923,8 +1932,8 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
 {
     RealBTarget &rb = realBTargets[0];
 
-    // command-hash + source-hash + container-size. 8 for uint64_t
-    STACK_PMR_VECTOR(uint64_t, contentHashes, (target->useIPC ? composingHeaders.size() : headerFiles.size()) * 8 + 2)
+    // command-hash + source-hash + container-size
+    STACK_PMR_VECTOR(uint64_t, contentHashes, (target->useIPC ? composingHeaders.size() : headerFiles.size()) + 2)
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
 
@@ -1932,7 +1941,7 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
     {
         for (const auto &[includeName, headerNode] : composingHeaders)
         {
-            if (headerNode->lastWriteTime > originalLaunchTime)
+            if (headerNode->lastWriteTime > initiationTime)
             {
                 // File was modified after process launched — hash is stale.
                 contentHashes.emplace_back(0);
@@ -1947,7 +1956,7 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
     {
         for (Node *headerNode : headerFiles)
         {
-            if (headerNode->lastWriteTime > originalLaunchTime)
+            if (headerNode->lastWriteTime > initiationTime)
             {
                 // File was modified after process launched — hash is stale.
                 contentHashes.emplace_back(0);
@@ -2013,7 +2022,7 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
         {
             for (const auto &[includeName, headerNode] : composingHeaders)
             {
-                if (headerNode->lastWriteTime > originalLaunchTime)
+                if (headerNode->lastWriteTime > initiationTime)
                 {
                     contentHashes.emplace_back(0);
                 }
@@ -2027,7 +2036,7 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
         {
             for (const Node *headerNode : headerFiles)
             {
-                if (headerNode->lastWriteTime > originalLaunchTime)
+                if (headerNode->lastWriteTime > initiationTime)
                 {
                     contentHashes.emplace_back(0);
                 }
@@ -2073,8 +2082,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
 
             if (recomputedHash != rb.cumulativeHash)
             {
-                printErrorMessage(FORMAT("{} caching-verification failed as recomputed cumulativeHash != stored\n"
-                                         "recomputed={} stored={}\n",
+                printErrorMessage(FORMAT("Build cache verification failed: content hash mismatch.\nTarget: {}\n"
+                                         "Recomputed hash: {}\nCached hash: {}",
                                          getPrintName(), recomputedHash, rb.cumulativeHash));
             }
         }
@@ -2086,7 +2095,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            printErrorMessage(FORMAT("{} caching-verification failed as headerStatusChanged is true at build time\n",
+            printErrorMessage(FORMAT("Build cache verification failed: header classification changed during build.\n"
+                                     "Target: {}",
                                      getPrintName()));
         }
     }
@@ -2096,10 +2106,9 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
         const uint32_t cachedComposingHeadersSize = readUint32(buildCache.data(), bytesRead);
         if (composingHeaders.size() != cachedComposingHeadersSize)
         {
-            printErrorMessage(
-                FORMAT("{} caching-verification failed as composingHeaders.size() != cached composingHeadersSize\n"
-                       "current={} cached={}\n",
-                       getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
+            printErrorMessage(FORMAT("Build cache verification failed: composing-header count mismatch.\nTarget: {}\n"
+                                     "Current count: {}\nCached count: {}",
+                                     getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
         }
 
         for (uint32_t i = 0; i < cachedComposingHeadersSize; ++i)
@@ -2109,10 +2118,9 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
                                          [cachedNode](const auto &kv) { return kv.second == cachedNode; });
             if (it == composingHeaders.end())
             {
-                printErrorMessage(
-                    FORMAT("{} caching-verification failed as cached composingHeader node\n{} at index {}\n"
-                           "is not present in current composingHeaders\n",
-                           getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
+                printErrorMessage(FORMAT("Build cache verification failed: cached composing header is missing.\n"
+                                         "Target: {}\nHeader path: {}\nCache index: {}",
+                                         getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
             }
         }
     }
@@ -2121,8 +2129,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
         const uint32_t cachedHeaderFilesSize = readUint32(buildCache.data(), bytesRead);
         if (headerFiles.size() != cachedHeaderFilesSize)
         {
-            printErrorMessage(FORMAT("{} caching-verification failed as headerFiles.size() != cached headerFilesSize\n"
-                                     "current={} cached={}\n",
+            printErrorMessage(FORMAT("Build cache verification failed: header count mismatch.\nTarget: {}\n"
+                                     "Current count: {}\nCached count: {}",
                                      getPrintName(), headerFiles.size(), cachedHeaderFilesSize));
         }
 
@@ -2131,8 +2139,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
             const Node *cachedNode = readHalfNode(buildCache.data(), bytesRead);
             if (!headerFiles.contains(cachedNode))
             {
-                printErrorMessage(FORMAT("{} caching-verification failed as cached headerFile\n{} at index {}\n"
-                                         "is not present in current headerFiles\n",
+                printErrorMessage(FORMAT("Build cache verification failed: cached header is not a current dependency.\n"
+                                         "Target: {}\nHeader path: {}\nCache index: {}",
                                          getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
             }
         }
@@ -2148,10 +2156,10 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
             const uint32_t cachedCacheIndex = readUint32(buildCache.data(), bytesRead);
             if (cppModDirect.getPointer()->cacheIndex != cachedCacheIndex)
             {
-                printErrorMessage(
-                    FORMAT("{} caching-verification failed as direct dep cacheIndex does not match cached\n"
-                           "current={} cached={} at index {}\n",
-                           getPrintName(), cppModDirect.getPointer()->cacheIndex, cachedCacheIndex, count));
+                printErrorMessage(FORMAT("Build cache verification failed: dependency cache index mismatch.\n"
+                                         "Target: {}\nDependency position: {}\nCurrent index: {}\nCached index: {}",
+                                         getPrintName(), count, cppModDirect.getPointer()->cacheIndex,
+                                         cachedCacheIndex));
             }
             ++count;
         }
@@ -2159,8 +2167,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
 
     if (count != cachedDirectDepsCount)
     {
-        printErrorMessage(FORMAT("{} caching-verification failed as direct deps count != cached\n"
-                                 "current={} cached={}\n",
+        printErrorMessage(FORMAT("Build cache verification failed: direct-dependency count mismatch.\nTarget: {}\n"
+                                 "Current count: {}\nCached count: {}",
                                  getPrintName(), count, cachedDirectDepsCount));
     }
 
@@ -2168,7 +2176,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
 
     if (buildCache.size() != bytesRead)
     {
-        printErrorMessage(FORMAT("{} caching-verification failed as buildCache.size() != bytesRead {} vs {}\n",
+        printErrorMessage(FORMAT("Build cache verification failed: entry size mismatch.\nTarget: {}\n"
+                                 "Entry size: {} bytes\nBytes consumed: {}",
                                  getPrintName(), buildCache.size(), bytesRead));
     }
 }
