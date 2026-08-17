@@ -112,7 +112,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             if (isCompile)
             {
                 CppTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName);
-                cppTarget.addCompileDependency(DepType::PRIVATE, mainTarget.getSourceTarget());
+                DSC<CppTarget>(&cppTarget, nullptr).privateOpDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
                 if (testTarget)
@@ -149,7 +149,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             if (p.path().extension() == ".ipp" || p.path().extension() == ".hpp")
             {
-                Node *node = Node::getNodeNonNormalized(p.path().generic_string(), true);
+                Node *node = Node::getNode(p);
                 testReqHeaderFiles.emplace(string(node->getFileName()), node);
             }
         }
@@ -174,9 +174,10 @@ BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
 
         if (isCompile)
         {
+            DSC<CppTarget> targetDsc(testTarget.cppTarget, nullptr);
             for (CppTarget *dep : cppTestDepsPrivate)
             {
-                testTarget.cppTarget->addCompileDependency(DepType::PRIVATE, *dep);
+                targetDsc.privateOpDeps(*dep);
             }
         }
         else

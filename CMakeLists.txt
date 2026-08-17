@@ -40,6 +40,8 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/CppMod.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppTarget.cpp
+        hconfigure/src/ObjectFileProducer.cpp
+        hconfigure/src/IspcTarget.cpp
         hconfigure/src/LOAT.cpp
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp

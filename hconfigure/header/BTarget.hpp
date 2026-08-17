@@ -69,8 +69,11 @@ enum class BTargetType : uint8_t
     CPP_SRC = 4,
     CONFIGURATION = 5,
     PLOAT = 6,
-    UE_CPP_TARGET = 7,
-    // 8–15 reserved for future expansion
+    ISPC_TARGET = 8,
+    ISPC_HEADER = 9,
+    ISPC_OBJECT = 10,
+    BEFORE_TARGET = 11,
+    // 7 and 12–15 reserved for future expansion
 };
 
 // we use true as there is no need for null check
@@ -243,6 +246,13 @@ class alignas(128) RealBTarget
     ///     `completionTime` among those dependencies so upstream targets can detect downstream rebuilds.
     uint64_t completionTime = -1;
 
+
+    /// Direct dependency selected by the latest `setUpdateStatus()` evaluation. Meaningful only while `updateStatus` is
+    /// `UPDATE_NEEDED`. Null means cutoff is not eligible: this target is stale because of its own inputs or because a
+    /// completed static dependency propagated the update. `BTarget::refreshUpdateStatus()` clears this before a fresh
+    /// evaluation.
+    BTarget *reasonForUpdate = nullptr;
+
     /// Once sorted the index of this RealBTarget in the topological sorted array. Used in sorting to provide static
     /// libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort : 29 = 0;
@@ -251,12 +261,6 @@ class alignas(128) RealBTarget
     /// `Builder::decrementFromDependents()` marks this `RealBTarget` completed; if it finished with
     /// `UpdateStatus::UPDATE_NEEDED`, FULL dependents are also marked `UpdateStatus::UPDATE_NEEDED`.
     UpdateStatus updateStatus : 3 = UpdateStatus::UNCHECKED;
-
-    /// Direct dependency selected by the latest `setUpdateStatus()` evaluation. Meaningful only while `updateStatus` is
-    /// `UPDATE_NEEDED`. Null means cutoff is not eligible: this target is stale because of its own inputs or because a
-    /// completed static dependency propagated the update. `BTarget::refreshUpdateStatus()` clears this before a fresh
-    /// evaluation.
-    BTarget *reasonForUpdate = nullptr;
 
     /// Count of incoming FULL/WAIT edges. Incremented in `addDep()`; decremented in
     /// `Builder::decrementFromDependents()` when this bTarget completes. When it reaches zero, the dependent is
@@ -386,6 +390,10 @@ class BTarget // BTarget
     /// Runtime type tag supplied at construction — replaces virtual getBTargetType().
     BTargetType bTargetType = BTargetType::UNKNOWN;
 
+    /// Lightweight derived-type reflection for code built without RTTI.
+    bool isCppTarget : 1 = false;
+    bool isUeCppTarget : 1 = false;
+
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     // float totalTimeTaken = 0.0f;
@@ -410,7 +418,7 @@ class BTarget // BTarget
     ///
     /// `BSMode::CONFIGURE`: if `makeDirectory`, creates `configureDir/name`. Looks up `cacheName` in `nameToIndexMap`;
     /// allocates a new `BTargetCache` slot (and sets `newlyAdded`) when absent, otherwise reuses the existing index.
-    /// Enforces unique target names per `cacheName` via `checkForSameTargetName()`.
+    /// Rejects a duplicate live target if the resolved cache slot already has a back-pointer.
     ///
     /// `BSMode::BUILD`: requires an existing config-cache entry (errors if `cacheName` is missing — run configure
     /// first). config-cache / build-cache slices were loaded earlier in `initializeCache()` → `readConfigCache()` /
@@ -580,8 +588,8 @@ inline BTarget *RealBTarget::getBTarget() const
 ///
 /// `readConfigCache()` / `readBuildCache()` fill `bTargetCaches` and `nameToIndexMap` before `buildSpecification()`.
 /// Live `BTarget` constructors attach via `initializeBTarget()`. At configure end or after a build,
-/// `getConfigCache()` / `getBuildCache()` serialize updates (build mode re-hashes nodes via `checkNodes(false)` when
-/// needed, then rewrites only entries with `buildCacheUpdated` / `buildFooterUpdated`).
+/// `getConfigCache()` / `getBuildCache()` serialize updates (build mode finishes pending node hashes via
+/// `checkNodes()` when needed, then rewrites only entries with `buildCacheUpdated` / `buildFooterUpdated`).
 
 /// Order of entries is stable across builds; each target has matching config and build slices.
 class BTargetCache

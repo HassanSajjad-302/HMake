@@ -113,15 +113,11 @@ string Node::getExtension() const
 
 void Node::performSystemCheck()
 {
-    // In build-mode, this function can be called only once.
-    if constexpr (bsMode == BSMode::CONFIGURE)
+    if (statCompleted)
     {
-        if (statCompleted)
-        {
-            return;
-        }
-        statCompleted = true;
+        return;
     }
+    statCompleted = true;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -221,6 +217,13 @@ Node *Node::getNode(const string_view filePath_, const bool isFile, const bool m
                                  getStatusString(node->filePath)));
     }
     return node;
+}
+
+Node *Node::getNode(const std::filesystem::directory_entry &entry)
+{
+    string filePath = entry.path().string();
+    lowerCaseOnWindows(filePath.data(), filePath.size());
+    return getNode(filePath, entry.is_regular_file());
 }
 
 void Node::performContentHash()

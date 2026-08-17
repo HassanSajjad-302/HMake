@@ -19,7 +19,9 @@ class ObjectFile : public BTarget
         : BTarget("", cacheName_, true, targetType, true, false, add0, add1)
     {
     }
-    Node *objectNode = nullptr;
+    /// Linker inputs emitted by this compile action. Ordinary C/C++ actions contain one object; a single action may
+    /// also emit several objects (for example, one ISPC object per selected instruction-set target).
+    vector<Node *> objectNodes;
 };
 
 #endif // OBJECTFILE_HPP

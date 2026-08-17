@@ -5,7 +5,6 @@
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 
-
 TemplateDepth::TemplateDepth(const unsigned long long templateDepth_) : templateDepth(templateDepth_)
 {
 }
@@ -14,7 +13,171 @@ Define::Define(string name_, string value_) : name{std::move(name_)}, value{std:
 {
 }
 
+void IspcCompilerFeatures::setConfigType(const ConfigType configType_)
+{
+    configType = configType_;
+    if (configType == ConfigType::DEBUG)
+    {
+        optimization = Optimization::OFF;
+        debugSymbols = DebugSymbols::ON;
+    }
+    else if (configType == ConfigType::RELEASE)
+    {
+        optimization = Optimization::SPEED;
+        debugSymbols = DebugSymbols::OFF;
+    }
+    else if (configType == ConfigType::PROFILE)
+    {
+        optimization = Optimization::SPEED;
+        debugSymbols = DebugSymbols::ON;
+    }
+}
 
+void IspcCompilerFeatures::initialize(const CppCompilerFeatures &cppFeatures)
+{
+    if (targetOs == TargetOS::NONE)
+    {
+        targetOs = cppFeatures.targetOs;
+        if (targetOs == TargetOS::NONE)
+        {
+            targetOs = os == OS::NT ? TargetOS::WINDOWS : TargetOS::LINUX_;
+        }
+    }
+    if (arch == Arch::NONE)
+    {
+        arch = cppFeatures.arch == Arch::NONE ? Arch::X86 : cppFeatures.arch;
+    }
+    if (addressModel == AddressModel::NONE)
+    {
+        addressModel = cppFeatures.addModel == AddressModel::NONE ? AddressModel::A_64 : cppFeatures.addModel;
+    }
+    if (configType == ConfigType::NONE)
+    {
+        setConfigType(cppFeatures.configType == ConfigType::NONE ? ConfigType::RELEASE : cppFeatures.configType);
+    }
+    if (targets.empty())
+    {
+        if (arch == Arch::X86)
+        {
+            targets = {"avx512skx-i32x8", "avx2", "avx", "sse4"};
+        }
+        else if (arch == Arch::ARM)
+        {
+            targets = {"neon"};
+        }
+    }
+}
+
+string IspcCompilerFeatures::getCompileCommand() const
+{
+    if (compiler == nullptr)
+    {
+        return {};
+    }
+
+    string_view targetOsName;
+    switch (targetOs)
+    {
+    case TargetOS::WINDOWS:
+        targetOsName = "windows";
+        break;
+    case TargetOS::LINUX_:
+        targetOsName = "linux";
+        break;
+    case TargetOS::ANDROID:
+        targetOsName = "android";
+        break;
+    case TargetOS::DARWIN:
+        targetOsName = "macos";
+        break;
+    case TargetOS::IPHONE:
+    case TargetOS::APPLETV:
+        targetOsName = "ios";
+        break;
+    default:
+        printErrorMessage("The selected target OS is not supported by the ISPC integration.");
+    }
+
+    string_view architecture;
+    if (arch == Arch::X86)
+    {
+        architecture = addressModel == AddressModel::A_32 ? "x86" : "x86-64";
+    }
+    else if (arch == Arch::ARM)
+    {
+        architecture = addressModel == AddressModel::A_32 ? "arm" : "aarch64";
+    }
+    else
+    {
+        printErrorMessage("The selected architecture is not supported by the ISPC integration.");
+    }
+    if (targets.empty())
+    {
+        printErrorMessage("The ISPC target list must not be empty.");
+    }
+
+    string command;
+    command.reserve(compiler->filePath.size() + compileDefinitions.size() * 24 + includeDirectories.size() * 64 + 128);
+    command.push_back('"');
+    command += compiler->filePath;
+    command += "\" --target-os=";
+    command += targetOsName;
+    command += " --arch=";
+    command += architecture;
+    command += " --target=";
+    for (auto target = targets.begin(); target != targets.end(); ++target)
+    {
+        if (target != targets.begin())
+        {
+            command.push_back(',');
+        }
+        command += *target;
+    }
+    command += " --emit-obj ";
+    for (const Node *include : includeDirectories)
+    {
+        command += "-I\"";
+        command += include->filePath;
+        command += "\" ";
+    }
+    for (const string &definition : compileDefinitions)
+    {
+        if (!definition.contains("\\\\U") && !definition.contains("\\\\u"))
+        {
+            command += "-D";
+            command += definition;
+            command.push_back(' ');
+        }
+    }
+    return command;
+}
+
+string IspcCompilerFeatures::getObjectFlags() const
+{
+    string flags;
+    if (debugSymbols == DebugSymbols::ON)
+    {
+        flags += "-g ";
+    }
+    if (optimization == Optimization::SPEED)
+    {
+        flags += "-O3 ";
+    }
+    else if (optimization == Optimization::SPACE || optimization == Optimization::MINIMAL)
+    {
+        flags += "-O1 ";
+    }
+    else
+    {
+        flags += "-O0 ";
+    }
+    return flags;
+}
+
+string_view IspcCompilerFeatures::getObjectSuffix() const
+{
+    return targetOs == TargetOS::WINDOWS ? ".obj" : ".o";
+}
 
 string getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const string &targetName)
 {
@@ -110,260 +273,261 @@ LinkerFeatures::LinkerFeatures()
 string LinkerFeatures::getLinkerFlags()
 {
     string linkerFlags;
-    if(linker.bTFamily == BTFamily::MSVC)
+    if (linker.bTFamily == BTFamily::MSVC)
     {
         linkerFlags += " /NOLOGO /INCREMENTAL:NO";
-        if(evaluate(LTO::ON))
+        if (evaluate(LTO::ON))
         {
             linkerFlags += " /LTCG ";
         }
-        if(evaluate(AddressSanitizer::ON))
+        if (evaluate(AddressSanitizer::ON))
         {
             linkerFlags += " -incremental:no ";
         }
-        if(evaluate(Arch::X86))
+        if (evaluate(Arch::X86))
         {
-            if(evaluate(AddressModel::A_64))
+            if (evaluate(AddressModel::A_64))
             {
                 linkerFlags += " /MACHINE:X64 ";
             }
-            else if(evaluate(AddressModel::A_32))
+            else if (evaluate(AddressModel::A_32))
             {
                 linkerFlags += " /MACHINE:X86 ";
             }
         }
-        else if(evaluate(Arch::ARM))
+        else if (evaluate(Arch::ARM))
         {
-            if(evaluate(AddressModel::A_64))
+            if (evaluate(AddressModel::A_64))
             {
                 linkerFlags += " /MACHINE:ARM64 ";
             }
-            else if(evaluate(AddressModel::A_32))
+            else if (evaluate(AddressModel::A_32))
             {
                 linkerFlags += " /MACHINE:ARM ";
             }
         }
-        if(evaluate(DebugSymbols::ON))
+        if (evaluate(DebugSymbols::ON))
         {
             linkerFlags += " /DEBUG ";
-            if(evaluate(RuntimeDebugging::OFF))
+            if (evaluate(RuntimeDebugging::OFF))
             {
                 linkerFlags += " /OPT:REF,ICF  ";
             }
         }
-        if(evaluate(UserInterface::CONSOLE))
+        if (evaluate(UserInterface::CONSOLE))
         {
             linkerFlags += " /subsystem:console ";
         }
-        else if(evaluate(UserInterface::GUI))
+        else if (evaluate(UserInterface::GUI))
         {
             linkerFlags += " /subsystem:windows ";
         }
-        else if(evaluate(UserInterface::WINCE))
+        else if (evaluate(UserInterface::WINCE))
         {
             linkerFlags += " /subsystem:windowsce ";
         }
-        else if(evaluate(UserInterface::NATIVE))
+        else if (evaluate(UserInterface::NATIVE))
         {
             linkerFlags += " /subsystem:native ";
         }
-        else if(evaluate(UserInterface::AUTO))
+        else if (evaluate(UserInterface::AUTO))
         {
             linkerFlags += " /subsystem:posix ";
         }
     }
-    else if(linker.bTFamily == BTFamily::GCC)
+    else if (linker.bTFamily == BTFamily::GCC)
     {
-        if(evaluate(Threading::MULTI))
+        if (evaluate(Threading::MULTI))
         {
-            if(evaluate(TargetOS::WINDOWS) || evaluate(TargetOS::CYGWIN))
+            if (evaluate(TargetOS::WINDOWS) || evaluate(TargetOS::CYGWIN))
             {
                 linkerFlags += " -mthreads ";
             }
-            else if(evaluate(TargetOS::QNX) || evaluate(TargetOS::FREEBSD) || evaluate(TargetOS::OPENBSD))
+            else if (evaluate(TargetOS::QNX) || evaluate(TargetOS::FREEBSD) || evaluate(TargetOS::OPENBSD))
             {
                 linkerFlags += " -pthread ";
             }
-            else if(!evaluate(TargetOS::ANDROID) && !evaluate(TargetOS::DARWIN) && !evaluate(TargetOS::IPHONE) && !evaluate(TargetOS::APPLETV))
+            else if (!evaluate(TargetOS::ANDROID) && !evaluate(TargetOS::DARWIN) && !evaluate(TargetOS::IPHONE) &&
+                     !evaluate(TargetOS::APPLETV))
             {
                 linkerFlags += " -pthread ";
             }
         }
 
         linkerFlags += (cxxStdDialect == CxxSTDDialect::GNU ? " -std=gnu++" : " -std=c++");
-        if(cxxStd == CxxSTD::V_LATEST)
+        if (cxxStd == CxxSTD::V_LATEST)
         {
-            if(linker.bTVersion >= Version{10})
+            if (linker.bTVersion >= Version{10})
             {
                 linkerFlags += "20 ";
             }
-            else if(linker.bTVersion >= Version{8})
+            else if (linker.bTVersion >= Version{8})
             {
                 linkerFlags += "2a ";
             }
-            else if(linker.bTVersion >= Version{6})
+            else if (linker.bTVersion >= Version{6})
             {
                 linkerFlags += "17 ";
             }
-            else if(linker.bTVersion >= Version{5})
+            else if (linker.bTVersion >= Version{5})
             {
                 linkerFlags += "1z ";
             }
-            else if(linker.bTVersion >= Version{4, 9})
+            else if (linker.bTVersion >= Version{4, 9})
             {
                 linkerFlags += "14 ";
             }
-            else if(linker.bTVersion >= Version{4, 8})
+            else if (linker.bTVersion >= Version{4, 8})
             {
                 linkerFlags += "1y ";
             }
-            else if(linker.bTVersion >= Version{4, 7})
+            else if (linker.bTVersion >= Version{4, 7})
             {
                 linkerFlags += "11 ";
             }
-            else if(linker.bTVersion >= Version{3, 3})
+            else if (linker.bTVersion >= Version{3, 3})
             {
                 linkerFlags += "98 ";
             }
         }
         else
         {
-            switch(cxxStd)
+            switch (cxxStd)
             {
-                case CxxSTD::V_98:
-                    linkerFlags += "98 ";
-                    break;
-                case CxxSTD::V_03:
-                    linkerFlags += "03 ";
-                    break;
-                case CxxSTD::V_0x:
-                    linkerFlags += "0x ";
-                    break;
-                case CxxSTD::V_11:
-                    linkerFlags += "11 ";
-                    break;
-                case CxxSTD::V_1y:
-                    linkerFlags += "1y ";
-                    break;
-                case CxxSTD::V_14:
-                    linkerFlags += "14 ";
-                    break;
-                case CxxSTD::V_1z:
-                    linkerFlags += "1z ";
-                    break;
-                case CxxSTD::V_17:
-                    linkerFlags += "17 ";
-                    break;
-                case CxxSTD::V_2a:
-                    linkerFlags += "2a ";
-                    break;
-                case CxxSTD::V_20:
-                    linkerFlags += "20 ";
-                    break;
-                case CxxSTD::V_2b:
-                    linkerFlags += "2b ";
-                    break;
-                case CxxSTD::V_23:
-                    linkerFlags += "23 ";
-                    break;
-                case CxxSTD::V_2c:
-                    linkerFlags += "2c ";
-                    break;
-                case CxxSTD::V_26:
-                    linkerFlags += "26 ";
-                    break;
-                default:
-                    break;
+            case CxxSTD::V_98:
+                linkerFlags += "98 ";
+                break;
+            case CxxSTD::V_03:
+                linkerFlags += "03 ";
+                break;
+            case CxxSTD::V_0x:
+                linkerFlags += "0x ";
+                break;
+            case CxxSTD::V_11:
+                linkerFlags += "11 ";
+                break;
+            case CxxSTD::V_1y:
+                linkerFlags += "1y ";
+                break;
+            case CxxSTD::V_14:
+                linkerFlags += "14 ";
+                break;
+            case CxxSTD::V_1z:
+                linkerFlags += "1z ";
+                break;
+            case CxxSTD::V_17:
+                linkerFlags += "17 ";
+                break;
+            case CxxSTD::V_2a:
+                linkerFlags += "2a ";
+                break;
+            case CxxSTD::V_20:
+                linkerFlags += "20 ";
+                break;
+            case CxxSTD::V_2b:
+                linkerFlags += "2b ";
+                break;
+            case CxxSTD::V_23:
+                linkerFlags += "23 ";
+                break;
+            case CxxSTD::V_2c:
+                linkerFlags += "2c ";
+                break;
+            case CxxSTD::V_26:
+                linkerFlags += "26 ";
+                break;
+            default:
+                break;
             }
         }
 
         linkerFlags += " -x c++ ";
 
-        if(evaluate(AddressSanitizer::ON))
+        if (evaluate(AddressSanitizer::ON))
         {
             linkerFlags += " -fsanitize=address -fno-omit-frame-pointer ";
         }
-        else if(evaluate(AddressSanitizer::NORECOVER))
+        else if (evaluate(AddressSanitizer::NORECOVER))
         {
             linkerFlags += " -fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ";
         }
-        if(evaluate(LeakSanitizer::ON))
+        if (evaluate(LeakSanitizer::ON))
         {
             linkerFlags += " -fsanitize=leak -fno-omit-frame-pointer ";
         }
-        else if(evaluate(LeakSanitizer::NORECOVER))
+        else if (evaluate(LeakSanitizer::NORECOVER))
         {
             linkerFlags += " -fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer ";
         }
-        if(evaluate(ThreadSanitizer::ON))
+        if (evaluate(ThreadSanitizer::ON))
         {
             linkerFlags += " -fsanitize=thread -fno-omit-frame-pointer ";
         }
-        else if(evaluate(ThreadSanitizer::NORECOVER))
+        else if (evaluate(ThreadSanitizer::NORECOVER))
         {
             linkerFlags += " -fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer ";
         }
-        if(evaluate(UndefinedSanitizer::ON))
+        if (evaluate(UndefinedSanitizer::ON))
         {
             linkerFlags += " -fsanitize=undefined -fno-omit-frame-pointer ";
         }
-        else if(evaluate(UndefinedSanitizer::NORECOVER))
+        else if (evaluate(UndefinedSanitizer::NORECOVER))
         {
             linkerFlags += " -fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer ";
         }
-        if(evaluate(Coverage::ON))
+        if (evaluate(Coverage::ON))
         {
             linkerFlags += " --coverage ";
         }
 
-        if(evaluate(LTO::ON))
+        if (evaluate(LTO::ON))
         {
             linkerFlags += " -flto ";
         }
 
-        if(evaluate(Strip::ON))
+        if (evaluate(Strip::ON))
         {
             linkerFlags += " -Wl,--strip-all ";
         }
 
-        if(evaluate(TargetOS::WINDOWS) && evaluate(RuntimeLink::STATIC))
+        if (evaluate(TargetOS::WINDOWS) && evaluate(RuntimeLink::STATIC))
         {
             linkerFlags += " -Wl,-Bstatic ";
         }
-        else if(!evaluate(TargetOS::WINDOWS) && evaluate(RuntimeLink::STATIC))
+        else if (!evaluate(TargetOS::WINDOWS) && evaluate(RuntimeLink::STATIC))
         {
             linkerFlags += " -static ";
         }
 
-        if(evaluate(Arch::X86))
+        if (evaluate(Arch::X86))
         {
-            if(evaluate(InstructionSet::native))
+            if (evaluate(InstructionSet::native))
             {
                 linkerFlags += " -march=native ";
             }
-            else if(evaluate(InstructionSet::x86_64_v1))
+            else if (evaluate(InstructionSet::x86_64_v1))
             {
                 linkerFlags += " -march=x86-64 ";
             }
-            else if(evaluate(InstructionSet::x86_64_v2))
+            else if (evaluate(InstructionSet::x86_64_v2))
             {
                 linkerFlags += " -march=x86-64-v2 ";
             }
-            else if(evaluate(InstructionSet::x86_64_v3))
+            else if (evaluate(InstructionSet::x86_64_v3))
             {
                 linkerFlags += " -march=x86-64-v3 ";
             }
-            else if(evaluate(InstructionSet::x86_64_v4))
+            else if (evaluate(InstructionSet::x86_64_v4))
             {
                 linkerFlags += " -march=x86-64-v4 ";
             }
         }
 
-        if(evaluate(Visibility::HIDDEN))
+        if (evaluate(Visibility::HIDDEN))
         {
             linkerFlags += " -fvisibility=hidden -fvisibility-inlines-hidden ";
         }
-        else if(evaluate(Visibility::GLOBAL))
+        else if (evaluate(Visibility::GLOBAL))
         {
             linkerFlags += " -fvisibility=default ";
         }
@@ -513,361 +677,362 @@ void CppCompilerFeatures::setConfigType(const ConfigType configType_)
 string CppCompilerFeatures::getCompilerFlags() const
 {
     string compilerFlags;
-    if(compiler.bTFamily == BTFamily::MSVC)
+    if (compiler.bTFamily == BTFamily::MSVC)
     {
         compilerFlags += " /nologo /FC /EHsc /c";
-        if(evaluate(Warnings::ALL))
+        if (evaluate(Warnings::ALL))
         {
             compilerFlags += " /W3";
         }
-        else if(evaluate(Warnings::EXTRA))
+        else if (evaluate(Warnings::EXTRA))
         {
             compilerFlags += " /W4";
         }
-        else if(evaluate(Warnings::OFF))
+        else if (evaluate(Warnings::OFF))
         {
             compilerFlags += " /w";
         }
 
-        if(evaluate(Optimization::SPEED))
+        if (evaluate(Optimization::SPEED))
         {
             compilerFlags += " /O2";
         }
-        else if(evaluate(Optimization::SPACE))
+        else if (evaluate(Optimization::SPACE))
         {
             compilerFlags += " /O1";
         }
-        else if(evaluate(Optimization::OFF))
+        else if (evaluate(Optimization::OFF))
         {
             compilerFlags += " /Od";
         }
 
-        if(evaluate(DebugSymbols::ON))
+        if (evaluate(DebugSymbols::ON))
         {
-            if(evaluate(DebugStore::DATABASE))
+            if (evaluate(DebugStore::DATABASE))
             {
                 compilerFlags += " /Zi";
             }
-            else if(evaluate(DebugStore::OBJECT))
+            else if (evaluate(DebugStore::OBJECT))
             {
                 compilerFlags += " /Z7";
             }
         }
 
-        if(evaluate(RTTI::ON))
+        if (evaluate(RTTI::ON))
         {
             compilerFlags += " /GR";
         }
-        else if(evaluate(RTTI::OFF))
+        else if (evaluate(RTTI::OFF))
         {
             compilerFlags += " /GR-";
         }
 
-        if(evaluate(WarningsAsErrors::ON))
+        if (evaluate(WarningsAsErrors::ON))
         {
             compilerFlags += " /WX";
         }
 
-        if(evaluate(RuntimeLink::SHARED))
+        if (evaluate(RuntimeLink::SHARED))
         {
-            if(evaluate(RuntimeDebugging::ON))
+            if (evaluate(RuntimeDebugging::ON))
             {
                 compilerFlags += " /MDd";
             }
-            else if(evaluate(RuntimeDebugging::OFF))
+            else if (evaluate(RuntimeDebugging::OFF))
             {
                 compilerFlags += " /MD";
             }
         }
-        else if(evaluate(RuntimeLink::STATIC))
+        else if (evaluate(RuntimeLink::STATIC))
         {
-            if(evaluate(RuntimeDebugging::ON))
+            if (evaluate(RuntimeDebugging::ON))
             {
                 compilerFlags += " /MTd";
             }
-            else if(evaluate(RuntimeDebugging::OFF))
+            else if (evaluate(RuntimeDebugging::OFF))
             {
                 compilerFlags += " /MT";
             }
         }
 
-        if(evaluate(LTO::ON))
+        if (evaluate(LTO::ON))
         {
             compilerFlags += " /GL";
         }
 
-        if(cxxStd == CxxSTD::V_14)
+        if (cxxStd == CxxSTD::V_14)
         {
             compilerFlags += " /std:c++14";
         }
-        else if(cxxStd == CxxSTD::V_17)
+        else if (cxxStd == CxxSTD::V_17)
         {
             compilerFlags += " /std:c++17";
         }
-        else if(cxxStd == CxxSTD::V_20)
+        else if (cxxStd == CxxSTD::V_20)
         {
             compilerFlags += " /std:c++20";
         }
-        else if(cxxStd == CxxSTD::V_23 || cxxStd == CxxSTD::V_2b || cxxStd == CxxSTD::V_LATEST)
+        else if (cxxStd == CxxSTD::V_23 || cxxStd == CxxSTD::V_2b || cxxStd == CxxSTD::V_LATEST)
         {
             compilerFlags += " /std:c++latest";
         }
 
-        if(evaluate(Threading::MULTI))
+        if (evaluate(Threading::MULTI))
         {
             compilerFlags += " /D_MT";
         }
     }
-    else if(compiler.bTFamily == BTFamily::GCC)
+    else if (compiler.bTFamily == BTFamily::GCC)
     {
-        if(evaluate(Threading::MULTI))
+        if (evaluate(Threading::MULTI))
         {
-            if(evaluate(TargetOS::WINDOWS) || evaluate(TargetOS::CYGWIN))
+            if (evaluate(TargetOS::WINDOWS) || evaluate(TargetOS::CYGWIN))
             {
                 compilerFlags += " -mthreads";
             }
-            else if(evaluate(TargetOS::QNX) || evaluate(TargetOS::FREEBSD) || evaluate(TargetOS::OPENBSD))
+            else if (evaluate(TargetOS::QNX) || evaluate(TargetOS::FREEBSD) || evaluate(TargetOS::OPENBSD))
             {
                 compilerFlags += " -pthread";
             }
-            else if(!evaluate(TargetOS::ANDROID) && !evaluate(TargetOS::DARWIN) && !evaluate(TargetOS::IPHONE) && !evaluate(TargetOS::APPLETV))
+            else if (!evaluate(TargetOS::ANDROID) && !evaluate(TargetOS::DARWIN) && !evaluate(TargetOS::IPHONE) &&
+                     !evaluate(TargetOS::APPLETV))
             {
                 compilerFlags += " -pthread";
             }
         }
 
         compilerFlags += (cxxStdDialect == CxxSTDDialect::GNU ? " -std=gnu++" : " -std=c++");
-        if(cxxStd == CxxSTD::V_LATEST)
+        if (cxxStd == CxxSTD::V_LATEST)
         {
-            if(compiler.bTVersion >= Version{10})
+            if (compiler.bTVersion >= Version{10})
             {
                 compilerFlags += "20";
             }
-            else if(compiler.bTVersion >= Version{8})
+            else if (compiler.bTVersion >= Version{8})
             {
                 compilerFlags += "2a";
             }
-            else if(compiler.bTVersion >= Version{6})
+            else if (compiler.bTVersion >= Version{6})
             {
                 compilerFlags += "17";
             }
-            else if(compiler.bTVersion >= Version{5})
+            else if (compiler.bTVersion >= Version{5})
             {
                 compilerFlags += "1z";
             }
-            else if(compiler.bTVersion >= Version{4, 9})
+            else if (compiler.bTVersion >= Version{4, 9})
             {
                 compilerFlags += "14";
             }
-            else if(compiler.bTVersion >= Version{4, 8})
+            else if (compiler.bTVersion >= Version{4, 8})
             {
                 compilerFlags += "1y";
             }
-            else if(compiler.bTVersion >= Version{4, 7})
+            else if (compiler.bTVersion >= Version{4, 7})
             {
                 compilerFlags += "11";
             }
-            else if(compiler.bTVersion >= Version{3, 3})
+            else if (compiler.bTVersion >= Version{3, 3})
             {
                 compilerFlags += "98";
             }
         }
         else
         {
-            switch(cxxStd)
+            switch (cxxStd)
             {
-                case CxxSTD::V_98:
-                    compilerFlags += "98";
-                    break;
-                case CxxSTD::V_03:
-                    compilerFlags += "03";
-                    break;
-                case CxxSTD::V_0x:
-                    compilerFlags += "0x";
-                    break;
-                case CxxSTD::V_11:
-                    compilerFlags += "11";
-                    break;
-                case CxxSTD::V_1y:
-                    compilerFlags += "1y";
-                    break;
-                case CxxSTD::V_14:
-                    compilerFlags += "14";
-                    break;
-                case CxxSTD::V_1z:
-                    compilerFlags += "1z";
-                    break;
-                case CxxSTD::V_17:
-                    compilerFlags += "17";
-                    break;
-                case CxxSTD::V_2a:
-                    compilerFlags += "2a";
-                    break;
-                case CxxSTD::V_20:
-                    compilerFlags += "20";
-                    break;
-                case CxxSTD::V_2b:
-                    compilerFlags += "2b";
-                    break;
-                case CxxSTD::V_23:
-                    compilerFlags += "23";
-                    break;
-                case CxxSTD::V_2c:
-                    compilerFlags += "2c";
-                    break;
-                case CxxSTD::V_26:
-                    compilerFlags += "26";
-                    break;
-                default:
-                    break;
+            case CxxSTD::V_98:
+                compilerFlags += "98";
+                break;
+            case CxxSTD::V_03:
+                compilerFlags += "03";
+                break;
+            case CxxSTD::V_0x:
+                compilerFlags += "0x";
+                break;
+            case CxxSTD::V_11:
+                compilerFlags += "11";
+                break;
+            case CxxSTD::V_1y:
+                compilerFlags += "1y";
+                break;
+            case CxxSTD::V_14:
+                compilerFlags += "14";
+                break;
+            case CxxSTD::V_1z:
+                compilerFlags += "1z";
+                break;
+            case CxxSTD::V_17:
+                compilerFlags += "17";
+                break;
+            case CxxSTD::V_2a:
+                compilerFlags += "2a";
+                break;
+            case CxxSTD::V_20:
+                compilerFlags += "20";
+                break;
+            case CxxSTD::V_2b:
+                compilerFlags += "2b";
+                break;
+            case CxxSTD::V_23:
+                compilerFlags += "23";
+                break;
+            case CxxSTD::V_2c:
+                compilerFlags += "2c";
+                break;
+            case CxxSTD::V_26:
+                compilerFlags += "26";
+                break;
+            default:
+                break;
             }
         }
 
         compilerFlags += " -x c++";
 
-        if(evaluate(AddressSanitizer::ON))
+        if (evaluate(AddressSanitizer::ON))
         {
             compilerFlags += " -fsanitize=address -fno-omit-frame-pointer";
         }
-        else if(evaluate(AddressSanitizer::NORECOVER))
+        else if (evaluate(AddressSanitizer::NORECOVER))
         {
             compilerFlags += " -fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer";
         }
-        if(evaluate(LeakSanitizer::ON))
+        if (evaluate(LeakSanitizer::ON))
         {
             compilerFlags += " -fsanitize=leak -fno-omit-frame-pointer";
         }
-        else if(evaluate(LeakSanitizer::NORECOVER))
+        else if (evaluate(LeakSanitizer::NORECOVER))
         {
             compilerFlags += " -fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer";
         }
-        if(evaluate(ThreadSanitizer::ON))
+        if (evaluate(ThreadSanitizer::ON))
         {
             compilerFlags += " -fsanitize=thread -fno-omit-frame-pointer";
         }
-        else if(evaluate(ThreadSanitizer::NORECOVER))
+        else if (evaluate(ThreadSanitizer::NORECOVER))
         {
             compilerFlags += " -fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer";
         }
-        if(evaluate(UndefinedSanitizer::ON))
+        if (evaluate(UndefinedSanitizer::ON))
         {
             compilerFlags += " -fsanitize=undefined -fno-omit-frame-pointer";
         }
-        else if(evaluate(UndefinedSanitizer::NORECOVER))
+        else if (evaluate(UndefinedSanitizer::NORECOVER))
         {
             compilerFlags += " -fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer";
         }
-        if(evaluate(Coverage::ON))
+        if (evaluate(Coverage::ON))
         {
             compilerFlags += " --coverage";
         }
 
-        if(evaluate(LTO::ON))
+        if (evaluate(LTO::ON))
         {
             compilerFlags += " -flto";
         }
 
-        if(evaluate(Warnings::ALL))
+        if (evaluate(Warnings::ALL))
         {
             compilerFlags += " -Wall";
         }
-        else if(evaluate(Warnings::EXTRA))
+        else if (evaluate(Warnings::EXTRA))
         {
             compilerFlags += " -Wextra";
         }
-        else if(evaluate(Warnings::OFF))
+        else if (evaluate(Warnings::OFF))
         {
             compilerFlags += " -w";
         }
 
-        if(evaluate(WarningsAsErrors::ON))
+        if (evaluate(WarningsAsErrors::ON))
         {
             compilerFlags += " -Werror";
         }
 
-        if(evaluate(Optimization::SPEED))
+        if (evaluate(Optimization::SPEED))
         {
             compilerFlags += " -O3";
         }
-        else if(evaluate(Optimization::SPACE))
+        else if (evaluate(Optimization::SPACE))
         {
             compilerFlags += " -Os";
         }
-        else if(evaluate(Optimization::MINIMAL))
+        else if (evaluate(Optimization::MINIMAL))
         {
             compilerFlags += " -O1";
         }
-        else if(evaluate(Optimization::DEBUG))
+        else if (evaluate(Optimization::DEBUG))
         {
             compilerFlags += " -Og";
         }
-        else if(evaluate(Optimization::OFF))
+        else if (evaluate(Optimization::OFF))
         {
             compilerFlags += " -O0";
         }
 
-        if(evaluate(Inlining::OFF))
+        if (evaluate(Inlining::OFF))
         {
             compilerFlags += " -fno-inline";
         }
-        else if(evaluate(Inlining::FULL))
+        else if (evaluate(Inlining::FULL))
         {
             compilerFlags += " -finline-functions -Wno-inline";
         }
 
-        if(evaluate(DebugSymbols::ON))
+        if (evaluate(DebugSymbols::ON))
         {
             compilerFlags += " -g";
         }
 
-        if(evaluate(Profiling::ON))
+        if (evaluate(Profiling::ON))
         {
             compilerFlags += " -pg";
         }
 
-        if(evaluate(ExceptionHandling::OFF))
+        if (evaluate(ExceptionHandling::OFF))
         {
             compilerFlags += " -fno-exceptions";
         }
-        if(evaluate(RTTI::OFF))
+        if (evaluate(RTTI::OFF))
         {
             compilerFlags += " -fno-rtti";
         }
 
-        if(evaluate(Vectorize::ON))
+        if (evaluate(Vectorize::ON))
         {
             compilerFlags += " -ftree-vectorize";
         }
 
-        if(evaluate(Arch::X86))
+        if (evaluate(Arch::X86))
         {
-            if(evaluate(InstructionSet::native))
+            if (evaluate(InstructionSet::native))
             {
                 compilerFlags += " -march=native";
             }
-            else if(evaluate(InstructionSet::x86_64_v1))
+            else if (evaluate(InstructionSet::x86_64_v1))
             {
                 compilerFlags += " -march=x86-64";
             }
-            else if(evaluate(InstructionSet::x86_64_v2))
+            else if (evaluate(InstructionSet::x86_64_v2))
             {
                 compilerFlags += " -march=x86-64-v2";
             }
-            else if(evaluate(InstructionSet::x86_64_v3))
+            else if (evaluate(InstructionSet::x86_64_v3))
             {
                 compilerFlags += " -march=x86-64-v3";
             }
-            else if(evaluate(InstructionSet::x86_64_v4))
+            else if (evaluate(InstructionSet::x86_64_v4))
             {
                 compilerFlags += " -march=x86-64-v4";
             }
         }
 
-        if(evaluate(Visibility::HIDDEN))
+        if (evaluate(Visibility::HIDDEN))
         {
             compilerFlags += " -fvisibility=hidden -fvisibility-inlines-hidden";
         }
-        else if(evaluate(Visibility::GLOBAL))
+        else if (evaluate(Visibility::GLOBAL))
         {
             compilerFlags += " -fvisibility=default";
         }
@@ -888,11 +1053,11 @@ string CppCompilerFeatures::getCompileCommand()
 
 void CppCompilerFeatures::setCpuType()
 {
-    if(evaluate(Arch::X86))
+    if (evaluate(Arch::X86))
     {
         cpuType = CpuType::AMD64;
     }
-    else if(evaluate(Arch::ARM))
+    else if (evaluate(Arch::ARM))
     {
         cpuType = CpuType::ARM;
     }

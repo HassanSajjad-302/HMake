@@ -7,6 +7,18 @@
 #include "ObjectFileProducer.hpp"
 #include <utility>
 
+namespace
+{
+constexpr uint32_t ploatDependencyTypeBits = 1;
+constexpr uint32_t acyclicPloatDependencyMask = 1;
+
+uint32_t packPloatDependency(const PLOAT *dependency, const PloatDepInfo dependencyInfo)
+{
+    return dependency->cacheIndex << ploatDependencyTypeBits |
+           (dependencyInfo.isAcyclicDependency() ? acyclicPloatDependencyMask : 0);
+}
+} // namespace
+
 string PLOAT::getOutputName() const
 {
 #ifdef BUILD_MODE
@@ -91,8 +103,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
         {
             return;
         }
-        printErrorMessage(FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>",
-                                 name));
+        printErrorMessage(
+            FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>", name));
     }
 }
 
@@ -109,8 +121,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
         {
             return;
         }
-        printErrorMessage(FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>",
-                                 name));
+        printErrorMessage(
+            FORMAT("Prebuilt library requires a build directory.\nLibrary: {}\nBuild directory: <empty>", name));
     }
 }
 
@@ -140,46 +152,107 @@ void PLOAT::completeRoundOne()
 
 #endif
 
+        // Outputless producers carry their linked-library interface until a physical output consumes their objects.
+        // Materialize that interface here, before flattening PLOAT-to-PLOAT requirements. A shared library absorbs
+        // PRIVATE requirements; every other PLOAT kind must continue exporting them.
+        for (ObjectFileProducer *root : rootObjectFileProducers)
+        {
+            const auto validateDeferredDependency = [this](PLOAT *dependency) {
+                if (dependency == this)
+                {
+                    printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
+                                             getPrintName()));
+                }
+            };
+
+            for (const auto &[dependency, dependencyInfo] : root->reqPloatDeps)
+            {
+                validateDeferredDependency(dependency);
+                mergePloatDependency(reqDeps, dependency, dependencyInfo);
+                if (linkTargetType != TargetType::LIBRARY_SHARED)
+                {
+                    mergePloatDependency(useReqDeps, dependency, dependencyInfo);
+                }
+            }
+            for (const auto &[dependency, dependencyInfo] : root->useReqPloatDeps)
+            {
+                validateDeferredDependency(dependency);
+                mergePloatDependency(useReqDeps, dependency, dependencyInfo);
+            }
+        }
+
         populateReqAndUseReqDeps();
     }
 
-    for (const uint32_t index : reqDepsVecIndices)
+    // Root producers have completed round one, so their object availability is final. PLOAT owns every blocking
+    // round-zero relation needed to materialize its linker inputs. Every link path contributes objects, while only an
+    // acyclic path may become a scheduler edge.
+    for (ObjectFileProducer *root : rootObjectFileProducers)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[index].bTarget);
+        hasObjectFiles |= root->hasObjectFiles;
         if constexpr (bsMode == BSMode::BUILD)
         {
-            if (evaluate(TargetType::LIBRARY_STATIC))
+            if (root->hasObjectFiles)
             {
-                if (reqDep->hasObjectFiles)
+                realBTargets[0].addDep<BTargetType::UNKNOWN>(&root->realBTargets[0]);
+            }
+        }
+
+        FOR_REQ_OBJECT_FILE_PRODUCERS(root, producer, dependency)
+        {
+            if (!dependency.isLinkDependency() || !producer->hasObjectFiles)
+            {
+                continue;
+            }
+
+            hasObjectFiles = true;
+            if constexpr (bsMode == BSMode::BUILD)
+            {
+                if (dependency.isAcyclicDependency())
                 {
-                    realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
+                    realBTargets[0].addDep<BTargetType::UNKNOWN>(&producer->realBTargets[0]);
                 }
             }
-            else
+        }
+    }
+
+    const auto consumePloatDependency = [this](PLOAT *reqDep, const PloatDepInfo dependencyInfo) {
+        if (reqDep->hasObjectFiles)
+        {
+            hasObjectFiles = true;
+            if constexpr (bsMode == BSMode::BUILD)
             {
-                if (reqDep->hasObjectFiles)
+                if (dependencyInfo.isAcyclicDependency())
                 {
-                    realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
+                    if (linkTargetType == TargetType::LIBRARY_STATIC)
+                    {
+                        realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
+                    }
+                    else
+                    {
+                        realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
+                    }
                 }
             }
         }
 
-        for (const LibDirNode &libDirNode : reqDep->useReqLibraryDirs)
+        reqLibraryDirs.insert(reqLibraryDirs.end(), reqDep->useReqLibraryDirs.begin(), reqDep->useReqLibraryDirs.end());
+    };
+
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        for (const uint32_t packedDependency : cachedReqDeps)
         {
-            reqLibraryDirs.emplace_back(libDirNode.node);
+            consumePloatDependency(
+                static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget),
+                PloatDepInfo::fromCache(packedDependency));
         }
     }
-
-    if (!hasObjectFiles)
+    else
     {
-        return;
-    }
-
-    for (ObjectFileProducer *objectFileProducer : objectFileProducers)
-    {
-        if (objectFileProducer->hasObjectFiles)
+        for (const auto &[reqDep, dependencyInfo] : reqDeps)
         {
-            realBTargets[0].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[0]);
+            consumePloatDependency(reqDep, dependencyInfo);
         }
     }
 }
@@ -192,7 +265,7 @@ void PLOAT::readCacheAtBuildTime()
     const uint32_t reqVecSize = readUint32(ptr, configCacheBytesRead);
     for (uint32_t i = 0; i < reqVecSize; ++i)
     {
-        reqDepsVecIndices.emplace_back(readUint32(ptr, configCacheBytesRead));
+        cachedReqDeps.emplace_back(readUint32(ptr, configCacheBytesRead));
     }
     uint32_t size = readUint32(ptr, configCacheBytesRead);
     reqLibraryDirs.reserve(size);
@@ -208,21 +281,27 @@ void PLOAT::populateReqAndUseReqDeps()
 
     // Set is copied because new elements are to be inserted in it.
 
-    for (auto localReqDeps = reqDeps; PLOAT *t : localReqDeps)
+    for (const auto localReqDeps = reqDeps; const auto &[dependency, dependencyInfo] : localReqDeps)
     {
-        for (PLOAT *t_ : t->useReqDeps)
+        for (const auto &[exportedDependency, exportedInfo] : dependency->useReqDeps)
         {
-            reqDeps.emplace(t_);
+            mergePloatDependency(reqDeps, exportedDependency, dependencyInfo.intersect(exportedInfo));
         }
     }
 
-    for (auto localUseReqDeps = useReqDeps; PLOAT *t : localUseReqDeps)
+    for (const auto localUseReqDeps = useReqDeps; const auto &[dependency, dependencyInfo] : localUseReqDeps)
     {
-        for (PLOAT *t_ : t->useReqDeps)
+        for (const auto &[exportedDependency, exportedInfo] : dependency->useReqDeps)
         {
-            useReqDeps.emplace(t_);
+            mergePloatDependency(useReqDeps, exportedDependency, dependencyInfo.intersect(exportedInfo));
         }
     }
+
+    // TODO(UE cycles): Remove these erasures after UE's legacy circular module dependencies are eliminated.
+    // A semantic cycle can feed this PLOAT back through a dependency's exported closure. It remains represented by
+    // the other members of the cycle and must never be serialized as a self dependency.
+    reqDeps.erase(this);
+    useReqDeps.erase(this);
 }
 
 string PLOAT::getPrintName() const
@@ -240,10 +319,17 @@ void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
         writeNode(buffer, libDirNode.node);
     }
 
-    writeUint32(buffer, reqDeps.size());
-    for (const PLOAT *ploat : reqDeps)
+    STACK_PMR_VECTOR(PLOAT *, sortedReqDeps, reqDeps.size())
+    for (const auto &[dependency, dependencyInfo] : reqDeps)
     {
-        writeUint32(buffer, ploat->cacheIndex);
+        sortedReqDeps.emplace_back(dependency);
+    }
+    std::ranges::sort(sortedReqDeps, std::ranges::less{}, &BTarget::cacheIndex);
+
+    writeUint32(buffer, sortedReqDeps.size());
+    for (PLOAT *dependency : sortedReqDeps)
+    {
+        writeUint32(buffer, packPloatDependency(dependency, reqDeps.find(dependency)->second));
     }
 
     writeUint32(buffer, reqLibraryDirs.size());

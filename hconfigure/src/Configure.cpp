@@ -112,8 +112,9 @@ void callConfigurationSpecification()
 {
     for (Configuration *configPointer : allConfigurations)
     {
-        Configuration &config = *configPointer;
-        if (config.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
+        if (Configuration &config = *configPointer; config.evaluate(AlwaysConfigureThis::YES) ||
+                                                    config.isHBuildInSameOrChildDirectory() ||
+                                                    configureNode == currentNode)
         {
             config.initialize();
             (*configurationSpecificationFuncPtr)(config);

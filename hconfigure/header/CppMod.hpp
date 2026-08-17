@@ -48,12 +48,17 @@ class CppSrc : public ObjectFile
     /// Source file.
     const Node *node;
 
-    /// Hash of the compile command for this file (flags, defines, includes, etc.). Set in `CppTarget::setCommandHashes()`.
-    /// Combined with source/header content hashes to form `RealBTarget::cumulativeHash`.
+    /// Hash of the compile command for this file (flags, defines, includes, etc.). Set in
+    /// `CppTarget::setCommandHashes()`. Combined with source/header content hashes to form
+    /// `RealBTarget::cumulativeHash`.
     uint64_t commandHash;
 
     /// Language inferred from the source extension.
     SourceType sourceType = SourceType::CPP;
+
+    /// True only for an adaptive manager's generated jumbo translation unit. Such a unit reaches a target's
+    /// pre-compilation barrier through AdaptiveManager and must not receive a redundant direct edge.
+    bool isAJumboBuild = false;
 
     /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setUpdateStatus()`.
     span<const uint32_t> cachedHeaderFiles;
@@ -61,13 +66,12 @@ class CppSrc : public ObjectFile
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
     string getPrintName() const override;
     void getCompileCommand(std::pmr::string &compileCommand) const;
-    bool ignoreHeaderFile(string_view child) const;
     /// MSVC prints header-files with the compilation output. This function parses them out from that output.
-    void parseDepsFromMSVCTextOutput(string &output, bool isClang);
+    void parseHeadersFromMSVCTextOutput(string &output, bool isClang);
     /// Parses header dependencies from a GCC-compatible `.d` file.
-    void parseHeadersFromGccDepsOutput(Builder &builder);
+    void parseHeadersFromGccDepsOutput();
     /// Dispatches to the dependency parser for the selected compiler.
-    void parseHeaderDeps(string &output, Builder &builder);
+    void parseHeaderDeps(string &output);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
@@ -271,4 +275,25 @@ class CppMod : public CppSrc
 };
 
 static_assert(alignof(CppMod) >= 2, "CppMod must be at least 2-byte aligned for PointerIntPair<CppMod*,1>");
+
+/// Round-one partitioner for one `CppTarget`.
+///
+/// Configure mode creates cache entries for every possible standalone and generated-jumbo compile unit. Build mode
+/// uses the source-control working set and current file sizes to construct only the units selected for this invocation.
+class AdaptiveManager : public BTarget
+{
+  public:
+    CppTarget *target = nullptr;
+    bool roundOneCompleted = false;
+
+    inline static flat_hash_set<const Node *> workingSet;
+
+    explicit AdaptiveManager(CppTarget *target_);
+
+    /// Caches one Git/Perforce query and incrementally refreshes adaptive candidates as configurations finish.
+    static void prepareWorkingSet();
+
+    void completeRoundOne() override;
+    string getPrintName() const override;
+};
 #endif // HMAKE_CPPMOD_HPP

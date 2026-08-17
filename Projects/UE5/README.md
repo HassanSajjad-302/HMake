@@ -8,8 +8,8 @@ not depend on the former UBT-export parser.
 
 - `scanner.py` scans the UE checkout for `*.hmake.hpp` files and generates the
   checkout-root `hmake.cpp`.
-- `build_commands.json` is a configuration-keyed table of compiler, linker, and
-  archiver command prefixes extracted from a successful UBT bootstrap build.
+- `UnrealServerMetadata.txt` and the adjacent UBT response files provide the
+  local compiler, linker, archiver, and target-wide ISPC command environment.
 - `hconfigure/header/ue.hpp` declares the UE-oriented configuration, target,
   registry, dependency, path, and prebuilt-library APIs.
 - `hconfigure/src/ue.cpp` implements lazy specification selection and graph
@@ -32,7 +32,28 @@ python3 /home/hassan/Projects/HMake/Projects/UE5/scanner.py \
 ```
 
 By default this writes `/home/hassan/Projects/UnrealEngine/hmake.cpp`. Use
-`--output` to select another file.
+`--output` to select another file. The checkout-root file is the input consumed
+when `hhelper` runs from `/home/hassan/Projects/UnrealEngine/uebuild`; it does not
+need to be copied from `Projects/UE5`. The `Projects/UE5/hmake.cpp` copy exists so
+the repository's `UE5` CMake target can compile the same generated entry point.
+
+The default command row is read from
+`Engine/Intermediate/Build/Linux/x64/UnrealServer/Debug/UnrealServerMetadata.txt`
+and its adjacent response files. Run the local UBT
+`UnrealServer-Linux-Debug` bootstrap before the scanner. Pass `--metadata` when
+the export is stored elsewhere. Because the scanner resolves paths from the
+selected `--ue-root` and that checkout's UBT artifacts, rerun it on each system
+instead of copying a generated command row between machines.
+
+For a fresh build directory, run `hhelper` once to create `uebuild/cache.json`
+and a second time to compile and execute the generated configure program:
+
+```sh
+mkdir -p /home/hassan/Projects/UnrealEngine/uebuild
+cd /home/hassan/Projects/UnrealEngine/uebuild
+hhelper
+hhelper
+```
 
 ## File naming and selection
 
@@ -99,8 +120,9 @@ HMake resolves its relative paths from the directory containing that
 The scanner uses ordinary suffix comparisons, not a regular-expression engine.
 The accepted source extensions are a closed, tiny set, so direct comparisons have
 less C++ compile-time work, less runtime setup, and no third-party dependency.
-ISPC and platform-specific Objective-C/Swift/resource sources are outside this
-first-stage Linux build.
+`.ispc` files are discovered separately and produce an `IspcTarget` for their
+owning C++ module. Platform-specific Objective-C, Swift, and resource sources are
+outside this first-stage Linux build.
 
 ## Existing UHT output
 
@@ -126,27 +148,31 @@ files from its generated compile list and may unity-build the remainder.
 ## Configuration commands
 
 A UE configuration may pass a `UeBuildCommands` value to
-`setBuildCommands()`. `UeConfiguration::initialize()` first performs HMake's
-normal initialization, then installs each non-empty C, C++, linker, and archiver
-command template. HMake still appends the source, output, `-c`, `-o`, and graph
-inputs.
+`setBuildCommands()`. Before ordinary configuration initialization,
+`UeConfiguration::initialize()` imports the row's target-wide ISPC include
+directories and definitions into `IspcCompilerFeatures`. It then installs each
+non-empty C, C++, linker, and archiver command template. HMake still appends the
+source, output, `-c`, `-o`, and graph inputs.
 
-`build_commands.json` is keyed by platform, architecture, UE build configuration,
-and target type. It currently contains one `Linux/x64/Debug/Server` row. The C++
-prefix came from the local successful UBT `BASE-COMMAND`; HMake owns `-c`, source,
-dependency-file, and output arguments, so `-c` was removed from the stored prefix.
-The C prefix uses UBT's equivalent flags with `-x c`. The linker prefix comes from
-the successful `UnrealServer-Linux-Debug.link.rsp` portion before `-o`, and the
-archiver is the matching UE SDK `llvm-ar`. The one HMake-only addition to the C
-and C++ prefixes is `HMAKE_COMPILE_GENERATED_CPP_SEPARATELY=1`, which selects
-the separate generated-code behavior described above.
+The scanner currently constructs one `Linux/x64/Debug/Server` row. Its C++ prefix
+comes from the local successful UBT `BASE-COMMAND`; HMake owns `-c`, source,
+dependency-file, and output arguments, so the scanner removes `-c`. The C prefix
+uses the same environment with `-x c`. Link fields come from the adjacent
+`UnrealServer-Linux-Debug.link.rsp` and linker-input response, and the archiver is
+the `llvm-ar` installed beside UBT's selected `clang++`. Relative UBT paths are
+resolved against the selected checkout's `Engine/Source` directory.
 
-More rows can be appended without changing the scanner or `UeConfiguration`.
-Per-target command variation remains deferred: the initial HMake model requires
-one compatible base C/C++ command per configuration. Also, HMake's current linker
-template is a prefix; exact UBT arguments that must appear after all objects (for
-example some system libraries and linker groups) still need to be represented by
-prebuilt/link requirements or a future linker-suffix facility.
+The scanner also derives `ispcIncludeDirectories` and
+`ispcDefinitionArguments` from the target-wide portion of the exported C++
+command. The generated configuration selects UE's bundled ISPC executable with
+`setIspcCompiler()`. Each `IspcTarget` adds its module's propagated include paths
+and definitions to that shared environment.
+
+Additional rows require extending scanner metadata discovery, while
+`UeConfiguration` already selects rows by platform, architecture, UE build
+configuration, and target type. Per-target command variation remains deferred:
+the initial HMake model requires one compatible base C/C++ command per
+configuration.
 
 ## Dependencies and external modules
 
@@ -156,8 +182,8 @@ The named dependency APIs map approximately as follows:
 | --- | --- |
 | `publicDeps()` | public compile and link dependency |
 | `privateDeps()` | private compile and link dependency |
-| `publicCompileDeps()` | public include-path/compile-only module dependency |
-| `privateCompileDeps()` | private include-path/compile-only module dependency |
+| `publicOpDeps()` | public include-path/compile-only module dependency |
+| `privateOpDeps()` | private include-path/compile-only module dependency |
 | `publicLinkDeps()` | public link-only dependency |
 | `privateLinkDeps()` | private link-only dependency |
 
@@ -205,6 +231,7 @@ The parts already represented for the Linux/x64 Debug non-unity experiment are:
 - platform, platform-group, architecture, configuration, and target-type
   conditions;
 - an existing-UHT-output consumer; and
+- ISPC source discovery plus generated-header and object actions; and
 - monolithic executable assembly with the current circular compile-dependency
   handling.
 
@@ -225,9 +252,10 @@ Important remaining rule surfaces include:
   link the first server executable.
 
 Unity and PCH APIs are intentionally absent from this stage. Existing UHT output
-is consumed, and ISPC is intentionally disabled. Before attempting the complete
-server build, every reachable module still needs a decentralized specification
-covering the subset of its rules that affects this configuration.
+is consumed, and Linux/x64 ISPC compilation uses UE's bundled compiler. Before
+attempting the complete server build, every reachable module still needs a
+decentralized specification covering the subset of its rules that affects this
+configuration.
 
 ## .uproject and .uplugin plan
 
@@ -237,7 +265,7 @@ enabled module set can change with platform, target type, configuration, project
 and target rules.
 
 For a standard Linux Debug server configuration, descriptor evaluation should run
-before `configureRequestedTargets()`:
+before the requested-target expansion in `buildSpecification()`:
 
 1. If no `.uproject` is supplied, as with the current engine `UnrealServer` build,
    there are no project modules or project plugin overrides to add.
@@ -268,6 +296,7 @@ query export, then make the descriptor evaluator reproduce that set.
 - Add explicit validation/diagnostics for legacy circular module declarations and
   implement modular shared-library import-library handling if modular UE targets
   are brought up.
-- Generate command-table entries automatically from a clean UBT bootstrap build.
+- Discover and generate additional platform/configuration command rows from their
+  UBT metadata exports.
 - Add native UHT generation only after the standard Debug server graph builds from
-  existing generated output. ISPC remains disabled for this first stage.
+  existing generated output.

@@ -17,9 +17,6 @@ class LOAT : public PLOAT
     using BaseType = PLOAT;
 
   public:
-    /// Object files collected from `ObjectFileProducer` dependencies in `completeRoundOne()`.
-    vector<const ObjectFile *> objectFiles;
-
     /// Shared libraries that must be copied beside the executable on Windows (`CopyDLLToExeDirOnNTOs::YES`).
     vector<PLOAT *> dllsToBeCopied;
 
@@ -40,7 +37,9 @@ class LOAT : public PLOAT
     void completeRoundOne() override;
 
     string getPrintName() const override;
-    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnWithoutTargets) const;
+    void populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const;
+    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnWithoutTargets,
+                                  span<Node *> objectNodes = {}) const;
     template <typename T> bool evaluate(T property) const;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view) override;

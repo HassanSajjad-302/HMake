@@ -4,6 +4,7 @@
 enum class TargetType : uint8_t
 {
     EXECUTABLE,
+    LIBRARY_OBJECT,
     LIBRARY_STATIC,
     LIBRARY_SHARED,
     PLIBRARY_STATIC,

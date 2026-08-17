@@ -279,29 +279,12 @@ static string lowerCase(string str)
     return str;
 }
 
-namespace
-{
-flat_hash_map<uint64_t, BTarget *> liveTargetsByCacheName;
-
-void checkForSameCacheKey(BTarget *bTarget, const uint64_t cacheName)
-{
-    if (auto [position, inserted] = liveTargetsByCacheName.emplace(cacheName, bTarget); !inserted)
-    {
-        printErrorMessage(FORMAT("Two targets use the same cache key.\nExisting target: {}\nNew target: {}\n"
-                                 "Cache key: {}",
-                                 position->second->getPrintName(), bTarget->getPrintName(), cacheName));
-    }
-}
-} // namespace
-
 void BTarget::initializeBTarget(bool makeDirectory)
 {
     id = total;
     ++total;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // Reject duplicates before either target can overwrite the cache slot's live back-pointer.
-        checkForSameCacheKey(this, cacheName);
         if (makeDirectory)
         {
             create_directory(configureNode->filePath + slashc + name);
@@ -345,7 +328,14 @@ void BTarget::initializeBTarget(bool makeDirectory)
             rb.completionTime = readUint64(ptr, bytesRead);
         }
     }
-    bTargetCaches[cacheIndex].bTarget = this;
+    BTarget *&cacheTarget = bTargetCaches[cacheIndex].bTarget;
+    if (cacheTarget != nullptr)
+    {
+        printErrorMessage(FORMAT("Two targets use the same cache key.\nExisting target: {}\nNew target: {}\n"
+                                 "Cache key: {}",
+                                 cacheTarget->getPrintName(), getPrintName(), cacheName));
+    }
+    cacheTarget = this;
 }
 
 BTarget::BTarget(string name_, const bool launchesProcess_, const BTargetType type_)

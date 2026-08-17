@@ -15,6 +15,34 @@
 using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
+namespace
+{
+SourceType sourceTypeOf(const string_view path)
+{
+    if (path.ends_with(".c"))
+    {
+        return SourceType::C;
+    }
+    if (path.ends_with(".S") || path.ends_with(".s"))
+    {
+        return SourceType::ASSEMBLY;
+    }
+    return SourceType::CPP;
+}
+
+CppSrc *findExistingCompileUnit(const CppTarget &target, const Node &node, const CppModType type)
+{
+    const uint64_t cacheName = static_cast<uint64_t>(node.myId) << 32 | static_cast<uint64_t>(target.cacheIndex) << 3 |
+                               static_cast<uint64_t>(type);
+    const auto cacheIt = nameToIndexMap.find(cacheName);
+    if (cacheIt == nameToIndexMap.end())
+    {
+        return nullptr;
+    }
+    return static_cast<CppSrc *>(bTargetCaches[cacheIt->second].bTarget);
+}
+} // namespace
+
 void CppTarget::readModuleMapFromDir(const string &dir)
 {
     const string modeStrs[] = {
@@ -157,52 +185,6 @@ CppTarget::CppTarget(Node *myBuildDir_, const bool buildExplicit, const string &
     initializeCppTarget(name_, myBuildDir_);
 }
 
-void CppTarget::addCompileDependency(const DepType depType, CppTarget &dependency)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        if (depType == DepType::PUBLIC)
-        {
-            reqDeps.emplace(&dependency);
-            useReqDeps.emplace(&dependency);
-            realBTargets[1].addDep<BTargetType::UNKNOWN>(&dependency.realBTargets[1]);
-        }
-        else if (depType == DepType::PRIVATE)
-        {
-            reqDeps.emplace(&dependency);
-            realBTargets[1].addDep<BTargetType::UNKNOWN>(&dependency.realBTargets[1]);
-        }
-        else
-        {
-            useReqDeps.emplace(&dependency);
-        }
-    }
-    else
-    {
-        realBTargets[0].addDep<BTargetType::UNKNOWN, RelationType::SELECTIVE>(&dependency.realBTargets[0]);
-    }
-}
-
-void CppTarget::populateReqAndUseReqDeps()
-{
-    // Copy each set because this function adds transitive dependencies to it while iterating.
-    for (auto localReqDeps = reqDeps; CppTarget *dependency : localReqDeps)
-    {
-        reqDeps.insert(dependency->useReqDeps.begin(), dependency->useReqDeps.end());
-    }
-
-    for (auto localUseReqDeps = useReqDeps; CppTarget *dependency : localUseReqDeps)
-    {
-        useReqDeps.insert(dependency->useReqDeps.begin(), dependency->useReqDeps.end());
-    }
-
-    // A transitive closure through an explicitly supported circular frontend graph
-    // may lead back to this target. A target never needs to consume itself as a
-    // dependency, and retaining it would pollute the config cache and property pass.
-    reqDeps.erase(this);
-    useReqDeps.erase(this);
-}
-
 void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
 {
     writeUint32(buffer, include.size());
@@ -245,8 +227,11 @@ void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_vie
 
 void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 {
+    isCppTarget = true;
     isSystem = configuration->evaluate(SystemTarget::YES);
     useIPC = configuration->evaluate(UseIPC::YES);
+    jumboBuild = configuration->jumboBuild;
+    jumboFileSize = configuration->jumboFileSize;
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -267,53 +252,141 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     }
 }
 
-void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
+AdaptiveManager &CppTarget::getOrCreateAdaptiveManager()
 {
+    if (adaptiveManager == nullptr)
+    {
+        adaptiveManager = new AdaptiveManager(this);
+        // Round one partitions the candidates before CppTarget computes command hashes and exposes its active object
+        // files. Selected round-zero compile units will depend on the manager directly.
+        realBTargets[1].addDep<BTargetType::UNKNOWN>(&adaptiveManager->realBTargets[1]);
+    }
+    return *adaptiveManager;
+}
+
+BTarget &CppTarget::getOrCreateBeforeTarget()
+{
+    if (beforeTarget != nullptr)
+    {
+        return *beforeTarget;
+    }
+    const uint64_t beforeCacheName =
+        rapidhash_withSeed(&cacheName, sizeof(cacheName), 0x4245464F52450000ULL); // "BEFORE"
+    beforeTarget = new BTarget(name + "/before", beforeCacheName, false, BTargetType::BEFORE_TARGET, false, false,
+                               true, false);
+    return *beforeTarget;
+}
+
+void CppTarget::connectBeforeTarget()
+{
+    if (beforeTarget == nullptr)
+    {
+        return;
+    }
+
+    const auto connectCompileUnit = [this](CppSrc *compileUnit) {
+        // Generated jumbo units reach the barrier through AdaptiveManager. Standalone adaptive units and ordinary
+        // compile units receive the direct edge.
+        if (compileUnit->isAJumboBuild)
+        {
+            return;
+        }
+        compileUnit->realBTargets[0].addDep<BTargetType::BEFORE_TARGET>(&beforeTarget->realBTargets[0]);
+    };
+
+    for (CppSrc *source : srcFileDeps)
+    {
+        connectCompileUnit(source);
+    }
+    for (CppMod *module : modFileDeps)
+    {
+        connectCompileUnit(module);
+    }
+    for (CppMod *module : imodFileDeps)
+    {
+        connectCompileUnit(module);
+    }
+    for (CppMod *headerUnit : huDeps)
+    {
+        connectCompileUnit(headerUnit);
+    }
+    if (adaptiveManager != nullptr)
+    {
+        adaptiveManager->realBTargets[0].addDep<BTargetType::BEFORE_TARGET>(&beforeTarget->realBTargets[0]);
+    }
+}
+
+void CppTarget::startJumboGroup()
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const uint32_t start = adaptiveSourceNodes.size();
+        if (start != 0 && (adaptiveGroupStarts.empty() || adaptiveGroupStarts.back() != start))
+        {
+            adaptiveGroupStarts.emplace_back(start);
+        }
+    }
+}
+
+string_view CppTarget::getAdaptiveIncludeName(const Node *node) const
+{
+    if (srcNode == nullptr)
+    {
+        printErrorMessage("Adaptive unity requires a project source root (`srcNode`).");
+    }
+
+    // Node paths are already lexically normalized (and lower-cased on Windows), so deriving the include name only
+    // requires removing the source-root prefix. Keep the separator check: a plain starts_with() would incorrectly
+    // accept a sibling such as `/repo/project-other` for the source root `/repo/project`.
+    const string_view sourceRoot = srcNode->filePath;
+    const string_view sourcePath = node->filePath;
+    size_t relativeStart = sourceRoot.size();
+    const bool rootEndsInSeparator = !sourceRoot.empty() && sourceRoot.back() == slashc;
+    if (!sourcePath.starts_with(sourceRoot) || sourcePath.size() <= relativeStart ||
+        (!rootEndsInSeparator && sourcePath[relativeStart] != slashc))
+    {
+        printErrorMessage(FORMAT("Adaptive-unity source is outside the project source root.\nTarget: {}\n"
+                                 "Source root: {}\nSource: {}",
+                                 name, srcNode->filePath, node->filePath));
+    }
+    relativeStart += !rootEndsInSeparator;
+    const string_view includeName = sourcePath.substr(relativeStart);
+    if (includeName.contains('"'))
+    {
+        printErrorMessage(FORMAT("Adaptive-unity include path contains a quote.\nSource: {}", node->filePath));
+    }
+    return includeName;
+}
+
+void CppTarget::getObjectFiles(std::pmr::vector<Node *> &objectNodes_, const bool includeRequiredProducers) const
+{
+    ObjectFileProducer::getObjectFiles(objectNodes_, includeRequiredProducers);
+
     for (const CppMod *objectFile : modFileDeps)
     {
-        objectFiles->emplace_back(objectFile);
+        objectNodes_.insert(objectNodes_.end(), objectFile->objectNodes.begin(), objectFile->objectNodes.end());
     }
 
     for (const CppMod *objectFile : imodFileDeps)
     {
-        objectFiles->emplace_back(objectFile);
+        objectNodes_.insert(objectNodes_.end(), objectFile->objectNodes.begin(), objectFile->objectNodes.end());
     }
 
     for (const CppSrc *objectFile : srcFileDeps)
     {
-        objectFiles->emplace_back(objectFile);
+        objectNodes_.insert(objectNodes_.end(), objectFile->objectNodes.begin(), objectFile->objectNodes.end());
     }
 }
 
 void CppTarget::populateTransitiveProperties()
 {
-    if constexpr (bsMode == BSMode::BUILD)
+    FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
     {
-        for (const uint32_t targetIndex : cachedReqDeps)
+        if (!dependency.isOpDependency() || !producer->isCppTarget)
         {
-            CppTarget *req = static_cast<CppTarget *>(bTargetCaches[targetIndex].bTarget);
-
-            if (configuration->evaluate(IsCppMod::NO) || !useIPC)
-            {
-                for (const InclNode &inclNode : req->useReqIncls)
-                {
-                    // Configure-time check.
-                    actuallyAddInclude(false, inclNode.node, true, false);
-                    reqIncls.emplace_back(inclNode);
-                }
-            }
-            reqCompilerFlags += req->useReqCompilerFlags;
-            for (const Define &define : req->useReqCompileDefinitions)
-            {
-                reqCompileDefinitions.emplace(define);
-            }
+            continue;
         }
-
-        return;
-    }
-
-    for (CppTarget *cppTarget : reqDeps)
-    {
+        auto *cppTarget = static_cast<CppTarget *>(producer);
         if (configuration->evaluate(IsCppMod::NO) || !useIPC)
         {
             for (const InclNode &inclNode : cppTarget->useReqIncls)
@@ -349,7 +422,21 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
             return;
         }
     }
-    srcFileDeps.emplace_back(new CppSrc(this, node, CppModType::CPP_SRC));
+    if (std::ranges::find(adaptiveSourceNodes, node) != adaptiveSourceNodes.end())
+    {
+        printErrorMessage(
+            FORMAT("Source file was added more than once.\nTarget: {}\nSource file: {}", name, node->filePath));
+    }
+
+    if (jumboBuild == JumboBuild::YES && sourceTypeOf(node->filePath) == SourceType::CPP)
+    {
+        adaptiveSourceNodes.emplace_back(const_cast<Node *>(node));
+    }
+    else
+    {
+        CppSrc *source = findExistingCompileUnit(*this, *node, CppModType::CPP_SRC);
+        srcFileDeps.emplace_back(source != nullptr ? source : new CppSrc(this, node, CppModType::CPP_SRC));
+    }
 }
 
 string CppTarget::getExportNameFromFirstLine(const Node *node)
@@ -424,7 +511,26 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
                 return;
             }
         }
-        modFileDeps.emplace_back(new CppMod(this, node, CppModType::PRIMARY_IMPLEMENTATION));
+        if (std::ranges::find(adaptiveSourceNodes, node) != adaptiveSourceNodes.end())
+        {
+            printErrorMessage(FORMAT("Module implementation file was added more than once.\nTarget: {}\n"
+                                     "Module file: {}",
+                                     name, node->filePath));
+        }
+        if (jumboBuild == JumboBuild::YES && sourceTypeOf(node->filePath) == SourceType::CPP)
+        {
+            adaptiveSourceNodes.emplace_back(const_cast<Node *>(node));
+            if (useIPC)
+            {
+                addHeaderFile(getAdaptiveIncludeName(node), node, true, false);
+            }
+        }
+        else
+        {
+            CppSrc *source = findExistingCompileUnit(*this, *node, CppModType::PRIMARY_IMPLEMENTATION);
+            modFileDeps.emplace_back(source != nullptr ? static_cast<CppMod *>(source)
+                                                       : new CppMod(this, node, CppModType::PRIMARY_IMPLEMENTATION));
+        }
     }
     else
     {
@@ -490,13 +596,13 @@ void CppTarget::populateNameMappingsAndNodesType()
                 const HfOrCppMod local = it->second[0];
                 if (hfOrCppMod.type == FileType::HEADER_FILE)
                 {
-                    tried = "CppMod " + hfOrCppMod.data.cppMod->node->filePath;
-                    alreadyAdded = "CppMod " + local.data.cppMod->node->filePath;
+                    tried = "Header-File " + hfOrCppMod.data.node->filePath;
+                    alreadyAdded = "Header-File " + local.data.node->filePath;
                 }
                 else
                 {
-                    tried = "Header-File " + hfOrCppMod.data.node->filePath;
-                    alreadyAdded = "Header-File " + local.data.node->filePath;
+                    tried = "CppMod " + hfOrCppMod.data.cppMod->node->filePath;
+                    alreadyAdded = "CppMod " + local.data.cppMod->node->filePath;
                 }
 
                 printErrorMessage(FORMAT("Header logical name maps to multiple files.\nConfiguration: {}\n"
@@ -533,8 +639,13 @@ void CppTarget::populateNameMappingsAndNodesType()
         }
     }
 
-    for (CppTarget *t : reqDeps)
+    FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
     {
+        if (!dependency.isOpDependency() || !producer->isCppTarget)
+        {
+            continue;
+        }
+        auto *t = static_cast<CppTarget *>(producer);
         // todo
         // failure error message improvement. should provide complete info and also specify the req cpp-target
         // as well.
@@ -739,7 +850,7 @@ void CppTarget::makeHeaderUnitHeaderFile(const string &includeName, bool addInRe
     addHeaderFile(includeName, headerNode, addInReq, addInUseReq);
 }
 
-void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq, const bool addInUseReq)
+void CppTarget::removeHeaderFile(const string_view includeName, const bool addInReq, const bool addInUseReq)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -949,7 +1060,7 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
     }
 }
 
-void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile, const bool addInReq,
+void CppTarget::addHeaderFile(const string_view includeName, const Node *headerFile, const bool addInReq,
                               const bool addInUseReq)
 {
     string *p = new string(includeName);
@@ -1394,18 +1505,6 @@ void CppTarget::setCommandHashes()
         return hashCommand(configuration->assemblyCompileCommand, assemblyHash, assemblyDone);
     };
 
-    auto sourceTypeOf = [](const std::string_view path) -> SourceType {
-        if (path.ends_with(".c"))
-        {
-            return SourceType::C;
-        }
-        if (path.ends_with(".S") || path.ends_with(".s"))
-        {
-            return SourceType::ASSEMBLY;
-        }
-        return SourceType::CPP;
-    };
-
     for (CppSrc *srcFileDep : srcFileDeps)
     {
         srcFileDep->sourceType = sourceTypeOf(srcFileDep->node->filePath);
@@ -1430,35 +1529,29 @@ void CppTarget::setCommandHashes()
 
 void CppTarget::completeRoundOne()
 {
+    hasObjectFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty() ||
+                     !adaptiveSourceNodes.empty() || !prebuiltObjects.empty();
+    ObjectFileProducer::completeRoundOne();
+
     if constexpr (bsMode == BSMode::BUILD)
     {
         populateTransitiveProperties();
         setCommandHashes();
+        connectBeforeTarget();
         return;
     }
 
     writeBigHeaderUnits();
-    populateReqAndUseReqDeps();
     populateNameMappingsAndNodesType();
     if (configuration->evaluate(UseConfigurationScope::NO))
     {
         setHeaderFileStatusChanged(false);
     }
-    populateTransitiveProperties();
-    setCommandHashes();
-    return;
 }
 
 void CppTarget::writeConfigCacheAtConfigTime(string &buffer)
 {
-    writeUint32(buffer, reqDeps.size());
-    for (const CppTarget *r : reqDeps)
-    {
-        writeUint32(buffer, r->cacheIndex);
-    }
-
-    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
-    writeBool(buffer, hasObjFiles);
+    ObjectFileProducer::writeConfigCacheAtConfigTime(buffer);
 
     writeUint32(buffer, srcFileDeps.size());
     for (const CppSrc *source : srcFileDeps)
@@ -1470,6 +1563,18 @@ void CppTarget::writeConfigCacheAtConfigTime(string &buffer)
     for (const CppMod *cppMod : modFileDeps)
     {
         writeNode(buffer, cppMod->node);
+    }
+
+    writeUint32(buffer, adaptiveSourceNodes.size());
+    for (const Node *node : adaptiveSourceNodes)
+    {
+        writeNode(buffer, node);
+    }
+
+    writeUint32(buffer, adaptiveGroupStarts.size());
+    for (const uint32_t start : adaptiveGroupStarts)
+    {
+        writeUint32(buffer, start);
     }
 
     writeUint32(buffer, imodFileDeps.size());
@@ -1498,6 +1603,8 @@ void CppTarget::writeConfigCacheAtConfigTime(string &buffer)
         writeHeaderFilesAtConfigTime(buffer, reqHeaderNameMapping);
         writeHeaderFilesAtConfigTime(buffer, useReqHeaderNameMapping);
     }
+
+    writeBool(buffer, beforeTarget != nullptr);
 }
 
 void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModVec, const bool calledFromConfiguration)
@@ -1606,15 +1713,9 @@ void CppTarget::readConfigCacheAtBuildTime()
     const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
-    uint32_t bytesRead = 0;
+    uint32_t bytesRead = configCacheRead;
 
     RealBTarget &rb = realBTargets[0];
-
-    const uint32_t reqVecSize = readUint32(ptr, bytesRead);
-    cachedReqDeps = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), reqVecSize};
-    bytesRead += 4 * reqVecSize;
-
-    hasObjectFiles = readBool(ptr, bytesRead);
 
     const uint32_t sourceSize = readUint32(ptr, bytesRead);
     srcFileDeps.reserve(sourceSize);
@@ -1632,6 +1733,20 @@ void CppTarget::readConfigCacheAtBuildTime()
         CppMod *cppMod = new CppMod(this, readHalfNode(ptr, bytesRead), CppModType::PRIMARY_IMPLEMENTATION);
         modFileDeps.emplace_back(cppMod);
         rb.addDep<BTargetType::CPP_MOD>(&cppMod->realBTargets[0]);
+    }
+
+    const uint32_t adaptiveSize = readUint32(ptr, bytesRead);
+    adaptiveSourceNodes.reserve(adaptiveSize);
+    for (uint32_t i = 0; i < adaptiveSize; ++i)
+    {
+        adaptiveSourceNodes.emplace_back(readHalfNode(ptr, bytesRead));
+    }
+
+    const uint32_t adaptiveGroupCount = readUint32(ptr, bytesRead);
+    adaptiveGroupStarts.reserve(adaptiveGroupCount);
+    for (uint32_t i = 0; i < adaptiveGroupCount; ++i)
+    {
+        adaptiveGroupStarts.emplace_back(readUint32(ptr, bytesRead));
     }
 
     const uint32_t imodSize = readUint32(ptr, bytesRead);
@@ -1697,10 +1812,16 @@ void CppTarget::readConfigCacheAtBuildTime()
         }
     }
 
+    if (readBool(ptr, bytesRead))
+    {
+        getOrCreateBeforeTarget();
+    }
+
     if (bytesRead != configCache.size())
     {
         HMAKE_HMAKE_INTERNAL_ERROR
     }
+    configCacheRead = bytesRead;
 }
 
 string CppTarget::getPrintName() const
@@ -1745,7 +1866,7 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
     auto addNewFile = [&](const auto &k) {
         if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(regexStr)))
         {
-            Node *node = Node::getNodeNonNormalized(k.path().string(), true);
+            const Node *node = Node::getNode(k);
             if (assignToCppSrcs)
             {
                 actuallyAddSourceFileConfigTime(node);
@@ -1778,17 +1899,20 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
     }
 }
 
-CppSrc &CppTarget::getCppSrc(const string &str)
+BTarget &CppTarget::getCppSrc(const string &str)
 {
-    const string normalized = getNormalizedPath(str);
-    for (CppSrc *cppSrc : srcFileDeps)
+    Node *node = Node::getNodeNonNormalized(str, true);
+    if (const auto source = std::ranges::find(srcFileDeps, node, [](const CppSrc *cppSrc) { return cppSrc->node; });
+        source != srcFileDeps.end())
     {
-        if (compareStringsFromEnd(cppSrc->node->filePath, normalized))
-        {
-            return *cppSrc;
-        }
+        return **source;
+    }
+    if (std::ranges::find(adaptiveSourceNodes, node) != adaptiveSourceNodes.end())
+    {
+        return getOrCreateAdaptiveManager();
     }
     printErrorMessage(FORMAT("Source file is not registered with the target.\nTarget: {}\nSource file: {}", name, str));
+    std::unreachable();
 }
 
 CppMod &CppTarget::getCppInterfaceModule(const string &str)
@@ -1810,23 +1934,137 @@ CppMod &CppTarget::getCppInterfaceModule(const string &str)
     std::unreachable();
 }
 
-CppMod &CppTarget::getCppModule(const string &str)
+BTarget &CppTarget::getCppModule(const string &str)
 {
-    const string normalized = getNormalizedPath(str);
-    for (CppMod *cppMod : modFileDeps)
+    Node *node = Node::getNodeNonNormalized(str, true);
+    if (const auto module = std::ranges::find(modFileDeps, node, [](const CppMod *cppMod) { return cppMod->node; });
+        module != modFileDeps.end())
     {
-        if (!cppMod)
-        {
-            continue;
-        }
-        if (compareStringsFromEnd(cppMod->node->filePath, normalized))
-        {
-            return *cppMod;
-        }
+        return **module;
+    }
+    if (std::ranges::find(adaptiveSourceNodes, node) != adaptiveSourceNodes.end())
+    {
+        return getOrCreateAdaptiveManager();
     }
     printErrorMessage(
         FORMAT("Module implementation is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
     std::unreachable();
+}
+
+CppTarget &CppTarget::makeJumboToNormal(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = source.resolve(true);
+        const JumboBuild previousJumboBuild = jumboBuild;
+        jumboBuild = JumboBuild::NO;
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeModuleFile(node);
+            actuallyAddModuleFileConfigTime(node, "");
+        }
+        else
+        {
+            removeSourceFile(node);
+            actuallyAddSourceFileConfigTime(node);
+        }
+        jumboBuild = previousJumboBuild;
+    }
+    return *this;
+}
+
+CppTarget &CppTarget::makeNormalToJumbo(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = source.resolve(true);
+        if (sourceTypeOf(node->filePath) != SourceType::CPP)
+        {
+            printErrorMessage(FORMAT("Source does not have an eligible C++ extension.\nTarget: {}\nSource: {}", name,
+                                     node->filePath));
+        }
+
+        const JumboBuild previousJumboBuild = jumboBuild;
+        jumboBuild = JumboBuild::YES;
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeModuleFile(node);
+            actuallyAddModuleFileConfigTime(node, "");
+        }
+        else
+        {
+            removeSourceFile(node);
+            actuallyAddSourceFileConfigTime(node);
+        }
+        jumboBuild = previousJumboBuild;
+    }
+    return *this;
+}
+
+CppTarget &CppTarget::removeSourceFile(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = source.resolve(true);
+        if (const auto it = std::ranges::find(srcFileDeps, node, [](const CppSrc *unit) { return unit->node; });
+            it != srcFileDeps.end())
+        {
+            srcFileDeps.erase(it);
+            return *this;
+        }
+        if (const auto it = std::ranges::find(adaptiveSourceNodes, node); it != adaptiveSourceNodes.end())
+        {
+            const uint32_t removedIndex = std::distance(adaptiveSourceNodes.begin(), it);
+            adaptiveSourceNodes.erase(it);
+            for (uint32_t &start : adaptiveGroupStarts)
+            {
+                start -= start > removedIndex;
+            }
+            std::erase_if(adaptiveGroupStarts,
+                          [this](const uint32_t start) { return start == 0 || start >= adaptiveSourceNodes.size(); });
+            adaptiveGroupStarts.erase(std::unique(adaptiveGroupStarts.begin(), adaptiveGroupStarts.end()),
+                                      adaptiveGroupStarts.end());
+            return *this;
+        }
+        printErrorMessage(
+            FORMAT("Source file is not registered with the target.\nTarget: {}\nSource: {}", name, node->filePath));
+    }
+    return *this;
+}
+
+CppTarget &CppTarget::removeModuleFile(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = source.resolve(true);
+        if (const auto it = std::ranges::find(modFileDeps, node, [](const CppMod *unit) { return unit->node; });
+            it != modFileDeps.end())
+        {
+            modFileDeps.erase(it);
+            return *this;
+        }
+        if (const auto it = std::ranges::find(adaptiveSourceNodes, node); it != adaptiveSourceNodes.end())
+        {
+            if (useIPC)
+            {
+                removeHeaderFile(getAdaptiveIncludeName(node), true, false);
+            }
+            const uint32_t removedIndex = std::distance(adaptiveSourceNodes.begin(), it);
+            adaptiveSourceNodes.erase(it);
+            for (uint32_t &start : adaptiveGroupStarts)
+            {
+                start -= start > removedIndex;
+            }
+            std::erase_if(adaptiveGroupStarts,
+                          [this](const uint32_t start) { return start == 0 || start >= adaptiveSourceNodes.size(); });
+            adaptiveGroupStarts.erase(std::unique(adaptiveGroupStarts.begin(), adaptiveGroupStarts.end()),
+                                      adaptiveGroupStarts.end());
+            return *this;
+        }
+        printErrorMessage(FORMAT("Module implementation is not registered with the target.\nTarget: {}\nSource: {}",
+                                 name, node->filePath));
+    }
+    return *this;
 }
 
 CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, const bool addInUseReq)
@@ -1952,9 +2190,8 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
         }
     }
 
-    // Following set is needed because otherwise InclNode propogated from other reqDeps won't have ordering,
-    // because reqDeps in DS is set. Because of weak ordering this will hurt the caching. Now,
-    // reqIncls can be made set, but this is not done to maintain specification order for include-dirs
+    // Keep include directories in deterministic specification/propagation order. A set would remove duplicates but
+    // would also make the generated command's order dependent on its container ordering.
 
     // I think ideally this should not be support this. A same header-file should not present in more than one
     // header-file.
@@ -1975,18 +2212,13 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
 string CppTarget::getDependenciesString() const
 {
     string deps;
-    if constexpr (bsMode == BSMode::BUILD)
+    FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
     {
-        for (const uint32_t targetIndex : cachedReqDeps)
+        if (!dependency.isOpDependency() || !producer->isCppTarget)
         {
-            const CppTarget *req = static_cast<CppTarget *>(bTargetCaches[targetIndex].bTarget);
-            deps += req->name + '\n';
+            continue;
         }
-        return deps;
-    }
-
-    for (CppTarget *cppTarget : reqDeps)
-    {
+        const auto *cppTarget = static_cast<const CppTarget *>(producer);
         deps += cppTarget->name + '\n';
     }
     return deps;
@@ -1995,41 +2227,7 @@ string CppTarget::getDependenciesString() const
 void CppTarget::verifyConfigCache(const string_view configCache) const
 {
     uint32_t bytesRead = 0;
-
-    const uint32_t cachedReqDepsSize = readUint32(configCache.data(), bytesRead);
-    if (reqDeps.size() != cachedReqDepsSize)
-    {
-        printErrorMessage(FORMAT("Configuration cache verification failed: dependency count mismatch.\nTarget: "
-                                 "{}\nCurrent count: {}\nCached count: {}",
-                                 getPrintName(), reqDeps.size(), cachedReqDepsSize));
-    }
-
-    uint32_t reqDepsCount = 0;
-    for (const CppTarget *r : reqDeps)
-    {
-        if (const uint32_t cachedCacheIndex = readUint32(configCache.data(), bytesRead);
-            r->cacheIndex != cachedCacheIndex)
-        {
-            printErrorMessage(
-                FORMAT("Configuration cache verification failed: dependency cache index mismatch.\nTarget: "
-                       "{}\nDependency position: {}\nCurrent index: {}\nCached index: {}",
-                       getPrintName(), reqDepsCount, r->cacheIndex, cachedCacheIndex));
-        }
-        ++reqDepsCount;
-    }
-
-    for (uint32_t i = 0; i < cachedReqDepsSize; ++i)
-    {
-    }
-
-    const bool cachedHasObjFiles = readBool(configCache.data(), bytesRead);
-    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
-    if (hasObjFiles != cachedHasObjFiles)
-    {
-        printErrorMessage(FORMAT("Configuration cache verification failed: object-file flag mismatch.\nTarget: "
-                                 "{}\nCurrent value: {}\nCached value: {}",
-                                 getPrintName(), hasObjFiles, cachedHasObjFiles));
-    }
+    verifyObjectFileProducerConfigCache(configCache, bytesRead);
 
     const uint32_t cachedSrcFileDepsSize = readUint32(configCache.data(), bytesRead);
     if (srcFileDeps.size() != cachedSrcFileDepsSize)
@@ -2070,6 +2268,45 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
                                      getPrintName(), i,
                                      modFileDeps[i]->node ? modFileDeps[i]->node->filePath : "<null>",
                                      cachedNode ? cachedNode->filePath : "<null>"));
+        }
+    }
+
+    const uint32_t cachedAdaptiveSourceNodesSize = readUint32(configCache.data(), bytesRead);
+    if (adaptiveSourceNodes.size() != cachedAdaptiveSourceNodesSize)
+    {
+        printErrorMessage(FORMAT("Configuration cache verification failed: adaptive-source count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
+                                 getPrintName(), adaptiveSourceNodes.size(), cachedAdaptiveSourceNodesSize));
+    }
+
+    for (uint32_t i = 0; i < cachedAdaptiveSourceNodesSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        if (i < adaptiveSourceNodes.size() && adaptiveSourceNodes[i] != cachedNode)
+        {
+            printErrorMessage(FORMAT("Configuration cache verification failed: adaptive-source path mismatch.\n"
+                                     "Target: {}\nSource position: {}\nCurrent path: {}\nCached path: {}",
+                                     getPrintName(), i,
+                                     adaptiveSourceNodes[i] ? adaptiveSourceNodes[i]->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
+        }
+    }
+
+    const uint32_t cachedAdaptiveGroupCount = readUint32(configCache.data(), bytesRead);
+    if (adaptiveGroupStarts.size() != cachedAdaptiveGroupCount)
+    {
+        printErrorMessage(FORMAT("Configuration cache verification failed: adaptive-group count mismatch.\nTarget: "
+                                 "{}\nCurrent count: {}\nCached count: {}",
+                                 getPrintName(), adaptiveGroupStarts.size(), cachedAdaptiveGroupCount));
+    }
+    for (uint32_t i = 0; i < cachedAdaptiveGroupCount; ++i)
+    {
+        const uint32_t cachedStart = readUint32(configCache.data(), bytesRead);
+        if (i < adaptiveGroupStarts.size() && adaptiveGroupStarts[i] != cachedStart)
+        {
+            printErrorMessage(FORMAT("Configuration cache verification failed: adaptive-group boundary mismatch.\n"
+                                     "Target: {}\nBoundary position: {}\nCurrent index: {}\nCached index: {}",
+                                     getPrintName(), i, adaptiveGroupStarts[i], cachedStart));
         }
     }
 
@@ -2229,6 +2466,13 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         verifyHeaderNameMapping(useReqHeaderNameMapping, "useReqHeaderNameMapping");
     }
 
+    const bool cachedHasBeforeTarget = readBool(configCache.data(), bytesRead);
+    if (cachedHasBeforeTarget != (beforeTarget != nullptr))
+    {
+        printErrorMessage(FORMAT("Configuration cache verification failed: before-target presence mismatch.\n"
+                                 "Target: {}\nCurrent value: {}\nCached value: {}",
+                                 getPrintName(), beforeTarget != nullptr, cachedHasBeforeTarget));
+    }
     if (configCache.size() != bytesRead)
     {
         printErrorMessage(FORMAT("Configuration cache verification failed: entry size mismatch.\nTarget: {}\nEntry "
@@ -2248,56 +2492,61 @@ template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, const bool define
     ploat = ploat_;
     if (ploat_)
     {
-        ploat->objectFileProducers.emplace(objectFileProducer);
-        if (objectFileProducer->hasObjectFiles)
+        if (!ploat->rootObjectFileProducers.emplace(objectFileProducer).second)
         {
-            ploat->hasObjectFiles = true;
+            printErrorMessage(FORMAT("An object-file producer was registered with a link target more than once.\n"
+                                     "Link target: {}\nProducer: {}",
+                                     ploat->getPrintName(), objectFileProducer->getPrintName()));
         }
+        // PLOAT decides its round-zero object dependencies after producer round one has finalized hasObjectFiles.
+        ploat->realBTargets[1].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[1]);
+    }
 
-        if (define_.empty())
-        {
-            define = objectFileProducer->name;
-            std::ranges::transform(define, define.begin(), toupper);
-            define += "_EXPORT";
-        }
-        else
-        {
-            define = std::move(define_);
-        }
+    if (define_.empty())
+    {
+        define = objectFileProducer->name;
+        std::ranges::transform(define, define.begin(), toupper);
+        define += "_EXPORT";
+    }
+    else
+    {
+        define = std::move(define_);
+    }
 
-        // as define is initialized by name if not provided, it might include forward-slash which is not allowed in
-        // macro name. so we replace it with underscore instead.
-        for (char &c : define)
+    // as define is initialized by name if not provided, it might include forward-slash which is not allowed in
+    // macro name. so we replace it with underscore instead.
+    for (char &c : define)
+    {
+        if (c == '/')
         {
-            if (c == '/')
+            c = '_';
+        }
+    }
+    if (defines)
+    {
+        defineDllPrivate = DefineDLLPrivate::YES;
+        defineDllInterface = DefineDLLInterface::YES;
+    }
+
+    if (defineDllPrivate == DefineDLLPrivate::YES)
+    {
+        if (ploat != nullptr && ploat->evaluate(TargetType::LIBRARY_SHARED))
+        {
+            if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
-                c = '_';
-            }
-        }
-        if (defines)
-        {
-            defineDllPrivate = DefineDLLPrivate::YES;
-            defineDllInterface = DefineDLLInterface::YES;
-        }
-
-        if (defineDllPrivate == DefineDLLPrivate::YES)
-        {
-            if (ploat->evaluate(TargetType::LIBRARY_SHARED))
-            {
-                if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
-                {
-                    ptr->reqCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
-                }
-                else
-                {
-                    ptr->reqCompileDefinitions.emplace(
-                        Define(define, "\"__attribute__ ((visibility (\\\"default\\\")))\""));
-                }
+                ptr->reqCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
             }
             else
             {
-                ptr->reqCompileDefinitions.emplace(Define(define, ""));
+                ptr->reqCompileDefinitions.emplace(
+                    Define(define, "\"__attribute__ ((visibility (\\\"default\\\")))\""));
             }
+        }
+        else
+        {
+            // Object-only and static targets have no DLL boundary, but source/header declarations still need the
+            // API macro to exist.
+            ptr->reqCompileDefinitions.emplace(Define(define, ""));
         }
     }
 }

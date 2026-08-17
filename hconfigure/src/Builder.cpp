@@ -1,7 +1,6 @@
 
 #include "Builder.hpp"
 #include "Cache.hpp"
-#include "CppMod.hpp"
 #include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
@@ -77,8 +76,8 @@ static uint64_t createMultiplex()
 
 Builder::Builder()
 {
-    // Construct the graph before inspecting filesystem state: configuration determines which nodes must be stat'ed or
-    // hashed for round 0's incremental decisions.
+    // Finish round-one graph construction before the general filesystem snapshot. Adaptive source metadata was
+    // already refreshed during post-configuration so round one can partition by current file size.
     round = 1;
     executeRoundOne();
     if (errorHappenedInRoundMode)
@@ -91,7 +90,7 @@ Builder::Builder()
         return;
     }
     // The graph now knows the complete initial node set, so snapshot its relevant file state in parallel.
-    checkNodes(true);
+    checkNodes();
     delete[] BTarget::realBTargetsGlobal[1].data();
     BTarget::realBTargetsGlobal[1] = {};
     --round;
@@ -474,8 +473,14 @@ void Builder::executeRoundZero()
 
                 const string buildCache = getBuildCache();
                 writeNodesCacheIfNewNodesAdded();
-                writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                            buildCache);
+                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // Preserve the previous cache in that case. Replacing it with an empty file makes the next
+                // configure/build invocation interpret missing records as a serialized build cache.
+                if (!buildCache.empty())
+                {
+                    writeBufferToCompressedFile(
+                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                }
                 std::_Exit(EXIT_SUCCESS);
             }
             if (eventFd < 0 || static_cast<size_t>(eventFd) >= eventData.size())
@@ -744,40 +749,25 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
     }
 }
 
-void Builder::checkNodes(const bool isFirstTime)
+void Builder::checkNodes()
 {
     vector<Node *> statNodes;
     vector<Node *> hashNodes;
     statNodes.reserve(Node::idCount);
     hashNodes.reserve(Node::idCount);
 
-    if (isFirstTime)
+    // statCompleted/hashCompleted distinguish the initial snapshot from later calls. The same pass therefore also
+    // picks up headers and other nodes discovered while the build is running.
+    for (uint32_t i = 0; i < Node::idCount; ++i)
     {
-        for (uint32_t i = 0; i < Node::idCount; ++i)
+        Node *node = nodeIndices[i];
+        if (!node->statCompleted && (node->doStatFile || node->doHashFile))
         {
-            Node *node = nodeIndices[i];
-            if (node->doStatFile || node->doHashFile)
-            {
-                statNodes.emplace_back(node);
-            }
-            if (node->doHashFile)
-            {
-                hashNodes.emplace_back(node);
-            }
+            statNodes.emplace_back(node);
         }
-    }
-    else
-    {
-        // Before persisting the cache, finish nodes discovered during the build, such as headers reported by a compiler
-        // after the initial snapshot.
-
-        for (uint32_t i = 0; i < Node::idCount; ++i)
+        if (node->doHashFile && !node->hashCompleted)
         {
-            if (Node *node = nodeIndices[i]; node->doHashFile && !node->hashCompleted)
-            {
-                statNodes.emplace_back(node);
-                hashNodes.emplace_back(node);
-            }
+            hashNodes.emplace_back(node);
         }
     }
 
@@ -786,11 +776,9 @@ void Builder::checkNodes(const bool isFirstTime)
         return n ? n : 1;
     }();
 
-    // Stat work is cheap and regular, so contiguous static chunks minimize coordination overhead.
-    if (statNodes.empty())
-    {
-        return;
-    }
+    // Stat work is cheap and regular, so contiguous static chunks minimize coordination overhead. Some hash nodes,
+    // notably adaptive-unity sources, were already stat'ed before round one and bypass this block.
+    if (!statNodes.empty())
     {
         const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
         vector<std::span<Node *>> chunks;

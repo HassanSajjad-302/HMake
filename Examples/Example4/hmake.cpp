@@ -11,6 +11,12 @@ void configurationSpecification(Configuration &config)
     catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
     config.getCppExeDSC("Animal-Shared").privateDeps(catShared).getSourceTarget().sourceFiles("main.cpp");
+
+    // No Cat archive/shared library is created. Animal's DSC consumes Cat's object producer directly.
+    DSC<CppTarget> &catObject = config.getCppObjectDSC("Cat-Object", true, "CAT_EXPORT");
+    catObject.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
+
+    config.getCppExeDSC("Animal-Object").privateDeps(catObject).getSourceTarget().sourceFiles("main.cpp");
 }
 
 void buildSpecification()

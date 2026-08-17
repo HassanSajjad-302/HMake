@@ -9,6 +9,7 @@
 #include "ConfigurationAssign.hpp"
 #include "CppMod.hpp"
 #include "CppTarget.hpp"
+#include "IspcTarget.hpp"
 #include "ue.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"

@@ -107,6 +107,24 @@ enum class BigHeaderUnit : bool
     YES,
 };
 
+/// Places eligible C++ implementation files into build-time generated jumbo translation units.
+enum class JumboBuild : bool
+{
+    NO,
+    YES,
+};
+
+/// Source-control query used by adaptive jumbo builds to keep locally edited files standalone.
+enum class WorkingSetProvider : uint8_t
+{
+    NONE,
+    GIT,
+    PERFORCE,
+};
+
+/// Process-wide because every configuration in one invocation observes the same repository working set.
+inline WorkingSetProvider adaptiveBuildWorkingSetProvider = WorkingSetProvider::NONE;
+
 enum class TreatHUAsHeaderFile : bool
 {
     NO,
@@ -126,6 +144,14 @@ enum class UseIPC : bool
 };
 
 enum class UseConfigurationScope : bool
+{
+    NO,
+    YES,
+};
+
+/// Runs this configuration's initialization/specification even when the active build directory is outside it.
+/// This is useful when another configuration consumes one of its generated outputs.
+enum class AlwaysConfigureThis : bool
 {
     NO,
     YES,
@@ -216,6 +242,11 @@ class Configuration : public BTarget
     string cppCompileCommand;
     string cCompileCommand;
     string assemblyCompileCommand;
+    /// ISPC policy is shared by every ISPC producer in this configuration. Targets append only their effective
+    /// include paths and definitions to this invariant prefix.
+    IspcCompilerFeatures ispcCompilerFeatures;
+    string ispcCompileCommand;
+    string ispcObjectCommandSuffix;
     PrebuiltLinkerFeatures ploatFeatures;
     LinkerFeatures linkerFeatures;
     string linkCommand;
@@ -225,6 +256,10 @@ class Configuration : public BTarget
     string linkDependenciesPrefix;
     string linkCommandSuffix;
     string archiveCommand;
+
+    /// Commands at or below this size are launched directly. Larger compile/link/archive commands use a response
+    /// file in the owning CppTarget/LOAT build directory. Zero disables automatic response files.
+    uint64_t responseFileThreshold = os == OS::NT ? 24 * 1024 : 128 * 1024;
 
     /// Standard-library dependency automatically attached by high-level target factories when enabled.
     DSC<CppTarget> *stdCppTarget = nullptr;
@@ -239,10 +274,14 @@ class Configuration : public BTarget
     IsCppMod isCppMod = IsCppMod::NO;
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
+    JumboBuild jumboBuild = JumboBuild::NO;
+    /// Approximate source-byte budget for each generated jumbo translation unit.
+    uint64_t jumboFileSize = 384 * 1024;
     TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
     UseIPC useIPC = UseIPC::YES;
     UseConfigurationScope useConfigurationScope = UseConfigurationScope::NO;
+    AlwaysConfigureThis alwaysConfigureThis = AlwaysConfigureThis::NO;
     StandAloneCommand standAloneCommand = StandAloneCommand::NO;
     DuplicationWarning duplicationWarning = DuplicationWarning::NO;
 
@@ -287,7 +326,7 @@ class Configuration : public BTarget
     /// @}
 
     /// Adds the configured standard C++ target when `AssignStandardCppTarget::YES`.
-    CppTarget &addStdCppDep(CppTarget &target);
+    CppTarget &addStdCppDep(CppTarget &target) const;
     DSC<CppTarget> &addStdDSCCppDep(DSC<CppTarget> &target) const;
 
     // CSourceTarget &GetCPT();
@@ -399,7 +438,7 @@ class Configuration : public BTarget
     /// Constructs a named configuration. Prefer `getConfiguration()` in build specifications.
     explicit Configuration(const string &name_);
 
-    /// Finalizes integration-specific cache state after `configurationSpecification()` returns.
+    /// Finalizes target state that depends on the complete configuration specification.
     void postConfigurationSpecification() const;
 
     /// Resolves tool commands and creates the default standard C++ target.
@@ -474,6 +513,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     {
         return bigHeaderUnit == property;
     }
+    else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
+    {
+        return jumboBuild == property;
+    }
     else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
     {
         return treatHuAsHeaderFile == property;
@@ -489,6 +532,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), UseConfigurationScope>)
     {
         return useConfigurationScope == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AlwaysConfigureThis>)
+    {
+        return alwaysConfigureThis == property;
     }
     else if constexpr (std::is_same_v<decltype(property), StandAloneCommand>)
     {
@@ -506,6 +553,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
     {
         return compilerFeatures.exceptionHandling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RTTI>)
+    {
+        return compilerFeatures.rtti == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

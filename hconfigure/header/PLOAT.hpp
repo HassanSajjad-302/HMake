@@ -4,13 +4,10 @@
 
 #include "BTarget.hpp"
 #include "Features.hpp"
-#include "DepType.hpp"
+#include "ObjectFileProducer.hpp"
 #include "SpecialNodes.hpp"
-#include "gtl/include/gtl/btree.hpp"
 
 class Configuration;
-
-using gtl::node_hash_map, gtl::btree_set;
 
 // PrebuiltLinkOrArchiveTarget
 class PLOAT : public BTarget
@@ -27,7 +24,7 @@ class PLOAT : public BTarget
     Configuration &config;
     Node *outputFileNode = nullptr;
     uint32_t configCacheBytesRead = 0;
-    bool hasObjectFiles = true;
+    bool hasObjectFiles = false;
 
     string getOutputName() const;
     string getActualOutputName() const;
@@ -45,27 +42,22 @@ class PLOAT : public BTarget
     void readCacheAtBuildTime();
 
   public:
-    // Following 2 unused at BSMode::Build
-    // we need this to be ordered in setLinkCommand. order is deterministic as insertions are supposed to be always
-    // in order
-    btree_set<PLOAT *, TPointerLess<PLOAT>> reqDeps;
-    flat_hash_set<PLOAT *> useReqDeps;
+    // Configure-time semantic link closures. The facet suppresses only scheduler edges; every entry remains a linker
+    // input and is exported according to its visibility.
+    PloatDepInfoMap reqDeps;
+    PloatDepInfoMap useReqDeps;
 
-    /// TargetCache::cacheIndex of our direct and transitive dependency PLOAT. It is cached in config-cache.
-    vector<uint32_t> reqDepsVecIndices;
+    /// Packed TargetCache::cacheIndex and acyclic-path facet for direct and transitive dependency PLOATs.
+    vector<uint32_t> cachedReqDeps;
 
-    flat_hash_set<class ObjectFileProducer *> objectFileProducers;
+    /// Producers paired directly with this link target by DSC. After their round-one completion, PLOAT inspects each
+    /// root's cached semantic closure and creates the required round-zero linker-input dependencies.
+    flat_hash_set<class ObjectFileProducer *> rootObjectFileProducers;
 
     vector<LibDirNode> reqLibraryDirs;
     vector<LibDirNode> useReqLibraryDirs;
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
-
-    template <typename... U> PLOAT &publicDeps(PLOAT &ploat, U... ploats);
-    template <typename... U> PLOAT &privateDeps(PLOAT &ploat, U... ploats);
-    template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, U... ploats);
-
-    template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, U... ploats);
 
     void populateReqAndUseReqDeps();
     string getPrintName() const override;
@@ -85,70 +77,5 @@ template <typename T> bool PLOAT::evaluate(T property) const
 }
 
 bool operator<(const PLOAT &lhs, const PLOAT &rhs);
-
-template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
-{
-    deps(DepType::INTERFACE, ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return interfaceDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
-{
-    deps(DepType::PRIVATE, ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return privateDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
-{
-    deps(DepType::PUBLIC, ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return publicDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, U... ploats)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        BTarget *us = static_cast<BTarget *>(this);
-        BTarget *ourDep = static_cast<BTarget *>(&ploat);
-
-        if (depType == DepType::PUBLIC)
-        {
-            reqDeps.emplace(&ploat);
-            useReqDeps.emplace(&ploat);
-            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
-        }
-        else if (depType == DepType::PRIVATE)
-        {
-            reqDeps.emplace(&ploat);
-            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
-        }
-        else
-        {
-            useReqDeps.emplace(&ploat);
-            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
-        }
-    }
-    else
-    {
-    }
-
-    if constexpr (sizeof...(ploats))
-    {
-        return deps(depType, ploats...);
-    }
-    return *this;
-}
 
 #endif // HMAKE_PLOAT_HPP

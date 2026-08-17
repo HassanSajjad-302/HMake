@@ -529,11 +529,11 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
 {
     if constexpr (std::is_same_v<decltype(dep_), BoostCppTarget &>)
     {
-        mainTarget.deps(depType, dep_.mainTarget);
+        mainTarget.deps(depType, true, true, dep_.mainTarget);
     }
     else if constexpr (std::is_same_v<DSC<CppTarget> &, decltype(dep_)>)
     {
-        mainTarget.deps<CppTarget>(depType, dep_);
+        mainTarget.deps<CppTarget>(depType,true, true, dep_);
     }
     else
     {
@@ -555,11 +555,12 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *my
     {
         CppTarget &t =
             configuration->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), myBuildDir, string(name));
-        t.addCompileDependency(DepType::PRIVATE, mainTarget.getSourceTarget());
+        DSC<CppTarget> targetDsc(&t, nullptr);
+        targetDsc.privateOpDeps(mainTarget);
         t.moduleFiles(filePath);
         for (CppTarget *dep : cppTestDepsPrivate)
         {
-            t.addCompileDependency(DepType::PRIVATE, *dep);
+            targetDsc.privateOpDeps(*dep);
         }
         testOrExmple = &t;
     }

@@ -26,6 +26,8 @@
 
 using std::vector;
 
+class Node;
+
 /// Selects the C-source flavor when the compiler feature set is shared with a C target.
 enum class CSourceTargetEnum
 {
@@ -772,6 +774,39 @@ struct CppCompilerFeatures
         }
         return *this;
     }
+};
+
+/**
+ * @brief Configuration-wide ISPC toolchain and code-generation settings.
+ *
+ * The target OS, architecture, optimization, and debug settings follow ordinary
+ * `Configuration::assign()` properties. `IspcTarget` adds only the owning C++ target's
+ * finalized include paths and definitions to the command produced here.
+ */
+struct IspcCompilerFeatures
+{
+    Node *compiler = nullptr;
+    TargetOS targetOs = TargetOS::NONE;
+    Arch arch = Arch::NONE;
+    AddressModel addressModel = AddressModel::NONE;
+    ConfigType configType = ConfigType::NONE;
+    Optimization optimization = Optimization::OFF;
+    DebugSymbols debugSymbols = DebugSymbols::ON;
+
+    /// ISPC's target vocabulary is intentionally retained as data because it evolves independently of HMake.
+    vector<string> targets;
+    /// Configuration-wide inputs exported by integrations such as UBT.
+    vector<Node *> includeDirectories;
+    vector<string> compileDefinitions;
+
+    /// Inherits unset platform/configuration values and supplies the architecture's default target set.
+    void initialize(const CppCompilerFeatures &cppFeatures);
+    void setConfigType(ConfigType configType_);
+    /// Produces the compiler, target tuple, and configuration-wide compile environment.
+    string getCompileCommand() const;
+    /// Produces object-only optimization/debug arguments; header generation deliberately omits them.
+    string getObjectFlags() const;
+    string_view getObjectSuffix() const;
 };
 
 template <typename T> bool CppCompilerFeatures::evaluate(T property) const

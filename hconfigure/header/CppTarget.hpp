@@ -80,11 +80,6 @@ struct NodeOrStr
 class CppTarget : public ObjectFileProducer
 {
   public:
-    // Compile dependencies. These are unused at build time. reqDeps is ordered because setCompileCommand relies on
-    // deterministic dependency traversal.
-    btree_set<CppTarget *, TPointerLess<CppTarget>> reqDeps;
-    flat_hash_set<CppTarget *> useReqDeps;
-
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
 
@@ -125,6 +120,27 @@ class CppTarget : public ObjectFileProducer
     /// Back pointer to the Configuration
     Configuration *configuration = nullptr;
 
+    /// Snapshot of the configuration setting at target construction. This is target-local because frontends such as
+    /// UE discover sources after their decentralized specification function has returned.
+    JumboBuild jumboBuild = JumboBuild::NO;
+    uint64_t jumboFileSize = 384 * 1024;
+
+    /// Optional round-zero barrier. Ordinary non-adaptive compile units wait on it, while adaptive units wait
+    /// transitively through `adaptiveManager`.
+    BTarget *beforeTarget = nullptr;
+
+    /// Created after configuration specification when this target has adaptive sources. A file-level dependency
+    /// lookup may create it earlier because that lookup must immediately return a BTarget.
+    AdaptiveManager *adaptiveManager = nullptr;
+
+    /// Authoritative adaptive source list. The compile-unit kind is derived from configuration-wide `IsCppMod`, so
+    /// no per-source type or duplicate manager record is required.
+    vector<Node *> adaptiveSourceNodes;
+
+    /// Indices at which a new adaptive partitioning group begins. A jumbo file never crosses one of these boundaries;
+    /// frontends use this to keep generated and handwritten implementation files in separate unity files.
+    vector<uint32_t> adaptiveGroupStarts;
+
     /// Where our obj and BMI files will go
     Node *myBuildDir = nullptr;
 
@@ -140,8 +156,6 @@ class CppTarget : public ObjectFileProducer
     /// added interface header-units will become a composing header of last element of the following. Helper function
     /// CppTarget::getPublicBigHu will return the last entry of this.
     vector<CppMod *> interfaceBigHus;
-
-    span<const uint32_t> cachedReqDeps;
 
     /// Whether this is a system target. if true, header-files, header-units and include-dirs are all system. Compilers
     /// generally ignore warnings from such code.
@@ -191,16 +205,23 @@ class CppTarget : public ObjectFileProducer
     /// internal function. called in constructor.
     void initializeCppTarget(const string &name_, Node *myBuildDir_);
 
-    /// Called by LOAT.
-    void getObjectFiles(vector<const ObjectFile *> *objectFiles) const override;
+    /// Publishes only this target's compile-output nodes. LOAT owns producer traversal and uniqueness.
+    void getObjectFiles(std::pmr::vector<Node *> &objectNodes, bool includeRequiredProducers) const override;
+
+    /// Lazily creates the optional pre-compilation barrier.
+    BTarget &getOrCreateBeforeTarget();
+    /// Attaches the current ordinary/adaptive compile graph to `beforeTarget`. Repeated calls are harmless.
+    void connectBeforeTarget();
 
     void populateTransitiveProperties();
-    void addCompileDependency(DepType depType, CppTarget &dependency);
-    void populateReqAndUseReqDeps();
 
     void actuallyAddSourceFileConfigTime(const Node *node);
     static string getExportNameFromFirstLine(const Node *node);
     void actuallyAddModuleFileConfigTime(const Node *node, string exportName);
+    string_view getAdaptiveIncludeName(const Node *node) const;
+    AdaptiveManager &getOrCreateAdaptiveManager();
+    /// Starts a new jumbo partitioning group at the next adaptive source that is registered.
+    void startJumboGroup();
     void checkSameHeaderNameMapping(string_view headerName);
     void populateNameMappingsAndNodesType();
     void emplaceInHeaderNameMapping(string_view headerName, HfOrCppMod hfOrCppMod, bool addInReq);
@@ -208,9 +229,9 @@ class CppTarget : public ObjectFileProducer
     const Node *getIncludeNode(bool isHeaderFile, const string &includeName, bool addInReq, bool addInUseReq);
     void makeHeaderFileHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
     void makeHeaderUnitHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
-    void removeHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
+    void removeHeaderFile(string_view includeName, bool addInReq, bool addInUseReq);
     void removeHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
-    void addHeaderFile(const string &includeName, const Node *headerFile, bool addInReq, bool addInUseReq);
+    void addHeaderFile(string_view includeName, const Node *headerFile, bool addInReq, bool addInUseReq);
     void addHeaderUnit(const string &includeName, const Node *headerUnit, bool addInReq, bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
                                 bool addInReq, bool addInUseReq);
@@ -224,12 +245,22 @@ class CppTarget : public ObjectFileProducer
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
     void setCommandHashes();
     void readModuleMapFromDir(const string &dir);
-    CppSrc &getCppSrc(const string &str);
+    /// Returns the source compile unit, or its adaptive manager while the source is eligible for jumbo compilation.
+    /// Dependencies added to that manager become prerequisites of every selected compile unit.
+    BTarget &getCppSrc(const string &str);
     CppMod &getCppInterfaceModule(const string &str);
-    CppMod &getCppModule(const string &str);
+    /// Returns the module implementation unit, or its adaptive manager while adaptive compilation owns the source.
+    BTarget &getCppModule(const string &str);
     CppMod &getCppHeaderUnit(const string &str, bool addInReq, bool addInUseReq);
 
-    template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
+    /// Moves a source selected by a bulk source API out of adaptive jumbo compilation.
+    CppTarget &makeJumboToNormal(NodeOrStr source);
+    /// Moves an ordinary eligible compile unit into adaptive jumbo compilation.
+    CppTarget &makeNormalToJumbo(NodeOrStr source);
+    /// Removes a previously registered ordinary or adaptive C/C++ source.
+    CppTarget &removeSourceFile(NodeOrStr source);
+    /// Removes a previously registered module implementation unit.
+    CppTarget &removeModuleFile(NodeOrStr source);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-files. file-name is used as the logical-name.
@@ -1343,6 +1374,10 @@ CppTarget &CppTarget::assign(T property, Property... properties)
             reqCompileDefinitions.emplace(property);
             useReqCompileDefinitions.emplace(property);
         }
+    }
+    else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
+    {
+        jumboBuild = property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

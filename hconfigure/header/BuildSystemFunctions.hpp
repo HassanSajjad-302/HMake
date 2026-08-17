@@ -17,6 +17,7 @@
 #include <deque>
 #include <filesystem>
 #include <format>
+#include <memory_resource>
 #include <span>
 #include <string>
 #include <vector>
@@ -448,16 +449,29 @@ void lowerCaseOnWindows(char *ptr, uint64_t size);
  */
 string getNormalizedPath(path filePath);
 
-/**
- * Performs a byte-prefix containment check on paths that are already normalized.
- * This helper does not normalize its inputs or validate a path-component boundary.
- */
+/// Returns true when two normalized paths are equal or `child` is below `parent` at a path-component boundary.
 bool childInParentPathNormalized(string_view parent, string_view child);
+
+/// Returns true when an already-normalized path is inside the active configure/build directory. Compiler dependency
+/// scanners omit such generated files because their producing BTarget, rather than their content hash, controls
+/// invalidation.
+bool isPathInConfigureDirectory(string_view filePath);
 
 /// Reads an entire file into a string. The file must exist and be readable.
 string fileToString(const string &fileName);
 /// Reads an entire file into caller-provided polymorphic-allocator storage.
 void fileToString(const string &fileName, std::pmr::string &buffer);
+
+/**
+ * Leaves \p command unchanged while it fits within \p threshold. For a larger command, writes the final launched
+ * arguments (everything except argv[0]) to \p responseFile and replaces \p command with `tool @response-file`.
+ *
+ * The input command buffer is reused while creating the response file, avoiding another command-sized allocation.
+ * A zero threshold disables response files. Callers should hash the original command before calling this helper;
+ * response files change process transport, not build semantics.
+ */
+void commandWithResponseFile(std::pmr::string &command, const string &responseFile, uint64_t threshold);
+void commandWithResponseFile(string &command, const string &responseFile, uint64_t threshold);
 
 /// Reads and decompresses an HMake cache file (or reads it directly when compression is disabled).
 string readBufferFromCompressedFile(const string &fileName);

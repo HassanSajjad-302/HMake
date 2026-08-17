@@ -19,6 +19,32 @@ Configuration::Configuration(const string &name_) : BTarget(name_, false, BTarge
 
 void Configuration::postConfigurationSpecification() const
 {
+    for (CppTarget *target : cppTargets)
+    {
+        if (!target->adaptiveSourceNodes.empty())
+        {
+            if constexpr (bsMode == BSMode::CONFIGURE)
+            {
+                if (srcNode == nullptr)
+                {
+                    printErrorMessage("Adaptive unity requires a project source root (`srcNode`).");
+                }
+                // Jumbo files include sources relative to srcNode. Model that root through the ordinary public
+                // include requirements so it is serialized and propagated like every other include directory.
+                if (isCppMod == IsCppMod::NO || !target->useIPC)
+                {
+                    target->actuallyAddInclude(false, srcNode, true, true);
+                }
+            }
+            target->getOrCreateAdaptiveManager();
+        }
+    }
+
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        AdaptiveManager::prepareWorkingSet();
+    }
+
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         for (BoostCppTarget *t : boostCppTargets)
@@ -31,6 +57,9 @@ void Configuration::postConfigurationSpecification() const
 void Configuration::initialize()
 {
     cppCompileCommand = compilerFeatures.getCompileCommand();
+    ispcCompilerFeatures.initialize(compilerFeatures);
+    ispcCompileCommand = ispcCompilerFeatures.getCompileCommand();
+    ispcObjectCommandSuffix = ispcCompilerFeatures.getObjectFlags();
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         // Making sure that Custom Clang fork exists.
@@ -47,7 +76,7 @@ void Configuration::initialize()
         bigHeaderUnit = BigHeaderUnit::YES;
         useIPC = UseIPC::NO;
 
-        stdCppTarget = &getCppStaticDSC("std");
+        stdCppTarget = &getCppObjectDSC("std");
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
             if (cache.isCompilerInToolsArray)
@@ -236,11 +265,12 @@ PLOAT &Configuration::getSharedPLOAT(const string &name_, Node *myBuildDir)
     return loat;
 }
 
-CppTarget &Configuration::addStdCppDep(CppTarget &target)
+CppTarget &Configuration::addStdCppDep(CppTarget &target) const
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
     {
-        target.addCompileDependency(DepType::PRIVATE, stdCppTarget->getSourceTarget());
+        DSC targetDsc(&target, nullptr);
+        targetDsc.privateDeps(*stdCppTarget);
     }
     return target;
 }
@@ -285,32 +315,42 @@ DSC<CppTarget> &Configuration::getCppExeDSC(bool explicitBuild, Node *myBuildDir
 
 DSC<CppTarget> &Configuration::getCppTargetDSC(const string &name_, const bool defines, string define)
 {
+    if (targetType == TargetType::LIBRARY_OBJECT)
+    {
+        return getCppObjectDSC(name_, defines, std::move(define));
+    }
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC(name_, defines, std::move(define)));
+        return getCppStaticDSC(name_, defines, std::move(define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC(name_, defines, std::move(define)));
+        return getCppSharedDSC(name_, defines, std::move(define));
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
-                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             "Expected: TargetType::LIBRARY_OBJECT, TargetType::LIBRARY_STATIC, or "
+                             "TargetType::LIBRARY_SHARED\nActual value: {}",
                              name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, Node *myBuildDir, const string &name_,
                                                const bool defines, string define)
 {
+    if (targetType == TargetType::LIBRARY_OBJECT)
+    {
+        return getCppObjectDSC(explicitBuild, myBuildDir, name_, defines, std::move(define));
+    }
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC(explicitBuild, myBuildDir, name_, defines, std::move(define)));
+        return getCppStaticDSC(explicitBuild, myBuildDir, name_, defines, std::move(define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC(explicitBuild, myBuildDir, name_, defines, std::move(define)));
+        return getCppSharedDSC(explicitBuild, myBuildDir, name_, defines, std::move(define));
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
-                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             "Expected: TargetType::LIBRARY_OBJECT, TargetType::LIBRARY_STATIC, or "
+                             "TargetType::LIBRARY_SHARED\nActual value: {}",
                              name, name_, static_cast<uint8_t>(targetType)));
 }
 
@@ -347,11 +387,11 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, Node *myBu
 {
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC_P(name_, myBuildDir, defines, define));
+        return getCppStaticDSC_P(name_, myBuildDir, defines, define);
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC_P(name_, myBuildDir, defines, define));
+        return getCppSharedDSC_P(name_, myBuildDir, defines, define);
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
                              "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
@@ -527,32 +567,42 @@ DSC<CppTarget> &Configuration::getCppExeDSCNoName(bool explicitBuild, Node *myBu
 
 DSC<CppTarget> &Configuration::getCppTargetDSCNoName(const string &name_, const bool defines, string define)
 {
+    if (targetType == TargetType::LIBRARY_OBJECT)
+    {
+        return getCppObjectDSCNoName(name_, defines, std::move(define));
+    }
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSCNoName(name_, defines, std::move(define)));
+        return getCppStaticDSCNoName(name_, defines, std::move(define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSCNoName(name_, defines, std::move(define)));
+        return getCppSharedDSCNoName(name_, defines, std::move(define));
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
-                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             "Expected: TargetType::LIBRARY_OBJECT, TargetType::LIBRARY_STATIC, or "
+                             "TargetType::LIBRARY_SHARED\nActual value: {}",
                              name, name_, static_cast<uint8_t>(targetType)));
 }
 
 DSC<CppTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBuild, Node *myBuildDir, const string &name_,
                                                      const bool defines, string define)
 {
+    if (targetType == TargetType::LIBRARY_OBJECT)
+    {
+        return getCppObjectDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define));
+    }
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define)));
+        return getCppStaticDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define)));
+        return getCppSharedDSCNoName(explicitBuild, myBuildDir, name_, defines, std::move(define));
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
-                             "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",
+                             "Expected: TargetType::LIBRARY_OBJECT, TargetType::LIBRARY_STATIC, or "
+                             "TargetType::LIBRARY_SHARED\nActual value: {}",
                              name, name_, static_cast<uint8_t>(targetType)));
 }
 
@@ -589,11 +639,11 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, Node
 {
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC_PNoName(name_, myBuildDir, defines, define));
+        return getCppStaticDSC_PNoName(name_, myBuildDir, defines, define);
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, myBuildDir, defines, define));
+        return getCppSharedDSC_PNoName(name_, myBuildDir, defines, define);
     }
     printErrorMessage(FORMAT("Unsupported library target type.\nConfiguration: {}\nTarget: {}\n"
                              "Expected: TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\nActual value: {}",

@@ -110,7 +110,7 @@ class Builder
     void executeRoundZero();
 
     /// Stats and hashes files in parallel. The final pass includes files discovered while building.
-    static void checkNodes(bool isFirstTime);
+    static void checkNodes();
 
     /// Runs ready round-1 targets.
     void execute();

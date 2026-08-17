@@ -2,6 +2,7 @@
 #define HMAKE_UE_HPP
 
 #include "CppTarget.hpp"
+#include "IspcTarget.hpp"
 #include <concepts>
 #include <optional>
 #include <span>
@@ -156,17 +157,22 @@ class UeCppTarget : public CppTarget
 
     UeCppTarget(const string &hmakeName, string logicalName_, UeConfiguration *configuration);
 
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Property>
+    UeCppTarget &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
+
     void completeRoundOne() override;
 
     // UBT: ModuleRules.ConditionalAddModuleDirectory(). Ordinary module roots are
     // automatic; this is only for an exceptional additional source directory.
     // Returns false without registering anything when the directory does not exist.
-    bool conditionalAddModuleDirectory(NodeOrStr directory);
+    bool conditionalAddModuleDirectory(const NodeOrStr &directory);
 
     // UBT: ModuleRules.ShortName. UBT uses this value for intermediate paths,
     // including the existing Inc/<ShortName>/UHT directory consumed here.
     UeCppTarget &setShortName(string_view value);
 
+    // TODO(UE cycles): Remove these compatibility APIs after UE's legacy circular module graph is eliminated.
     // Temporary compatibility escape hatch for UE's legacy circular module graph.
     // These preserve compile requirements without adding scheduler edges. New code
     // should use ordinary DSC dependencies; the long-term goal is to remove the UE
@@ -188,17 +194,23 @@ class UeCppTarget : public CppTarget
     // again as independent *.gen.cpp translation units.
     std::unordered_set<string> inlinedGeneratedCppNames;
 
+    // UE source discovery creates one ISPC object producer per module when .ispc inputs are present. This stays in
+    // the UE frontend; the generic CppTarget has no ISPC-specific state.
+    IspcTarget *ispcTarget = nullptr;
+    bool ispcOutputDirectoryAdded = false;
+
+    // TODO(UE cycles): Remove both guards with the cycle-recursive round-one/selective-build workaround.
     bool roundOneCalled = false;
     bool selectiveBuildSet = false;
 
     void propagateSelectiveBuild();
     void prepareModuleInputs(bool compileSources);
     void findInputFiles(Node *moduleDirectory);
+    void addIspcSource(Node *source);
     void addDefaultIncludePaths(Node *moduleDirectory);
 
-    // Adds the UHT include directory and registers every *.gen.cpp independently.
-    // ObjectMacros.h turns UE_INLINE_GENERATED_CPP_BY_NAME into an empty include
-    // when HMAKE_COMPILE_GENERATED_CPP_SEPARATELY is defined.
+    // Adds the UHT include directory and registers only standalone *.gen.cpp files. Files named by
+    // UE_INLINE_GENERATED_CPP_BY_NAME remain part of their handwritten translation unit, matching UBT metadata.
     UeCppTarget &addGeneratedCode(Node *directory, bool compileSources);
 
     friend class UeConfiguration;
@@ -210,8 +222,8 @@ class UeCppTarget : public CppTarget
  * The closest UBT ModuleRules mappings are:
  *   publicDeps         -> PublicDependencyModuleNames
  *   privateDeps        -> PrivateDependencyModuleNames
- *   publicCompileDeps  -> PublicIncludePathModuleNames (compile visibility only)
- *   privateCompileDeps -> PrivateIncludePathModuleNames (compile visibility only)
+ *   publicOpDeps       -> PublicIncludePathModuleNames (compile/object-producer visibility only)
+ *   privateOpDeps      -> PrivateIncludePathModuleNames (compile/object-producer visibility only)
  *
  * HMake's interface and link-only forms have no single exact ModuleRules property;
  * they expose HMake's more precise dependency model for later specifications.
@@ -227,9 +239,9 @@ template <typename Derived> struct DSCExtension<UeCppTarget, Derived>
     Derived &publicDeps(string_view dependency);
     Derived &privateDeps(string_view dependency);
     Derived &interfaceDeps(string_view dependency);
-    Derived &publicCompileDeps(string_view dependency);
-    Derived &privateCompileDeps(string_view dependency);
-    Derived &interfaceCompileDeps(string_view dependency);
+    Derived &publicOpDeps(string_view dependency);
+    Derived &privateOpDeps(string_view dependency);
+    Derived &interfaceOpDeps(string_view dependency);
     Derived &publicLinkDeps(string_view dependency);
     Derived &privateLinkDeps(string_view dependency);
     Derived &interfaceLinkDeps(string_view dependency);
@@ -273,28 +285,28 @@ template <typename Derived> struct DSCExtension<UeCppTarget, Derived>
 
     template <typename... Names>
         requires(sizeof...(Names) > 0 && (std::convertible_to<Names, string_view> && ...))
-    Derived &publicCompileDeps(string_view dependency, Names &&...dependencies)
+    Derived &publicOpDeps(string_view dependency, Names &&...dependencies)
     {
-        publicCompileDeps(dependency);
-        (publicCompileDeps(string_view(std::forward<Names>(dependencies))), ...);
+        publicOpDeps(dependency);
+        (publicOpDeps(string_view(std::forward<Names>(dependencies))), ...);
         return derived();
     }
 
     template <typename... Names>
         requires(sizeof...(Names) > 0 && (std::convertible_to<Names, string_view> && ...))
-    Derived &privateCompileDeps(string_view dependency, Names &&...dependencies)
+    Derived &privateOpDeps(string_view dependency, Names &&...dependencies)
     {
-        privateCompileDeps(dependency);
-        (privateCompileDeps(string_view(std::forward<Names>(dependencies))), ...);
+        privateOpDeps(dependency);
+        (privateOpDeps(string_view(std::forward<Names>(dependencies))), ...);
         return derived();
     }
 
     template <typename... Names>
         requires(sizeof...(Names) > 0 && (std::convertible_to<Names, string_view> && ...))
-    Derived &interfaceCompileDeps(string_view dependency, Names &&...dependencies)
+    Derived &interfaceOpDeps(string_view dependency, Names &&...dependencies)
     {
-        interfaceCompileDeps(dependency);
-        (interfaceCompileDeps(string_view(std::forward<Names>(dependencies))), ...);
+        interfaceOpDeps(dependency);
+        (interfaceOpDeps(string_view(std::forward<Names>(dependencies))), ...);
         return derived();
     }
 
@@ -331,7 +343,7 @@ template <typename Derived> struct DSCExtension<UeCppTarget, Derived>
         return static_cast<Derived &>(*this);
     }
 
-    Derived &addNamedDependency(DepType depType, bool compile, bool link, string_view dependency);
+    Derived &addNamedDependency(DepType depType, bool objectProducer, bool link, string_view dependency);
     Derived &addPrebuiltLibrary(DepType depType, TargetType libraryType, NodeOrStr library);
 };
 
@@ -406,6 +418,11 @@ struct UeBuildCommands
     string linkDependenciesPrefix;
     string linkCommandSuffix;
     string archiveCommand;
+    /// Target-wide UBT CppCompileEnvironment inputs that also apply to ISPC. Module-local inputs remain structured
+    /// CppTarget usage requirements and are appended by IspcTarget after dependency propagation.
+    vector<string> ispcIncludeDirectories;
+    /// Generated UBT `-D...` arguments; UeConfiguration validates and strips the prefix into structured definitions.
+    vector<string> ispcDefinitionArguments;
 };
 
 /** One selectable row in a command table shared by several UE configurations. */
@@ -429,9 +446,6 @@ struct UeBuildCommandEntry
 class UeConfiguration : public Configuration
 {
   public:
-    using Configuration::assign;
-    using Configuration::evaluate;
-
     // UBT: ReadOnlyTargetRules.Platform / TargetRules.Platform.
     UePlatform platform = UePlatform::Linux;
 
@@ -462,17 +476,17 @@ class UeConfiguration : public Configuration
     UeConfiguration &setBuildConfiguration(UeBuildConfiguration value);
     UeConfiguration &setUeTargetType(UeTargetType value);
     UeConfiguration &setGeneratedIncludeRoot(Node *value);
+    /// Enables UE ISPC discovery with the given host compiler. The remaining policy belongs to Configuration.
+    UeConfiguration &setIspcCompiler(Node *value);
     UeConfiguration &setBuildCommands(UeBuildCommands value);
     UeConfiguration &setBuildCommands(std::span<const UeBuildCommandEntry> entries);
     void initialize() override;
 
-    // Convenient equivalents of common Build.cs conditions such as
-    // Target.Platform == ... and Target.Platform.IsInGroup(...).
-    bool evaluate(UePlatform value) const;
-    bool evaluate(UePlatformGroup value) const;
-    bool evaluate(UeArchitecture value) const;
-    bool evaluate(UeBuildConfiguration value) const;
-    bool evaluate(UeTargetType value) const;
+    /// Assigns UE-specific or ordinary HMake properties from left to right.
+    template <typename T, typename... Property> UeConfiguration &assign(T property, Property... properties);
+
+    /// Supports common Build.cs conditions and delegates ordinary HMake properties to Configuration.
+    template <typename T> bool evaluate(T property) const;
 
     // Returns the target whose specify() function is currently running. A
     // decentralized module file uses this instead of receiving its target directly.
@@ -482,8 +496,9 @@ class UeConfiguration : public Configuration
     // UEBuildTarget.FindOrCreateModuleByName().
     DSC<UeCppTarget> &getOrAddTarget(string_view logicalName);
 
-    // Starts graph expansion from requestTarget() roots.
-    void configureRequestedTargets();
+    // Top-level graph roots supplied with requestTarget(). The generated project entry point expands these before
+    // handing control to the ordinary configuration lifecycle.
+    vector<string> requestedTargets;
 
   private:
     // Cache record for one evaluated module. UBT similarly keeps a name-to-module
@@ -493,9 +508,6 @@ class UeConfiguration : public Configuration
         UeTargetState state = UeTargetState::Unconfigured;
         UeFileKind kind = UeFileKind::Module;
         DSC<UeCppTarget> *dsc = nullptr;
-        // UBT can create a UEBuildModule solely to consume its headers. Only a
-        // module reached by a full/link dependency belongs to the monolithic binary.
-        bool buildModule = false;
     };
 
     // Evaluated graph objects: closest UBT analogue is UEBuildTarget's module cache.
@@ -504,27 +516,113 @@ class UeConfiguration : public Configuration
     // Establishes currentTarget() while nested dependency specifications execute.
     vector<DSC<UeCppTarget> *> currentTargetStack;
 
-    // Top-level graph roots supplied with requestTarget().
-    vector<string> requestedTargets;
-
+  public:
     // Optional commands selected from a generated UBT bootstrap table.
     std::optional<UeBuildCommands> buildCommands;
 
+  private:
     // One PLOAT per physical prebuilt library, shared by all modules in this
     // UeConfiguration.
     flat_hash_map<string, PLOAT *> prebuiltLibraries;
 
     DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind);
     PLOAT &getOrAddPrebuiltLibrary(Node *libraryFile, TargetType libraryType);
-    void markTargetForBinary(string_view logicalName);
-    void finalizeMonolithicGraph();
     void initializeApiMacro(DSC<UeCppTarget> &target, bool defines) const;
 
     template <typename, typename> friend struct DSCExtension;
 };
 
+template <DepType dependency, typename T, typename... Property>
+UeCppTarget &UeCppTarget::assign(T property, Property... properties)
+{
+    CppTarget::assign<dependency>(property);
+    if constexpr (sizeof...(properties))
+    {
+        return assign<dependency>(properties...);
+    }
+    return *this;
+}
+
+template <typename T> bool UeCppTarget::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), JumboBuild>)
+    {
+        return jumboBuild == property;
+    }
+    else
+    {
+        return static_cast<const UeConfiguration *>(configuration)->evaluate(property);
+    }
+}
+
+template <typename T, typename... Property>
+UeConfiguration &UeConfiguration::assign(T property, Property... properties)
+{
+    if constexpr (std::is_same_v<decltype(property), UePlatform>)
+    {
+        platform = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UePlatformGroup>)
+    {
+        if (std::ranges::find(platformGroups, property) == platformGroups.end())
+        {
+            platformGroups.emplace_back(property);
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeArchitecture>)
+    {
+        architecture = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeBuildConfiguration>)
+    {
+        buildConfiguration = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeTargetType>)
+    {
+        ueTargetType = property;
+    }
+    else
+    {
+        Configuration::assign(property);
+    }
+
+    if constexpr (sizeof...(properties))
+    {
+        return assign(properties...);
+    }
+    return *this;
+}
+
+template <typename T> bool UeConfiguration::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), UePlatform>)
+    {
+        return platform == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UePlatformGroup>)
+    {
+        return std::ranges::find(platformGroups, property) != platformGroups.end();
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeArchitecture>)
+    {
+        return architecture == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeBuildConfiguration>)
+    {
+        return buildConfiguration == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UeTargetType>)
+    {
+        return ueTargetType == property;
+    }
+    else
+    {
+        return Configuration::evaluate(property);
+    }
+}
+
 template <typename Derived>
-Derived &DSCExtension<UeCppTarget, Derived>::addNamedDependency(const DepType depType, const bool compile,
+Derived &DSCExtension<UeCppTarget, Derived>::addNamedDependency(const DepType depType, const bool objectProducer,
                                                                 const bool link, const string_view dependency)
 {
     if (!configuration)
@@ -535,18 +633,11 @@ Derived &DSCExtension<UeCppTarget, Derived>::addNamedDependency(const DepType de
     DSC<UeCppTarget> &dependencyTarget = configuration->getOrAddTarget(dependency);
     if (link)
     {
-        // Monolithic UE modules are object targets, so no module-to-module LOAT
-        // edge is created. Record binary membership for final attachment to the
-        // one target executable instead.
-        configuration->markTargetForBinary(dependency);
-    }
-    if (compile)
-    {
-        derived().compileDeps(depType, dependencyTarget);
-    }
-    if (link)
-    {
         derived().linkDeps(depType, dependencyTarget);
+    }
+    if (objectProducer)
+    {
+        derived().opDeps(depType, dependencyTarget);
     }
     return derived();
 }
@@ -562,34 +653,23 @@ Derived &DSCExtension<UeCppTarget, Derived>::addPrebuiltLibrary(DepType depType,
 
     Node *libraryFile = library.resolve(true);
     PLOAT &prebuilt = configuration->getOrAddPrebuiltLibrary(libraryFile, libraryType);
-    if (derived().ploat != nullptr)
-    {
-        PLOAT &consumer = derived().getPLOAT();
-
-        // A static archive does not absorb its private link dependencies. They must
-        // reach the final executable/shared library, matching DSC::addLinkDependency().
-        if (depType == DepType::PRIVATE && consumer.linkTargetType != TargetType::LIBRARY_SHARED)
-        {
-            depType = DepType::PUBLIC;
-        }
-        consumer.deps(depType, prebuilt);
-    }
+    derived().linkDeps(depType, prebuilt);
     return derived();
 }
 
-#define UE_DEFINE_DSC_NAMED_DEPENDENCY(FunctionName, DependencyType, Compile, Link)                                    \
+#define UE_DEFINE_DSC_NAMED_DEPENDENCY(FunctionName, DependencyType, ObjectProducer, Link)                             \
     template <typename Derived>                                                                                        \
     Derived &DSCExtension<UeCppTarget, Derived>::FunctionName(const string_view dependency)                            \
     {                                                                                                                  \
-        return addNamedDependency(DependencyType, Compile, Link, dependency);                                          \
+        return addNamedDependency(DependencyType, ObjectProducer, Link, dependency);                                   \
     }
 
 UE_DEFINE_DSC_NAMED_DEPENDENCY(publicDeps, DepType::PUBLIC, true, true)
 UE_DEFINE_DSC_NAMED_DEPENDENCY(privateDeps, DepType::PRIVATE, true, true)
 UE_DEFINE_DSC_NAMED_DEPENDENCY(interfaceDeps, DepType::INTERFACE, true, true)
-UE_DEFINE_DSC_NAMED_DEPENDENCY(publicCompileDeps, DepType::PUBLIC, true, false)
-UE_DEFINE_DSC_NAMED_DEPENDENCY(privateCompileDeps, DepType::PRIVATE, true, false)
-UE_DEFINE_DSC_NAMED_DEPENDENCY(interfaceCompileDeps, DepType::INTERFACE, true, false)
+UE_DEFINE_DSC_NAMED_DEPENDENCY(publicOpDeps, DepType::PUBLIC, true, false)
+UE_DEFINE_DSC_NAMED_DEPENDENCY(privateOpDeps, DepType::PRIVATE, true, false)
+UE_DEFINE_DSC_NAMED_DEPENDENCY(interfaceOpDeps, DepType::INTERFACE, true, false)
 UE_DEFINE_DSC_NAMED_DEPENDENCY(publicLinkDeps, DepType::PUBLIC, false, true)
 UE_DEFINE_DSC_NAMED_DEPENDENCY(privateLinkDeps, DepType::PRIVATE, false, true)
 UE_DEFINE_DSC_NAMED_DEPENDENCY(interfaceLinkDeps, DepType::INTERFACE, false, true)

@@ -238,7 +238,7 @@ void configurationSpecification(Configuration &config)
     }
     if (config.name == "hu")
     {
-        llvmSupport.getLOAT().publicDeps(*llvmSupportCPloatPointer);
+        llvmSupport.publicLinkDeps(*llvmSupportCPloatPointer);
     }
     else
     {

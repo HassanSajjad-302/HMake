@@ -100,6 +100,14 @@ TEST(ExamplesTest, Example6)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App2-Shared/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        current_path().string() + "/Release/App-MixedPrivate/" +
+            getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+        "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        current_path().string() + "/Release/App-MixedInterface/" +
+            getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+        "Cat says Meow..\n");
 }
 
 TEST(ExamplesTest, Example7)

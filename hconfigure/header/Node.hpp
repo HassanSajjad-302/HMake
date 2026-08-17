@@ -10,6 +10,7 @@
 using std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 
 class Node;
+class AdaptiveManager;
 /// Heterogeneous equality for `NodeHashSet` lookups (`Node` and `string_view`).
 struct NodeEqual
 {
@@ -92,7 +93,8 @@ class Node
 
   private:
     friend class Builder;
-    /// Refreshes cached filesystem metadata. Configure mode avoids duplicate checks.
+    friend class AdaptiveManager;
+    /// Refreshes cached filesystem metadata once per process.
     void performSystemCheck();
     void performContentHash();
 
@@ -102,6 +104,10 @@ class Node
     /// \param isFile expected shape (`true` regular file, `false` directory).
     /// \param mayNotExist allow `not_found` without raising an error.
     static Node *getNode(string_view filePath_, bool isFile, bool mayNotExist = false);
+
+    /// Retrieves/creates a node for an entry yielded by `directory_iterator` or `recursive_directory_iterator`.
+    /// Iterator paths are already normalized; this overload only lower-cases them on Windows.
+    static Node *getNode(const std::filesystem::directory_entry &entry);
 
     /// Same as `getNode`, but accepts a non-normalized path and normalizes it internally.
     static Node *getNodeNonNormalized(const string &filePath_, bool isFile, bool mayNotExist = false);

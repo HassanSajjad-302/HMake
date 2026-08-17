@@ -12,6 +12,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), ConfigType>)
     {
         compilerFeatures.setConfigType(property);
+        ispcCompilerFeatures.setConfigType(property);
         linkerFeatures.setConfigType(property);
     }
     else if constexpr (std::is_same_v<decltype(property), DSC<CppTarget> *>)
@@ -102,6 +103,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         bigHeaderUnit = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
+    {
+        jumboBuild = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
     {
         treatHuAsHeaderFile = property;
@@ -118,6 +123,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         useConfigurationScope = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), AlwaysConfigureThis>)
+    {
+        alwaysConfigureThis = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), StandAloneCommand>)
     {
         standAloneCommand = property;
@@ -130,11 +139,13 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
         compilerFeatures.targetOs = property;
+        ispcCompilerFeatures.targetOs = property;
         linkerFeatures.targetOs = property;
     }
     else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
     {
         compilerFeatures.debugSymbols = property;
+        ispcCompilerFeatures.debugSymbols = property;
         linkerFeatures.debugSymbols = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Profiling>)
@@ -190,11 +201,13 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), Arch>)
     {
         compilerFeatures.arch = property;
+        ispcCompilerFeatures.arch = property;
         linkerFeatures.arch = property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressModel>)
     {
         compilerFeatures.addModel = property;
+        ispcCompilerFeatures.addressModel = property;
         linkerFeatures.addModel = property;
     }
     else if constexpr (std::is_same_v<decltype(property), DebugStore>)
@@ -227,6 +240,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), Optimization>)
     {
         compilerFeatures.optimization = property;
+        ispcCompilerFeatures.optimization = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Inlining>)
     {

@@ -24,7 +24,7 @@ void configurationSpecification(Configuration &config)
 
     appHu.realBTargets[0].addDep<BTargetType::UNKNOWN>(&headerGen->realBTargets[0]);
 
-    CppMod &app2Cpp = app.getSourceTarget().getCppModule("app2.cpp");
+    BTarget &app2Cpp = app.getSourceTarget().getCppModule("app2.cpp");
     app2Cpp.realBTargets[0].addDep<BTargetType::UNKNOWN>(&headerGen->realBTargets[0]);
 }
 
