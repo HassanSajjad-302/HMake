@@ -1,8 +1,7 @@
 # Decentralized Unreal Engine integration
 
 This directory contains the scanner that connects decentralized Unreal Engine
-`*.hmake.hpp` specifications to HMake. It is the current UE integration; it does
-not depend on the former UBT-export parser.
+`*.hmake.hpp` specifications to HMake.
 
 ## Structure
 
@@ -55,15 +54,56 @@ hhelper
 hhelper
 ```
 
-## File naming and selection
+## File metadata and selection
 
-Supported names are:
+Every specification has the simple name `<stem>.hmake.hpp`. The scanner reads an
+optional metadata block from line one through the first physical blank line. A
+file using all defaults therefore starts with a blank line:
 
-- `Core.module.hmake.hpp`: base module specification.
-- `Core.group.Unix.module.hmake.hpp`: platform-group specialization.
-- `Core.platform.Linux.module.hmake.hpp`: exact-platform specialization.
-- `zlib.prebuilt.hmake.hpp`: source-less external/prebuilt module specification.
-- `UnrealServer.target.hmake.hpp`: top-level target specification.
+```cpp
+
+void specify(UeConfiguration &configuration)
+```
+
+Metadata uses bare assignments in C++ line comments. Supported keys and values
+are:
+
+- `name = <logical-name>`; the default is the filename stem;
+- `kind = Module|Prebuilt|Target`; the default is `Module`;
+- `platform = Linux|Windows|Mac|Android|IOS`;
+- `platformGroup = Unix|Windows|Microsoft|Apple|Desktop|Linux|Android`; and
+- `configuration = Default|RttiExcept`; the default is `Default`.
+
+For example, a prebuilt module starts with:
+
+```cpp
+// kind = Prebuilt
+
+void specify(UeConfiguration &configuration)
+```
+
+An exact-platform specialization can live in a separately named file while
+retaining the base logical name:
+
+```cpp
+// name = Core
+// platform = Linux
+
+void specify(UeConfiguration &configuration)
+```
+
+`platform` and `platformGroup` are mutually exclusive. Every specialization of
+one logical name must agree on `kind` and `configuration`, and every logical name
+must have one unselected base registration. `RttiExcept` is valid only for a
+module and selects its implementation archive for the small RTTI-and-exceptions
+configuration.
+
+The first blank line is mandatory and ends scanner metadata. Put explanatory
+comments inside that block in `/* ... */` comments; ordinary `//` prose is
+deliberately rejected because it could hide a misspelled assignment. Comments
+after the blank line are ordinary C++ and are ignored by the scanner. The
+filename identifies the specification; all selection settings belong in this
+front matter.
 
 HMake always applies the base function. It then applies the exact-platform
 function when one exists. Otherwise it applies the single matching platform-group
@@ -90,7 +130,7 @@ void specify(UeConfiguration &configuration)
 
 There is no source-directory call in a module specification, matching UBT's
 `ModuleRules` API. The backend derives module directories from the selected base
-and platform `*.module.hmake.hpp` files, corresponding to
+and platform `*.hmake.hpp` files, corresponding to
 `ModuleRules.GetAllModuleDirectories()`. It then:
 
 - recursively discovers `.cpp`, `.c`, `.cc`, and `.cxx` sources;
@@ -126,11 +166,13 @@ outside this first-stage Linux build.
 
 ## Existing UHT output
 
-The first stage does not run UHT. `setGeneratedIncludeRoot()` points at an
-existing UBT-generated `Inc` directory. When
-`<root>/<Module>/UHT` exists, HMake adds its generated headers to the module's
-include inputs and compiles its existing `*.gen.cpp` translation units. A missing
-module UHT directory is simply ignored.
+The first stage does not run UHT. HMake derives each module's UHT and VNI
+directories from `setGeneratedIncludeRoot()`, the module location, its enclosing
+plugin descriptor when present, and `setShortName()`. Scanner-time validation
+compares these mechanically derived paths with the selected UBT metadata. A
+missing module UHT directory is simply ignored. Whether module sources are
+compiled comes from link reachability in the HMake dependency graph, not from a
+generated per-module table.
 
 These are two separate jobs. `*.generated.h` is included by normal C++ and only
 needs the generated directory on the include path. `*.gen.cpp` contains generated
@@ -138,12 +180,11 @@ definitions and registration code; it is a complete translation unit, so adding
 its directory as an include directory cannot compile it. HMake therefore registers
 every `*.gen.cpp` through `moduleFiles()`.
 
-UE sources may contain `#include UE_INLINE_GENERATED_CPP_BY_NAME(Name)`. The
-command table defines `HMAKE_COMPILE_GENERATED_CPP_SEPARATELY=1`, causing
-`ObjectMacros.h` to map those directives to `HMakeEmptyGeneratedCpp.h`. This
-prevents duplicate definitions while keeping the original UE source unchanged.
-This is an intentional HMake adaptation; UBT normally removes inlined generated
-files from its generated compile list and may unity-build the remainder.
+UE sources may contain `#include UE_INLINE_GENERATED_CPP_BY_NAME(Name)`. HMake
+scans handwritten `.cpp` files for those directives before generated-code
+discovery, leaves each include active, and excludes the corresponding
+`Name.gen.cpp` from standalone compilation. This mirrors UBT's generated-source
+selection while keeping the original UE source unchanged.
 
 ## Configuration commands
 
@@ -174,6 +215,14 @@ configuration, and target type. Per-target command variation remains deferred:
 the initial HMake model requires one compatible base C/C++ command per
 configuration.
 
+RTTI, exception, and `PLATFORM_EXCEPTIONS_DISABLED` arguments are deliberately
+removed from the shared UBT command row. `UeConfiguration::initialize()` appends
+them from typed HMake properties. `buildSpecification()` declares only
+`UnrealServerLinuxDebug`, with RTTI and exceptions disabled. When that
+configuration is active, its configuration callback creates
+`UnrealServerLinuxDebugRttiExcept` with copied settings plus RTTI and exceptions
+enabled, then expands the requested UE roots.
+
 ## Dependencies and external modules
 
 The named dependency APIs map approximately as follows:
@@ -194,25 +243,35 @@ A source-less external module can declare its include paths and definitions on i
 adapter accepts conventional `.a`, `.lib`, `.so`, `.dylib`, and `.dll`
 filenames.
 
-## Monolithic modules and circular dependencies
+## Module archives, producer configurations, and circular dependencies
 
-`UnrealServer-Linux-Debug` is modeled as a monolithic executable. Ordinary UE
-modules are `UeCppTarget` object producers; they do not become intermediate static
-archives. Once lazy dependency expansion reaches a fixed point, HMake attaches all
-reachable module object producers and prebuilt libraries to the requested target's
-executable PLOAT.
+Each ordinary UE module has a `UeCppTarget` object producer and a static PLOAT.
+The requested target remains a monolithic executable whose flattened dependency
+closure supplies those module archives and prebuilt libraries.
 
-This matters for legacy UE circular module references. `getOrAddTarget()` returns
+Modules whose scanner front matter selects `RttiExcept` are evaluated in both
+configurations. The producer configuration defaults `AddCppSource` to `NO`; only
+a module registered for `RttiExcept` overrides it to `YES`. Its transitive
+dependencies still provide include paths, definitions, and header units under
+the producer's RTTI/exception semantics, but their source files are not compiled
+again.
+
+The consumer creates its own source-less `UeCppTarget` and static-library PLOAT
+proxy for each profile-marked module. The producer and consumer keep separate
+DSC, PLOAT, and object-producer graphs. Their only connection is a
+`BTargetType::UNKNOWN` dependency from the consumer proxy's round-zero target to
+the producer archive's round-zero target. No BMI or object producer crosses the
+configuration boundary.
+
+For UE circular module references, `getOrAddTarget()` returns
 an already-configuring module so specification recursion terminates. If a named
 compile dependency closes that DFS cycle, HMake retains the public/private compile
 usage relationship but omits that one scheduling back-edge. It then computes the
 usage-requirement closure before graph completion. As a result,
 `RealBTarget::sortGraph()` still rejects real HMake action cycles, but does not see
-an artificial cycle merely because two monolithic UE modules expose headers to
-each other. There is no archive-order cycle because monolithic modules are linked
-as objects.
+an artificial cycle merely because two UE modules expose headers to each other.
 
-This corresponds to UBT's legacy
+This corresponds to UBT's
 `CircularlyReferencedDependentModules` treatment for the monolithic case. Modular
 shared-library cycles are a different problem: UBT may create import libraries
 separately, and HMake does not model that stage yet.
@@ -239,8 +298,9 @@ That is enough infrastructure to translate more modules, but it is not yet enoug
 to claim that an arbitrary `UnrealServer-Linux-Debug` rules graph will compile.
 Important remaining rule surfaces include:
 
-- per-module compile-environment differences such as RTTI, exceptions,
-  optimization, warning policy, and language-standard overrides;
+- per-module compile-environment differences beyond the current producer
+  configuration mechanism, such as optimization, warning policy, and
+  language-standard overrides;
 - system-library names, general linker options, ordered linker groups, delay-load
   declarations, and runtime library handling;
 - exact UBT `Internal` include visibility once project/plugin rules scopes exist;
@@ -293,7 +353,7 @@ query export, then make the descriptor evaluator reproduce that set.
 
 - Implement the `.uproject`/`.uplugin` descriptor plan above. It corresponds to
   UBT's `SetupProjectModules()` and `SetupPlugins()`.
-- Add explicit validation/diagnostics for legacy circular module declarations and
+- Add explicit validation/diagnostics for circular module declarations and
   implement modular shared-library import-library handling if modular UE targets
   are brought up.
 - Discover and generate additional platform/configuration command rows from their

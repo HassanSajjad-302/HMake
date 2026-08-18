@@ -5,13 +5,40 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 
 IGNORED_DIRECTORIES = {".git", "Binaries", "Build", "Intermediate", "Saved"}
 DEFAULT_METADATA = Path(
     "Engine/Intermediate/Build/Linux/x64/UnrealServer/Debug/UnrealServerMetadata.txt"
 )
+HMAKE_SUFFIX = ".hmake.hpp"
+METADATA_KEYS = {"name", "kind", "platform", "platformGroup", "configuration"}
+UE_FILE_KINDS = {"Module", "Prebuilt", "Target"}
+UE_CONFIGURATIONS = {"Default", "RttiExcept"}
+UE_PLATFORMS = {"Linux", "Windows", "Mac", "Android", "IOS"}
+UE_PLATFORM_GROUPS = {
+    "Unix",
+    "Windows",
+    "Microsoft",
+    "Apple",
+    "Desktop",
+    "Linux",
+    "Android",
+}
+RESERVED_FILENAME_MARKERS = (".module", ".prebuilt", ".target", ".rttiexcept")
+
+
+@dataclass(frozen=True)
+class UeFile:
+    path: Path
+    logical_name: str
+    kind: str = "Module"
+    configuration: str = "Default"
+    platform_group: str | None = None
+    platform: str | None = None
 
 
 def default_ue_root() -> Path:
@@ -23,16 +50,176 @@ def default_ue_root() -> Path:
     return sibling if (sibling / "Engine" / "Source").is_dir() else current
 
 
-def scan(ue_root: Path) -> list[Path]:
-    files: list[Path] = []
+def scan(ue_root: Path) -> list[UeFile]:
+    files: list[UeFile] = []
     for file in ue_root.rglob("*.hmake.hpp"):
         relative_parts = file.relative_to(ue_root).parts
         if any(part in IGNORED_DIRECTORIES for part in relative_parts):
             continue
-        files.append(file.resolve())
+        files.append(parse_ue_file(file.resolve()))
 
-    files.sort(key=lambda file: file.as_posix())
+    files.sort(key=lambda file: file.path.as_posix())
+    validate_ue_files(files)
     return files
+
+
+def parse_front_matter(file: Path) -> dict[str, str]:
+    """Parse scanner metadata before the first physical blank line."""
+
+    metadata_lines: list[tuple[int, str]] = []
+    found_boundary = False
+    for line_number, line in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            found_boundary = True
+            break
+        metadata_lines.append((line_number, line))
+    if not found_boundary:
+        raise ValueError(
+            f"{file}: metadata must end with a physical blank line; "
+            "put a blank first line in files that use only defaults"
+        )
+
+    values: dict[str, str] = {}
+    in_block_comment = False
+    block_comment_line = 0
+    for line_number, line in metadata_lines:
+        stripped = line.strip()
+        if in_block_comment:
+            closing = stripped.find("*/")
+            if closing == -1:
+                continue
+            if stripped[closing + 2 :].strip():
+                raise ValueError(f"{file}:{line_number}: text after a metadata block comment is not allowed")
+            in_block_comment = False
+            continue
+
+        if stripped.startswith("/*"):
+            closing = stripped.find("*/", 2)
+            if closing == -1:
+                in_block_comment = True
+                block_comment_line = line_number
+            elif stripped[closing + 2 :].strip():
+                raise ValueError(f"{file}:{line_number}: text after a metadata block comment is not allowed")
+            continue
+        if "/*" in stripped or "*/" in stripped:
+            raise ValueError(
+                f"{file}:{line_number}: metadata block comments must start at the beginning of a line"
+            )
+
+        if not stripped.startswith("//"):
+            raise ValueError(
+                f"{file}:{line_number}: metadata must use '// key = value' assignments or '/* ... */' comments"
+            )
+        assignment = stripped[2:].strip()
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9]*)\s*=\s*(\S+)", assignment)
+        if match is None:
+            raise ValueError(
+                f"{file}:{line_number}: expected '// key = value'; use '/* ... */' for metadata comments"
+            )
+        key, value = match.groups()
+        if key not in METADATA_KEYS:
+            raise ValueError(f"{file}:{line_number}: unknown UE metadata key '{key}'")
+        if key in values:
+            raise ValueError(f"{file}:{line_number}: duplicate UE metadata key '{key}'")
+        values[key] = value
+
+    if in_block_comment:
+        raise ValueError(
+            f"{file}:{block_comment_line}: metadata block comment must close before the first blank line"
+        )
+    return values
+
+
+def parse_ue_file(file: Path) -> UeFile:
+    """Return one strictly validated UE registration parsed from scanner front matter."""
+
+    name = file.name
+    if not name.endswith(HMAKE_SUFFIX):
+        raise ValueError(f"UE specification does not end in '{HMAKE_SUFFIX}': {file}")
+    stem = name[: -len(HMAKE_SUFFIX)]
+    if (
+        any(stem.endswith(marker) for marker in RESERVED_FILENAME_MARKERS)
+        or ".group." in stem
+        or ".platform." in stem
+    ):
+        raise ValueError(
+            f"{file}: semantic filename suffixes are invalid; "
+            "use '<name>.hmake.hpp' and declare settings in scanner front matter"
+        )
+    metadata = parse_front_matter(file)
+    logical_name = metadata.get("name", stem)
+    if not logical_name:
+        raise ValueError(f"{file}: UE specification has no logical name")
+
+    kind = metadata.get("kind", "Module")
+    configuration = metadata.get("configuration", "Default")
+    platform_group = metadata.get("platformGroup")
+    platform = metadata.get("platform")
+    if kind not in UE_FILE_KINDS:
+        raise ValueError(f"{file}: unknown UE file kind '{kind}'")
+    if configuration not in UE_CONFIGURATIONS:
+        raise ValueError(f"{file}: unknown UE configuration profile '{configuration}'")
+    if platform_group is not None and platform_group not in UE_PLATFORM_GROUPS:
+        raise ValueError(f"{file}: unknown UE platform group '{platform_group}'")
+    if platform is not None and platform not in UE_PLATFORMS:
+        raise ValueError(f"{file}: unknown UE platform '{platform}'")
+    if platform_group is not None and platform is not None:
+        raise ValueError(f"{file}: UE specification cannot select both platformGroup and platform")
+    if configuration != "Default" and kind != "Module":
+        raise ValueError(f"{file}: configuration = {configuration} is valid only for UE modules")
+
+    return UeFile(
+        path=file,
+        logical_name=logical_name,
+        kind=kind,
+        configuration=configuration,
+        platform_group=platform_group,
+        platform=platform,
+    )
+
+
+def validate_ue_files(files: list[UeFile]) -> None:
+    """Reject inconsistent identities and duplicate base/specialized registrations."""
+
+    identities: dict[str, tuple[str, str, Path]] = {}
+    registrations: dict[tuple[str, str, str], Path] = {}
+    for file in files:
+        previous = identities.get(file.logical_name)
+        if previous is None:
+            identities[file.logical_name] = (file.kind, file.configuration, file.path)
+        else:
+            previous_kind, previous_configuration, previous_file = previous
+            if previous_kind != file.kind:
+                raise ValueError(
+                    f"UE logical target '{file.logical_name}' has conflicting kinds:\n"
+                    f"  {previous_file}\n  {file.path}"
+                )
+            if previous_configuration != file.configuration:
+                raise ValueError(
+                    f"Every specialization of UE target '{file.logical_name}' must use the same configuration:\n"
+                    f"  {previous_file}\n  {file.path}"
+                )
+
+        if file.platform_group is not None:
+            selector = (file.logical_name, "platformGroup", file.platform_group)
+        elif file.platform is not None:
+            selector = (file.logical_name, "platform", file.platform)
+        else:
+            selector = (file.logical_name, "base", "")
+        previous_file = registrations.get(selector)
+        if previous_file is not None:
+            raise ValueError(
+                f"Duplicate UE registration for '{file.logical_name}' ({selector[1]} {selector[2]}):\n"
+                f"  {previous_file}\n  {file.path}"
+            )
+        registrations[selector] = file.path
+
+    for logical_name, (_, _, first_file) in identities.items():
+        if (logical_name, "base", "") not in registrations:
+            raise ValueError(
+                f"UE logical target '{logical_name}' has specialized registrations but no base registration:\n"
+                f"  {first_file}"
+            )
 
 
 def cpp_string(value: str) -> str:
@@ -95,6 +282,10 @@ def compile_commands(base_command: str, ue_root: Path) -> tuple[str, str]:
     for argument in arguments:
         if argument == "-c" or argument == "-DHMAKE_COMPILE_GENERATED_CPP_SEPARATELY=1":
             continue
+        if argument in ("-frtti", "-fno-rtti", "-fexceptions", "-fno-exceptions"):
+            continue
+        if argument.startswith("-DPLATFORM_EXCEPTIONS_DISABLED="):
+            continue
         if argument in ("-I.", "-I./"):
             continue
         normalized.append(normalize_path_argument(argument, ue_root))
@@ -121,6 +312,140 @@ def read_response_arguments(response_file: Path) -> list[str]:
         if line.strip():
             arguments.extend(shlex.split(line))
     return arguments
+
+
+def load_module_generated_metadata(metadata: Path, ue_root: Path) -> dict[str, dict[str, object]]:
+    """Read UBT's generated include directories for scanner-time validation."""
+
+    module_pattern = re.compile(r"^Module: (.+)$")
+    uht_pattern = re.compile(r"^  8\) UHT-include-dirs \((\d+)\):$")
+    vni_pattern = re.compile(r"^  9\) VNI-include-dirs \((\d+)\):$")
+    lines = metadata.read_text(encoding="utf-8").splitlines()
+    modules: dict[str, dict[str, object]] = {}
+    current: dict[str, object] | None = None
+
+    for index, line in enumerate(lines):
+        match = module_pattern.match(line)
+        if match:
+            name = match.group(1)
+            current = {
+                "logicalName": name,
+                "uhtDirectory": "",
+                "vniDirectory": "",
+            }
+            modules[name] = current
+            continue
+        if current is None:
+            continue
+
+        for pattern, key in ((uht_pattern, "uhtDirectory"), (vni_pattern, "vniDirectory")):
+            match = pattern.match(line)
+            if not match:
+                continue
+            count = int(match.group(1))
+            if count > 1:
+                raise ValueError(
+                    f"Expected at most one {key} for module {current['logicalName']}, found {count}"
+                )
+            if count == 1:
+                current[key] = resolve_ubt_path(lines[index + 1].strip(), ue_root)
+            break
+
+    return modules
+
+
+SHORT_NAME_PATTERN = re.compile(r'\.setShortName\s*\(\s*"([^"]*)"\s*\)')
+
+
+def module_intermediate_name(file: UeFile) -> str:
+    """Mirror UeCppTarget::intermediateName."""
+
+    match = SHORT_NAME_PATTERN.search(file.path.read_text(encoding="utf-8"))
+    return match.group(1) if match else file.logical_name
+
+
+def module_generated_include_root(configured_root: Path, module_directory: Path) -> Path:
+    """Mirror the plugin-aware generated-include calculation in hconfigure/src/ue.cpp."""
+
+    plugin_root: Path | None = None
+    for directory in (module_directory, *module_directory.parents):
+        if any(directory.glob("*.uplugin")):
+            plugin_root = directory
+            break
+    if plugin_root is None:
+        return configured_root
+
+    suffix_parts: list[str] = []
+    for component in configured_root.parts:
+        if suffix_parts or component == "Intermediate":
+            suffix_parts.append(component)
+    return plugin_root.joinpath(*suffix_parts) if suffix_parts else configured_root
+
+
+CYCLE_DEPENDENCY_PATTERN = re.compile(r'add(Private|Public)CycleDependency\("([^"]+)"\)')
+UBT_MODULE_LIST_PATTERN = re.compile(r"(Public|Private)(IncludePathModuleNames|DependencyModuleNames)")
+
+
+def ubt_relation_kinds(module_directory: Path, dependency: str) -> set[str]:
+    """Return the ModuleRules list kinds that name one dependency."""
+
+    kinds: set[str] = set()
+    for rules in module_directory.glob("*.Build.cs"):
+        text = rules.read_text(encoding="utf-8", errors="replace")
+        for match in UBT_MODULE_LIST_PATTERN.finditer(text):
+            end = text.find(";", match.end())
+            if end != -1 and re.search(r'"%s"' % re.escape(dependency), text[match.end() : end]):
+                kinds.add(match.group(2))
+    return kinds
+
+
+def verify_ue_specifications(files: list[UeFile], metadata: Path, ue_root: Path) -> None:
+    """Cross-check mechanically derived UE data against UBT without emitting it into hmake.cpp."""
+
+    modules = load_module_generated_metadata(metadata, ue_root)
+    configured_root = ue_root / "Engine" / "Intermediate" / "Build" / "Linux" / "UnrealServer" / "Inc"
+    problems: list[str] = []
+
+    for file in files:
+        if file.kind != "Module":
+            continue
+
+        # IncludePathModuleNames carries compile visibility but no linker input, so a cyclic form must use the OP API.
+        for visibility, dependency in CYCLE_DEPENDENCY_PATTERN.findall(
+            file.path.read_text(encoding="utf-8", errors="replace")
+        ):
+            if ubt_relation_kinds(file.path.parent, dependency) == {"IncludePathModuleNames"}:
+                problems.append(
+                    f"{file.path}: '{dependency}' is an IncludePathModuleNames relation in UBT, so it must use "
+                    f"add{visibility}CycleOpDependency"
+                )
+
+        if file.platform_group is not None or file.platform is not None:
+            continue
+        module = modules.get(file.logical_name)
+        if module is None:
+            continue
+
+        generated_root = module_generated_include_root(configured_root, file.path.parent)
+        generated_root /= module_intermediate_name(file)
+        for key, leaf in (("uhtDirectory", "UHT"), ("vniDirectory", "VNI")):
+            reported = str(module[key])
+            if not reported:
+                continue
+            computed = (generated_root / leaf).as_posix()
+            if computed != reported:
+                problems.append(
+                    f"{file.path}: HMake derives the {leaf} directory as\n"
+                    f"      {computed}\n"
+                    f"    but UBT reported\n"
+                    f"      {reported}\n"
+                    f"    Set the matching cpp.setShortName(...) in this file."
+                )
+
+    if problems:
+        raise ValueError(
+            "UBT metadata disagrees with the decentralized UE specifications:\n  " + "\n  ".join(problems)
+        )
 
 
 def link_commands(base_command: str, metadata: Path, ue_root: Path) -> tuple[str, str, str, str]:
@@ -188,7 +513,7 @@ def link_commands(base_command: str, metadata: Path, ue_root: Path) -> tuple[str
     return link_command, link_dependencies_prefix, link_command_suffix, archive_command
 
 
-def load_build_commands(metadata: Path, ue_root: Path) -> list[dict[str, str]]:
+def load_build_commands(metadata: Path, ue_root: Path) -> list[dict[str, object]]:
     base_command = read_base_command(metadata)
     cpp_command, c_command = compile_commands(base_command, ue_root)
     link_command, link_dependencies_prefix, link_command_suffix, archive_command = link_commands(
@@ -249,7 +574,7 @@ def ispc_compile_environment(cpp_compile_command: str, ue_root: Path) -> tuple[l
     return include_directories, definition_arguments
 
 
-def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -> str:
+def generate(files: list[UeFile], commands: list[dict[str, object]], ue_root: Path) -> str:
     generated_include_root = (
         ue_root / "Engine" / "Intermediate" / "Build" / "Linux" / "UnrealServer" / "Inc"
     ).as_posix()
@@ -269,7 +594,7 @@ def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -
             [
                 f"namespace ue_generated_file_{index}",
                 "{",
-                f"#include {cpp_string(file.as_posix())}",
+                f"#include {cpp_string(file.path.as_posix())}",
                 "}",
                 "",
             ]
@@ -282,9 +607,18 @@ def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -
         ]
     )
     for index, file in enumerate(files):
-        lines.append(
-            f"    {{.path = {cpp_string(file.as_posix())}, .func = ue_generated_file_{index}::specify}},"
-        )
+        fields = [
+            f".path = {cpp_string(file.path.as_posix())}",
+            f".logicalName = {cpp_string(file.logical_name)}",
+            f".kind = UeFileKind::{file.kind}",
+            f".configuration = UeConfigurationProfile::{file.configuration}",
+        ]
+        if file.platform_group is not None:
+            fields.append(f".platformGroup = UePlatformGroup::{file.platform_group}")
+        if file.platform is not None:
+            fields.append(f".platform = UePlatform::{file.platform}")
+        fields.append(f".func = ue_generated_file_{index}::specify")
+        lines.append(f"    {{{', '.join(fields)}}},")
     lines.extend(
         [
             "};",
@@ -292,7 +626,8 @@ def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -
             "// Bootstrap command row derived from this checkout's successful local UBT invocation:",
             "//     make UnrealServer-Linux-Debug",
             "// cppCompileCommand comes from UnrealServerMetadata.txt's BASE-COMMAND and maps to the shared",
-            "// CppCompileEnvironment/toolchain prefix. HMake removes UBT's -c because CppSrc appends -c,",
+            "// CppCompileEnvironment/toolchain prefix. HMake removes UBT's -c and semantic RTTI/exception",
+            "// policy because CppSrc appends -c and each Configuration appends its own semantic policy,",
             "// dependency, source, and -o arguments per file. cCompileCommand selects C mode on that prefix.",
             "// Link fields come from UBT's adjacent response files; archiveCommand uses llvm-ar beside clang++.",
             "// HMake launches these commands directly while they fit the configured command-line",
@@ -347,8 +682,20 @@ def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -
             "};",
             "} // namespace",
             "",
-            "void configurationSpecification(Configuration &)",
+            "// Expand the UE graph only when this configuration is active. Profile-marked modules create their",
+            "// producer archives lazily as the consumer graph reaches them.",
+            "void configurationSpecification(Configuration &config)",
             "{",
+            "    auto &configuration = static_cast<UeConfiguration &>(config);",
+            "    configuration.createProducerConfigurations();",
+            "",
+            "    for (const string &target : configuration.requestedTargets)",
+            "    {",
+            "        configuration.getOrAddTarget(target);",
+            "    }",
+            "",
+            "    // Dynamically created producers do not receive this callback, so finalize them after expansion.",
+            "    configuration.finalizeProducerConfigurations();",
             "}",
             "",
             "void buildSpecification()",
@@ -372,19 +719,13 @@ def generate(files: list[Path], commands: list[dict[str, str]], ue_root: Path) -
             f"            {cpp_string(generated_include_root)}, false))",
             "        // UBT: TargetRules.bCompileISPC plus Linux ISPCToolChain's host compiler.",
             "        .setIspcCompiler(Node::getNode(",
-            f"            {cpp_string(ispc_compiler)}, true))",
-            '        .requestTarget("UnrealServer");',
+            f"            {cpp_string(ispc_compiler)}, true));",
+            "    configuration.jumboFileSize = 384 * 1024;",
+            '    configuration.requestTarget("UnrealServer");',
             "    // UBT's compile command already selects the bundled libc++ headers. Do not",
             "    // add HMake's host standard-library target (which would leak /usr/include).",
-            "    configuration.jumboFileSize = 384 * 1024;",
             "    configuration.assign(ConfigType::DEBUG, TargetType::LIBRARY_STATIC, IsCppMod::NO, JumboBuild::YES,",
-            "                         AssignStandardCppTarget::NO);",
-            "",
-            "    // Expand only the requested UE roots; dependencies continue to be discovered lazily.",
-            "    for (const string &target : configuration.requestedTargets)",
-            "    {",
-            "        configuration.getOrAddTarget(target);",
-            "    }",
+            "                         AssignStandardCppTarget::NO, RTTI::OFF, ExceptionHandling::OFF);",
             "",
             "    CALL_CONFIGURATION_SPECIFICATION",
             "}",
@@ -429,9 +770,13 @@ def main() -> None:
     metadata = args.metadata.expanduser().resolve() if args.metadata else (ue_root / DEFAULT_METADATA).resolve()
     if not metadata.is_file():
         parser.error(f"UBT metadata does not exist; run the UnrealServer bootstrap first: {metadata}")
-    files = scan(ue_root)
-    commands = load_build_commands(metadata, ue_root)
-    generated = generate(files, commands, ue_root)
+    try:
+        files = scan(ue_root)
+        verify_ue_specifications(files, metadata, ue_root)
+        commands = load_build_commands(metadata, ue_root)
+        generated = generate(files, commands, ue_root)
+    except ValueError as error:
+        parser.error(str(error))
 
     previous = output.read_text(encoding="utf-8") if output.exists() else None
     if previous == generated:

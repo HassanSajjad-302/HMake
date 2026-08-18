@@ -5,2400 +5,2401 @@ namespace
 {
 namespace ue_generated_file_0
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/2D/Paper2D/Source/Paper2D/Paper2D.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/2D/Paper2D/Source/Paper2D/Paper2D.hmake.hpp"
 }
 
 namespace ue_generated_file_1
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/AI/AISupport/Source/AISupportModule/AISupportModule.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/AI/AISupport/Source/AISupportModule/AISupportModule.hmake.hpp"
 }
 
 namespace ue_generated_file_2
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ACLPlugin/Source/ACLPlugin/ACLPlugin.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ACLPlugin/Source/ACLPlugin/ACLPlugin.hmake.hpp"
 }
 
 namespace ue_generated_file_3
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRig/Source/ControlRig/ControlRig.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRig/Source/ControlRig/ControlRig.hmake.hpp"
 }
 
 namespace ue_generated_file_4
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRigSpline/Source/ControlRigSpline/ControlRigSpline.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRigSpline/Source/ControlRigSpline/ControlRigSpline.hmake.hpp"
 }
 
 namespace ue_generated_file_5
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusCore/OptimusCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusCore/OptimusCore.hmake.hpp"
 }
 
 namespace ue_generated_file_6
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusSettings/OptimusSettings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusSettings/OptimusSettings.hmake.hpp"
 }
 
 namespace ue_generated_file_7
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/IKRig/Source/IKRig/IKRig.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/IKRig/Source/IKRig/IKRig.hmake.hpp"
 }
 
 namespace ue_generated_file_8
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicLib/RigLogicLib.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicLib/RigLogicLib.hmake.hpp"
 }
 
 namespace ue_generated_file_9
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicModule/RigLogicModule.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicModule/RigLogicModule.hmake.hpp"
 }
 
 namespace ue_generated_file_10
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/TweeningUtils/Source/TweeningUtils/TweeningUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/TweeningUtils/Source/TweeningUtils/TweeningUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_11
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/EngineCameras/Source/EngineCameras/EngineCameras.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/EngineCameras/Source/EngineCameras/EngineCameras.hmake.hpp"
 }
 
 namespace ue_generated_file_12
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/GameplayCameras/Source/GameplayCameras/GameplayCameras.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/GameplayCameras/Source/GameplayCameras/GameplayCameras.hmake.hpp"
 }
 
 namespace ue_generated_file_13
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosCloth/Source/ChaosCloth/ChaosCloth.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosCloth/Source/ChaosCloth/ChaosCloth.hmake.hpp"
 }
 
 namespace ue_generated_file_14
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosVD/Source/ChaosVDBlueprint/ChaosVDBlueprint.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosVD/Source/ChaosVDBlueprint/ChaosVDBlueprint.hmake.hpp"
 }
 
 namespace ue_generated_file_15
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compositing/CompositeCore/Source/CompositeCore/CompositeCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compositing/CompositeCore/Source/CompositeCore/CompositeCore.hmake.hpp"
 }
 
 namespace ue_generated_file_16
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compression/OodleNetwork/Source/OodleNetworkHandlerComponent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compression/OodleNetwork/Source/OodleNetworkHandlerComponent.hmake.hpp"
 }
 
 namespace ue_generated_file_17
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/AnimationSharing/Source/AnimationSharing/AnimationSharing.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/AnimationSharing/Source/AnimationSharing/AnimationSharing.hmake.hpp"
 }
 
 namespace ue_generated_file_18
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokens/NamingTokens.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokens/NamingTokens.hmake.hpp"
 }
 
 namespace ue_generated_file_19
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokensUI/NamingTokensUI.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokensUI/NamingTokensUI.hmake.hpp"
 }
 
 namespace ue_generated_file_20
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/RenderDocPlugin/Source/RenderDocPlugin/RenderDocPlugin.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/RenderDocPlugin/Source/RenderDocPlugin/RenderDocPlugin.hmake.hpp"
 }
 
 namespace ue_generated_file_21
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/UObjectPlugin/Source/UObjectPlugin/UObjectPlugin.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/UObjectPlugin/Source/UObjectPlugin/UObjectPlugin.hmake.hpp"
 }
 
 namespace ue_generated_file_22
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Editor/FacialAnimation/Source/FacialAnimation/FacialAnimation.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Editor/FacialAnimation/Source/FacialAnimation/FacialAnimation.hmake.hpp"
 }
 
 namespace ue_generated_file_23
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/EnhancedInput/Source/EnhancedInput/EnhancedInput.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/EnhancedInput/Source/EnhancedInput/EnhancedInput.hmake.hpp"
 }
 
 namespace ue_generated_file_24
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/DatasmithContent/Source/DatasmithContent/DatasmithContent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/DatasmithContent/Source/DatasmithContent/DatasmithContent.hmake.hpp"
 }
 
 namespace ue_generated_file_25
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/GLTFExporter/Source/GLTFExporter/GLTFExporter.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/GLTFExporter/Source/GLTFExporter/GLTFExporter.hmake.hpp"
 }
 
 namespace ue_generated_file_26
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/VariantManagerContent/Source/VariantManagerContent/VariantManagerContent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/VariantManagerContent/Source/VariantManagerContent/VariantManagerContent.hmake.hpp"
 }
 
 namespace ue_generated_file_27
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/AutomationUtils/Source/AutomationUtils/AutomationUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/AutomationUtils/Source/AutomationUtils/AutomationUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_28
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/BackChannel/Source/BackChannel/BackChannel.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/BackChannel/Source/BackChannel/BackChannel.hmake.hpp"
 }
 
 namespace ue_generated_file_29
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosCaching/Source/ChaosCaching/ChaosCaching.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosCaching/Source/ChaosCaching/ChaosCaching.hmake.hpp"
 }
 
 namespace ue_generated_file_30
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosNiagara/Source/ChaosNiagara/ChaosNiagara.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosNiagara/Source/ChaosNiagara/ChaosNiagara.hmake.hpp"
 }
 
 namespace ue_generated_file_31
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosUserDataPT/Source/ChaosUserDataPT/ChaosUserDataPT.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosUserDataPT/Source/ChaosUserDataPT/ChaosUserDataPT.hmake.hpp"
 }
 
 namespace ue_generated_file_32
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/CharacterAI/Source/CharacterAI/CharacterAI.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/CharacterAI/Source/CharacterAI/CharacterAI.hmake.hpp"
 }
 
 namespace ue_generated_file_33
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowAssetTools/DataflowAssetTools.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowAssetTools/DataflowAssetTools.hmake.hpp"
 }
 
 namespace ue_generated_file_34
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowEnginePlugin/DataflowEnginePlugin.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowEnginePlugin/DataflowEnginePlugin.hmake.hpp"
 }
 
 namespace ue_generated_file_35
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowNodes/DataflowNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowNodes/DataflowNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_36
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Fracture/Source/FractureEngine/FractureEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Fracture/Source/FractureEngine/FractureEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_37
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/FullBodyIK/FullBodyIK.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/FullBodyIK/FullBodyIK.hmake.hpp"
 }
 
 namespace ue_generated_file_38
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/PBIK/PBIK.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/PBIK/PBIK.hmake.hpp"
 }
 
 namespace ue_generated_file_39
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionDepNodes/GeometryCollectionDepNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionDepNodes/GeometryCollectionDepNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_40
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionNodes/GeometryCollectionNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionNodes/GeometryCollectionNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_41
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionTracks/GeometryCollectionTracks.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionTracks/GeometryCollectionTracks.hmake.hpp"
 }
 
 namespace ue_generated_file_42
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryDataflow/Source/GeometryDataflowNodes/GeometryDataflowNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryDataflow/Source/GeometryDataflowNodes/GeometryDataflowNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_43
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationData/GlobalConfigurationData.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationData/GlobalConfigurationData.hmake.hpp"
 }
 
 namespace ue_generated_file_44
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationDataCore/GlobalConfigurationDataCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationDataCore/GlobalConfigurationDataCore.hmake.hpp"
 }
 
 namespace ue_generated_file_45
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessage/LocalizableMessage.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessage/LocalizableMessage.hmake.hpp"
 }
 
 namespace ue_generated_file_46
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessageBlueprint/LocalizableMessageBlueprint.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessageBlueprint/LocalizableMessageBlueprint.hmake.hpp"
 }
 
 namespace ue_generated_file_47
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/NFORDenoise/Source/NFORDenoise/NFORDenoise.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/NFORDenoise/Source/NFORDenoise/NFORDenoise.hmake.hpp"
 }
 
 namespace ue_generated_file_48
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlanarCutPlugin/Source/PlanarCut/PlanarCut.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlanarCutPlugin/Source/PlanarCut/PlanarCut.hmake.hpp"
 }
 
 namespace ue_generated_file_49
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCrypto/PlatformCrypto.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCrypto/PlatformCrypto.hmake.hpp"
 }
 
 namespace ue_generated_file_50
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoContext/PlatformCryptoContext.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoContext/PlatformCryptoContext.hmake.hpp"
 }
 
 namespace ue_generated_file_51
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoTypes/PlatformCryptoTypes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoTypes/PlatformCryptoTypes.hmake.hpp"
 }
 
 namespace ue_generated_file_52
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PythonScriptPlugin/Source/PythonScriptPluginPreload/PythonScriptPluginPreload.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PythonScriptPlugin/Source/PythonScriptPluginPreload/PythonScriptPluginPreload.hmake.hpp"
 }
 
 namespace ue_generated_file_53
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/RuntimeTelemetry/Source/RuntimeTelemetry.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/RuntimeTelemetry/Source/RuntimeTelemetry.hmake.hpp"
 }
 
 namespace ue_generated_file_54
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/Niagara/Niagara.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/Niagara/Niagara.hmake.hpp"
 }
 
 namespace ue_generated_file_55
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraAnimNotifies/NiagaraAnimNotifies.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraAnimNotifies/NiagaraAnimNotifies.hmake.hpp"
 }
 
 namespace ue_generated_file_56
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraCore/NiagaraCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraCore/NiagaraCore.hmake.hpp"
 }
 
 namespace ue_generated_file_57
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraShader/NiagaraShader.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraShader/NiagaraShader.hmake.hpp"
 }
 
 namespace ue_generated_file_58
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraVertexFactories/NiagaraVertexFactories.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraVertexFactories/NiagaraVertexFactories.hmake.hpp"
 }
 
 namespace ue_generated_file_59
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/NiagaraSimCaching/Source/NiagaraSimCaching/NiagaraSimCaching.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/NiagaraSimCaching/Source/NiagaraSimCaching/NiagaraSimCaching.hmake.hpp"
 }
 
 namespace ue_generated_file_60
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Assets/Source/Assets/InterchangeAssets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Assets/Source/Assets/InterchangeAssets.hmake.hpp"
 }
 
 namespace ue_generated_file_61
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Common/InterchangeCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Common/InterchangeCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_62
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Dispatcher/InterchangeDispatcher.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Dispatcher/InterchangeDispatcher.hmake.hpp"
 }
 
 namespace ue_generated_file_63
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Export/InterchangeExport.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Export/InterchangeExport.hmake.hpp"
 }
 
 namespace ue_generated_file_64
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/FactoryNodes/InterchangeFactoryNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/FactoryNodes/InterchangeFactoryNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_65
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Import/InterchangeImport.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Import/InterchangeImport.hmake.hpp"
 }
 
 namespace ue_generated_file_66
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Messages/InterchangeMessages.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Messages/InterchangeMessages.hmake.hpp"
 }
 
 namespace ue_generated_file_67
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Nodes/InterchangeNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Nodes/InterchangeNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_68
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/CommonParser/InterchangeCommonParser.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/CommonParser/InterchangeCommonParser.hmake.hpp"
 }
 
 namespace ue_generated_file_69
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/GLTFCore/GLTFCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/GLTFCore/GLTFCore.hmake.hpp"
 }
 
 namespace ue_generated_file_70
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Pipelines/InterchangePipelines.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Pipelines/InterchangePipelines.hmake.hpp"
 }
 
 namespace ue_generated_file_71
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/ThirdParty/Draco/Draco.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/ThirdParty/Draco/Draco.hmake.hpp"
 }
 
 namespace ue_generated_file_72
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMedia/AvfMedia.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMedia/AvfMedia.hmake.hpp"
 }
 
 namespace ue_generated_file_73
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMediaFactory/AvfMediaFactory.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMediaFactory/AvfMediaFactory.hmake.hpp"
 }
 
 namespace ue_generated_file_74
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ExrReaderGpu/ExrReaderGpu.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ExrReaderGpu/ExrReaderGpu.hmake.hpp"
 }
 
 namespace ue_generated_file_75
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMedia/ImgMedia.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMedia/ImgMedia.hmake.hpp"
 }
 
 namespace ue_generated_file_76
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaEngine/ImgMediaEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaEngine/ImgMediaEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_77
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaFactory/ImgMediaFactory.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaFactory/ImgMediaFactory.hmake.hpp"
 }
 
 namespace ue_generated_file_78
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/OpenExrWrapper/OpenExrWrapper.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/OpenExrWrapper/OpenExrWrapper.hmake.hpp"
 }
 
 namespace ue_generated_file_79
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaCompositing/Source/MediaCompositing/MediaCompositing.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaCompositing/Source/MediaCompositing/MediaCompositing.hmake.hpp"
 }
 
 namespace ue_generated_file_80
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaPlate/Source/MediaPlate/MediaPlate.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaPlate/Source/MediaPlate/MediaPlate.hmake.hpp"
 }
 
 namespace ue_generated_file_81
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/TcpMessaging/Source/TcpMessaging/TcpMessaging.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/TcpMessaging/Source/TcpMessaging/TcpMessaging.hmake.hpp"
 }
 
 namespace ue_generated_file_82
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/UdpMessaging/Source/UdpMessaging/UdpMessaging.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/UdpMessaging/Source/UdpMessaging/UdpMessaging.hmake.hpp"
 }
 
 namespace ue_generated_file_83
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MetaHuman/MetaHumanSDK/Source/MetaHumanSDKRuntime/MetaHumanSDKRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MetaHuman/MetaHumanSDK/Source/MetaHumanSDKRuntime/MetaHumanSDKRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_84
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/ActorSequence/Source/ActorSequence/ActorSequence.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/ActorSequence/Source/ActorSequence/ActorSequence.hmake.hpp"
 }
 
 namespace ue_generated_file_85
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/SequencerScripting/Source/SequencerScripting/SequencerScripting.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/SequencerScripting/Source/SequencerScripting/SequencerScripting.hmake.hpp"
 }
 
 namespace ue_generated_file_86
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/TemplateSequence/Source/TemplateSequence/TemplateSequence.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/TemplateSequence/Source/TemplateSequence/TemplateSequence.hmake.hpp"
 }
 
 namespace ue_generated_file_87
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiser/NNEDenoiser.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiser/NNEDenoiser.hmake.hpp"
 }
 
 namespace ue_generated_file_88
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiserShaders/NNEDenoiserShaders.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiserShaders/NNEDenoiserShaders.hmake.hpp"
 }
 
 namespace ue_generated_file_89
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/NNERuntimeORT/NNERuntimeORT.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/NNERuntimeORT/NNERuntimeORT.hmake.hpp"
 }
 
 namespace ue_generated_file_90
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/ThirdParty/Onnxruntime/NNEOnnxruntime.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/ThirdParty/Onnxruntime/NNEOnnxruntime.hmake.hpp"
 }
 
 namespace ue_generated_file_91
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineBase/Source/OnlineBase.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineBase/Source/OnlineBase.hmake.hpp"
 }
 
 namespace ue_generated_file_92
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommon/OnlineServicesCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommon/OnlineServicesCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_93
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommonEngineUtils/OnlineServicesCommonEngineUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommonEngineUtils/OnlineServicesCommonEngineUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_94
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesInterface/OnlineServicesInterface.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesInterface/OnlineServicesInterface.hmake.hpp"
 }
 
 namespace ue_generated_file_95
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystem/Source/OnlineSubsystem.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystem/Source/OnlineSubsystem.hmake.hpp"
 }
 
 namespace ue_generated_file_96
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemNull/Source/OnlineSubsystemNull.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemNull/Source/OnlineSubsystemNull.hmake.hpp"
 }
 
 namespace ue_generated_file_97
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/OnlineSubsystemUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/OnlineSubsystemUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_98
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Portal/LauncherChunkInstaller/Source/LauncherChunkInstaller/LauncherChunkInstaller.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Portal/LauncherChunkInstaller/Source/LauncherChunkInstaller/LauncherChunkInstaller.hmake.hpp"
 }
 
 namespace ue_generated_file_99
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ActorLayerUtilities/Source/ActorLayerUtilities/ActorLayerUtilities.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ActorLayerUtilities/Source/ActorLayerUtilities/ActorLayerUtilities.hmake.hpp"
 }
 
 namespace ue_generated_file_100
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidFileServer/Source/AndroidFileServer/AndroidFileServer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidFileServer/Source/AndroidFileServer/AndroidFileServer.hmake.hpp"
 }
 
 namespace ue_generated_file_101
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidPermission/Source/AndroidPermission/AndroidPermission.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidPermission/Source/AndroidPermission/AndroidPermission.hmake.hpp"
 }
 
 namespace ue_generated_file_102
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AppleImageUtils/Source/AppleImageUtils/AppleImageUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AppleImageUtils/Source/AppleImageUtils/AppleImageUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_103
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ArchVisCharacter/Source/ArchVisCharacter/ArchVisCharacter.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ArchVisCharacter/Source/ArchVisCharacter/ArchVisCharacter.hmake.hpp"
 }
 
 namespace ue_generated_file_104
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AssetTags/Source/AssetTags/AssetTags.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AssetTags/Source/AssetTags/AssetTags.hmake.hpp"
 }
 
 namespace ue_generated_file_105
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioCapture/Source/AudioCapture/AudioCapture.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioCapture/Source/AudioCapture/AudioCapture.hmake.hpp"
 }
 
 namespace ue_generated_file_106
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesia/AudioSynesthesia.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesia/AudioSynesthesia.hmake.hpp"
 }
 
 namespace ue_generated_file_107
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesiaCore/AudioSynesthesiaCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesiaCore/AudioSynesthesiaCore.hmake.hpp"
 }
 
 namespace ue_generated_file_108
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgets/AudioWidgets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgets/AudioWidgets.hmake.hpp"
 }
 
 namespace ue_generated_file_109
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgetsCore/AudioWidgetsCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgetsCore/AudioWidgetsCore.hmake.hpp"
 }
 
 namespace ue_generated_file_110
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/CableComponent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/CableComponent.hmake.hpp"
 }
 
 namespace ue_generated_file_111
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ChunkDownloader/Source/ChunkDownloader.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ChunkDownloader/Source/ChunkDownloader.hmake.hpp"
 }
 
 namespace ue_generated_file_112
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ComputeFramework/Source/ComputeFramework/ComputeFramework.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ComputeFramework/Source/ComputeFramework/ComputeFramework.hmake.hpp"
 }
 
 namespace ue_generated_file_113
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CustomMeshComponent/Source/CustomMeshComponent/CustomMeshComponent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CustomMeshComponent/Source/CustomMeshComponent/CustomMeshComponent.hmake.hpp"
 }
 
 namespace ue_generated_file_114
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ExampleDeviceProfileSelector/Source/ExampleDeviceProfileSelector/ExampleDeviceProfileSelector.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ExampleDeviceProfileSelector/Source/ExampleDeviceProfileSelector/ExampleDeviceProfileSelector.hmake.hpp"
 }
 
 namespace ue_generated_file_115
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCache/GeometryCache.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCache/GeometryCache.hmake.hpp"
 }
 
 namespace ue_generated_file_116
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCacheTracks/GeometryCacheTracks.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCacheTracks/GeometryCacheTracks.hmake.hpp"
 }
 
 namespace ue_generated_file_117
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/DynamicMesh/DynamicMesh.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/DynamicMesh/DynamicMesh.hmake.hpp"
 }
 
 namespace ue_generated_file_118
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/GeometryAlgorithms/GeometryAlgorithms.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/GeometryAlgorithms/GeometryAlgorithms.hmake.hpp"
 }
 
 namespace ue_generated_file_119
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/MeshFileUtils/MeshFileUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/MeshFileUtils/MeshFileUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_120
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GooglePAD/Source/GooglePAD/GooglePAD.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GooglePAD/Source/GooglePAD/GooglePAD.hmake.hpp"
 }
 
 namespace ue_generated_file_121
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsCore/HairStrandsCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsCore/HairStrandsCore.hmake.hpp"
 }
 
 namespace ue_generated_file_122
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsDeformer/HairStrandsDeformer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsDeformer/HairStrandsDeformer.hmake.hpp"
 }
 
 namespace ue_generated_file_123
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsRuntime/HairStrandsRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsRuntime/HairStrandsRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_124
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsSolver/HairStrandsSolver.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsSolver/HairStrandsSolver.hmake.hpp"
 }
 
 namespace ue_generated_file_125
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/InputDebugging/Source/InputDebugging/InputDebugging.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/InputDebugging/Source/InputDebugging/InputDebugging.hmake.hpp"
 }
 
 namespace ue_generated_file_126
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LinuxDeviceProfileSelector/Source/LinuxDeviceProfileSelector/LinuxDeviceProfileSelector.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LinuxDeviceProfileSelector/Source/LinuxDeviceProfileSelector/LinuxDeviceProfileSelector.hmake.hpp"
 }
 
 namespace ue_generated_file_127
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LocationServicesBPLibrary/Source/LocationServicesBPLibrary/LocationServicesBPLibrary.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LocationServicesBPLibrary/Source/LocationServicesBPLibrary/LocationServicesBPLibrary.hmake.hpp"
 }
 
 namespace ue_generated_file_128
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundEngine/MetasoundEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundEngine/MetasoundEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_129
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundFrontend/MetasoundFrontend.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundFrontend/MetasoundFrontend.hmake.hpp"
 }
 
 namespace ue_generated_file_130
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGenerator/MetasoundGenerator.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGenerator/MetasoundGenerator.hmake.hpp"
 }
 
 namespace ue_generated_file_131
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGraphCore/MetasoundGraphCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGraphCore/MetasoundGraphCore.hmake.hpp"
 }
 
 namespace ue_generated_file_132
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundStandardNodes/MetasoundStandardNodes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundStandardNodes/MetasoundStandardNodes.hmake.hpp"
 }
 
 namespace ue_generated_file_133
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MobilePatchingUtils/Source/MobilePatchingUtils/MobilePatchingUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MobilePatchingUtils/Source/MobilePatchingUtils/MobilePatchingUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_134
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MsQuic/Source/MsQuicRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MsQuic/Source/MsQuicRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_135
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ProceduralMeshComponent/Source/ProceduralMeshComponent/ProceduralMeshComponent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ProceduralMeshComponent/Source/ProceduralMeshComponent/ProceduralMeshComponent.hmake.hpp"
 }
 
 namespace ue_generated_file_136
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/PropertyBindingUtils/Source/PropertyBindingUtils/PropertyBindingUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/PropertyBindingUtils/Source/PropertyBindingUtils/PropertyBindingUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_137
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ResonanceAudio/Source/ResonanceAudio/ResonanceAudio.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ResonanceAudio/Source/ResonanceAudio/ResonanceAudio.hmake.hpp"
 }
 
 namespace ue_generated_file_138
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/RigVM/Source/RigVM/RigVM.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/RigVM/Source/RigVM/RigVM.hmake.hpp"
 }
 
 namespace ue_generated_file_139
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SignificanceManager/Source/SignificanceManager/SignificanceManager.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SignificanceManager/Source/SignificanceManager/SignificanceManager.hmake.hpp"
 }
 
 namespace ue_generated_file_140
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SoundFields/Source/SoundFields/SoundFields.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SoundFields/Source/SoundFields/SoundFields.hmake.hpp"
 }
 
 namespace ue_generated_file_141
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeDeveloper/StateTreeDeveloper.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeDeveloper/StateTreeDeveloper.hmake.hpp"
 }
 
 namespace ue_generated_file_142
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeModule/StateTreeModule.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeModule/StateTreeModule.hmake.hpp"
 }
 
 namespace ue_generated_file_143
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Synthesis/Source/Synthesis/Synthesis.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Synthesis/Source/Synthesis/Synthesis.hmake.hpp"
 }
 
 namespace ue_generated_file_144
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/WaveTable/Source/WaveTable/WaveTable.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/WaveTable/Source/WaveTable/WaveTable.hmake.hpp"
 }
 
 namespace ue_generated_file_145
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/TraceUtilities/Source/TraceUtilities/TraceUtilities.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/TraceUtilities/Source/TraceUtilities/TraceUtilities.hmake.hpp"
 }
 
 namespace ue_generated_file_146
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/VirtualProduction/Takes/Source/TakeMovieScene/TakeMovieScene.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/VirtualProduction/Takes/Source/TakeMovieScene/TakeMovieScene.hmake.hpp"
 }
 
 namespace ue_generated_file_147
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/CsvMetrics/CsvMetrics.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/CsvMetrics/CsvMetrics.hmake.hpp"
 }
 
 namespace ue_generated_file_148
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsCore/WorldMetricsCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsCore/WorldMetricsCore.hmake.hpp"
 }
 
 namespace ue_generated_file_149
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsTest/WorldMetricsTest.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsTest/WorldMetricsTest.hmake.hpp"
 }
 
 namespace ue_generated_file_150
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Shaders/Shaders.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Shaders/Shaders.hmake.hpp"
 }
 
 namespace ue_generated_file_151
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AITestSuite/AITestSuite.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AITestSuite/AITestSuite.hmake.hpp"
 }
 
 namespace ue_generated_file_152
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AutomationController/AutomationController.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AutomationController/AutomationController.hmake.hpp"
 }
 
 namespace ue_generated_file_153
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DerivedDataCache/DerivedDataCache.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DerivedDataCache/DerivedDataCache.hmake.hpp"
 }
 
 namespace ue_generated_file_154
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DesktopPlatform/DesktopPlatform.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DesktopPlatform/DesktopPlatform.hmake.hpp"
 }
 
 namespace ue_generated_file_155
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DirectoryWatcher/DirectoryWatcher.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DirectoryWatcher/DirectoryWatcher.hmake.hpp"
 }
 
 namespace ue_generated_file_156
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DistributedBuildInterface/DistributedBuildInterface.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DistributedBuildInterface/DistributedBuildInterface.hmake.hpp"
 }
 
 namespace ue_generated_file_157
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DrawPrimitiveDebugger/DrawPrimitiveDebugger.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DrawPrimitiveDebugger/DrawPrimitiveDebugger.hmake.hpp"
 }
 
 namespace ue_generated_file_158
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/EditorAnalyticsSession/EditorAnalyticsSession.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/EditorAnalyticsSession/EditorAnalyticsSession.hmake.hpp"
 }
 
 namespace ue_generated_file_159
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/FunctionalTesting/FunctionalTesting.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/FunctionalTesting/FunctionalTesting.hmake.hpp"
 }
 
 namespace ue_generated_file_160
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LauncherServices/LauncherServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LauncherServices/LauncherServices.hmake.hpp"
 }
 
 namespace ue_generated_file_161
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Localization/Localization.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Localization/Localization.hmake.hpp"
 }
 
 namespace ue_generated_file_162
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LocalizationService/LocalizationService.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LocalizationService/LocalizationService.hmake.hpp"
 }
 
 namespace ue_generated_file_163
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MassEntityTestSuite/MassEntityTestSuite.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MassEntityTestSuite/MassEntityTestSuite.hmake.hpp"
 }
 
 namespace ue_generated_file_164
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MessageLog/MessageLog.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MessageLog/MessageLog.hmake.hpp"
 }
 
 namespace ue_generated_file_165
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ProfileVisualizer/ProfileVisualizer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ProfileVisualizer/ProfileVisualizer.hmake.hpp"
 }
 
 namespace ue_generated_file_166
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ScreenShotComparisonTools/ScreenShotComparisonTools.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ScreenShotComparisonTools/ScreenShotComparisonTools.hmake.hpp"
 }
 
 namespace ue_generated_file_167
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Settings/Settings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Settings/Settings.hmake.hpp"
 }
 
 namespace ue_generated_file_168
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFileDialogs/SlateFileDialogs.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFileDialogs/SlateFileDialogs.hmake.hpp"
 }
 
 namespace ue_generated_file_169
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFontDialog/SlateFontDialog.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFontDialog/SlateFontDialog.hmake.hpp"
 }
 
 namespace ue_generated_file_170
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateReflector/SlateReflector.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateReflector/SlateReflector.hmake.hpp"
 }
 
 namespace ue_generated_file_171
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SourceControl/SourceControl.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SourceControl/SourceControl.hmake.hpp"
 }
 
 namespace ue_generated_file_172
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetDeviceServices/TargetDeviceServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetDeviceServices/TargetDeviceServices.hmake.hpp"
 }
 
 namespace ue_generated_file_173
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetPlatform/TargetPlatform.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetPlatform/TargetPlatform.hmake.hpp"
 }
 
 namespace ue_generated_file_174
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TextureFormat/TextureFormat.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TextureFormat/TextureFormat.hmake.hpp"
 }
 
 namespace ue_generated_file_175
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolMenus/ToolMenus.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolMenus/ToolMenus.hmake.hpp"
 }
 
 namespace ue_generated_file_176
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolWidgets/ToolWidgets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolWidgets/ToolWidgets.hmake.hpp"
 }
 
 namespace ue_generated_file_177
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceAnalysis/TraceAnalysis.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceAnalysis/TraceAnalysis.hmake.hpp"
 }
 
 namespace ue_generated_file_178
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceServices/TraceServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceServices/TraceServices.hmake.hpp"
 }
 
 namespace ue_generated_file_179
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TranslationEditor/TranslationEditor.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TranslationEditor/TranslationEditor.hmake.hpp"
 }
 
 namespace ue_generated_file_180
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/Documentation/Documentation.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/Documentation/Documentation.hmake.hpp"
 }
 
 namespace ue_generated_file_181
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/MainFrame/MainFrame.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/MainFrame/MainFrame.hmake.hpp"
 }
 
 namespace ue_generated_file_182
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/UnrealEdMessages/UnrealEdMessages.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/UnrealEdMessages/UnrealEdMessages.hmake.hpp"
 }
 
 namespace ue_generated_file_183
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AIModule/AIModule.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AIModule/AIModule.hmake.hpp"
 }
 
 namespace ue_generated_file_184
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVEncoder/AVEncoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVEncoder/AVEncoder.hmake.hpp"
 }
 
 namespace ue_generated_file_185
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVIWriter/AVIWriter.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVIWriter/AVIWriter.hmake.hpp"
 }
 
 namespace ue_generated_file_186
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdpcmAudioDecoder/Module/AdpcmAudioDecoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdpcmAudioDecoder/Module/AdpcmAudioDecoder.hmake.hpp"
 }
 
 namespace ue_generated_file_187
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdvancedWidgets/AdvancedWidgets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdvancedWidgets/AdvancedWidgets.hmake.hpp"
 }
 
 namespace ue_generated_file_188
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Advertising/Advertising/Advertising.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Advertising/Advertising/Advertising.hmake.hpp"
 }
 
 namespace ue_generated_file_189
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/Analytics/Analytics.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/Analytics/Analytics.hmake.hpp"
 }
 
 namespace ue_generated_file_190
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsET/AnalyticsET.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsET/AnalyticsET.hmake.hpp"
 }
 
 namespace ue_generated_file_191
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsHorde/AnalyticsHorde.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsHorde/AnalyticsHorde.hmake.hpp"
 }
 
 namespace ue_generated_file_192
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsLog/AnalyticsLog.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsLog/AnalyticsLog.hmake.hpp"
 }
 
 namespace ue_generated_file_193
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/TelemetryUtils/TelemetryUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/TelemetryUtils/TelemetryUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_194
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimGraphRuntime/AnimGraphRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimGraphRuntime/AnimGraphRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_195
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimationCore/AnimationCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimationCore/AnimationCore.hmake.hpp"
 }
 
 namespace ue_generated_file_196
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AppFramework/AppFramework.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AppFramework/AppFramework.hmake.hpp"
 }
 
 namespace ue_generated_file_197
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ApplicationCore/ApplicationCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ApplicationCore/ApplicationCore.hmake.hpp"
 }
 
 namespace ue_generated_file_198
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AssetRegistry/AssetRegistry.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AssetRegistry/AssetRegistry.hmake.hpp"
 }
 
 namespace ue_generated_file_199
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioAnalyzer/AudioAnalyzer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioAnalyzer/AudioAnalyzer.hmake.hpp"
 }
 
 namespace ue_generated_file_200
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioCaptureCore/AudioCaptureCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioCaptureCore/AudioCaptureCore.hmake.hpp"
 }
 
 namespace ue_generated_file_201
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioExtensions/AudioExtensions.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioExtensions/AudioExtensions.hmake.hpp"
 }
 
 namespace ue_generated_file_202
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkCore/AudioLinkCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkCore/AudioLinkCore.hmake.hpp"
 }
 
 namespace ue_generated_file_203
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkEngine/AudioLinkEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkEngine/AudioLinkEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_204
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixer/AudioMixer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixer/AudioMixer.hmake.hpp"
 }
 
 namespace ue_generated_file_205
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixerCore/AudioMixerCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixerCore/AudioMixerCore.hmake.hpp"
 }
 
 namespace ue_generated_file_206
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioPlatformConfiguration/AudioPlatformConfiguration.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioPlatformConfiguration/AudioPlatformConfiguration.hmake.hpp"
 }
 
 namespace ue_generated_file_207
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutoRTFM/AutoRTFM.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutoRTFM/AutoRTFM.hmake.hpp"
 }
 
 namespace ue_generated_file_208
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationMessages/AutomationMessages.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationMessages/AutomationMessages.hmake.hpp"
 }
 
 namespace ue_generated_file_209
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationTest/AutomationTest.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationTest/AutomationTest.hmake.hpp"
 }
 
 namespace ue_generated_file_210
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationWorker/AutomationWorker.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationWorker/AutomationWorker.hmake.hpp"
 }
 
 namespace ue_generated_file_211
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BinkAudioDecoder/Module/BinkAudioDecoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BinkAudioDecoder/Module/BinkAudioDecoder.hmake.hpp"
 }
 
 namespace ue_generated_file_212
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BuildSettings/BuildSettings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BuildSettings/BuildSettings.hmake.hpp"
 }
 
 namespace ue_generated_file_213
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CUDA/Source/CUDA.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CUDA/Source/CUDA.hmake.hpp"
 }
 
 namespace ue_generated_file_214
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Cbor/Cbor.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Cbor/Cbor.hmake.hpp"
 }
 
 namespace ue_generated_file_215
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CinematicCamera/CinematicCamera.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CinematicCamera/CinematicCamera.hmake.hpp"
 }
 
 namespace ue_generated_file_216
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeCommon/ClothingSystemRuntimeCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeCommon/ClothingSystemRuntimeCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_217
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeInterface/ClothingSystemRuntimeInterface.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeInterface/ClothingSystemRuntimeInterface.hmake.hpp"
 }
 
 namespace ue_generated_file_218
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeNv/ClothingSystemRuntimeNv.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeNv/ClothingSystemRuntimeNv.hmake.hpp"
 }
 
 namespace ue_generated_file_219
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CookOnTheFly/CookOnTheFly.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CookOnTheFly/CookOnTheFly.hmake.hpp"
 }
 
 namespace ue_generated_file_220
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Core/Core.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Core/Core.hmake.hpp"
 }
 
 namespace ue_generated_file_221
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreOnline/CoreOnline.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreOnline/CoreOnline.hmake.hpp"
 }
 
 namespace ue_generated_file_222
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CorePreciseFP/CorePreciseFP.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CorePreciseFP/CorePreciseFP.hmake.hpp"
 }
 
 namespace ue_generated_file_223
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreUObject/CoreUObject.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreUObject/CoreUObject.hmake.hpp"
 }
 
 namespace ue_generated_file_224
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/DeveloperSettings/DeveloperSettings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/DeveloperSettings/DeveloperSettings.hmake.hpp"
 }
 
 namespace ue_generated_file_225
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Engine/Engine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Engine/Engine.hmake.hpp"
 }
 
 namespace ue_generated_file_226
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineMessages/EngineMessages.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineMessages/EngineMessages.hmake.hpp"
 }
 
 namespace ue_generated_file_227
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineSettings/EngineSettings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineSettings/EngineSettings.hmake.hpp"
 }
 
 namespace ue_generated_file_228
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Animation/Constraints/Constraints.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Animation/Constraints/Constraints.hmake.hpp"
 }
 
 namespace ue_generated_file_229
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Chaos/Chaos.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Chaos/Chaos.hmake.hpp"
 }
 
 namespace ue_generated_file_230
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosCore/ChaosCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosCore/ChaosCore.hmake.hpp"
 }
 
 namespace ue_generated_file_231
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosSolverEngine/ChaosSolverEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosSolverEngine/ChaosSolverEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_232
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosVisualDebugger/ChaosVDRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosVisualDebugger/ChaosVDRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_233
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Core/DataflowCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Core/DataflowCore.hmake.hpp"
 }
 
 namespace ue_generated_file_234
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Engine/DataflowEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Engine/DataflowEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_235
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Simulation/DataflowSimulation.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Simulation/DataflowSimulation.hmake.hpp"
 }
 
 namespace ue_generated_file_236
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/FieldSystem/Source/FieldSystemEngine/FieldSystemEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/FieldSystem/Source/FieldSystemEngine/FieldSystemEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_237
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/GeometryCollectionEngine/GeometryCollectionEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/GeometryCollectionEngine/GeometryCollectionEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_238
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ISMPool/ISMPool.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ISMPool/ISMPool.hmake.hpp"
 }
 
 namespace ue_generated_file_239
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IndexedCacheStorage/IndexedCacheStorage.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IndexedCacheStorage/IndexedCacheStorage.hmake.hpp"
 }
 
 namespace ue_generated_file_240
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/HttpClient/IoStoreHttpClient.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/HttpClient/IoStoreHttpClient.hmake.hpp"
 }
 
 namespace ue_generated_file_241
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemand/IoStoreOnDemand.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemand/IoStoreOnDemand.hmake.hpp"
 }
 
 namespace ue_generated_file_242
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemandCore/IoStoreOnDemandCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemandCore/IoStoreOnDemandCore.hmake.hpp"
 }
 
 namespace ue_generated_file_243
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Voronoi/Voronoi.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Voronoi/Voronoi.hmake.hpp"
 }
 
 namespace ue_generated_file_244
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EyeTracker/EyeTracker.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EyeTracker/EyeTracker.hmake.hpp"
 }
 
 namespace ue_generated_file_245
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/FieldNotification/FieldNotification.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/FieldNotification/FieldNotification.hmake.hpp"
 }
 
 namespace ue_generated_file_246
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Foliage/Foliage.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Foliage/Foliage.hmake.hpp"
 }
 
 namespace ue_generated_file_247
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayDebugger/GameplayDebugger.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayDebugger/GameplayDebugger.hmake.hpp"
 }
 
 namespace ue_generated_file_248
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTags/GameplayTags.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTags/GameplayTags.hmake.hpp"
 }
 
 namespace ue_generated_file_249
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTasks/GameplayTasks.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTasks/GameplayTasks.hmake.hpp"
 }
 
 namespace ue_generated_file_250
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryCore/GeometryCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryCore/GeometryCore.hmake.hpp"
 }
 
 namespace ue_generated_file_251
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryFramework/GeometryFramework.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryFramework/GeometryFramework.hmake.hpp"
 }
 
 namespace ue_generated_file_252
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/HeadMountedDisplay/HeadMountedDisplay.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/HeadMountedDisplay/HeadMountedDisplay.hmake.hpp"
 }
 
 namespace ue_generated_file_253
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/IESFile/IESFile.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/IESFile/IESFile.hmake.hpp"
 }
 
 namespace ue_generated_file_254
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageCore/ImageCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageCore/ImageCore.hmake.hpp"
 }
 
 namespace ue_generated_file_255
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWrapper/ImageWrapper.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWrapper/ImageWrapper.hmake.hpp"
 }
 
 namespace ue_generated_file_256
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWriteQueue/ImageWriteQueue.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWriteQueue/ImageWriteQueue.hmake.hpp"
 }
 
 namespace ue_generated_file_257
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputCore/InputCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputCore/InputCore.hmake.hpp"
 }
 
 namespace ue_generated_file_258
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputDevice/InputDevice.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputDevice/InputDevice.hmake.hpp"
 }
 
 namespace ue_generated_file_259
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InstallBundleManager/InstallBundleManager.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InstallBundleManager/InstallBundleManager.hmake.hpp"
 }
 
 namespace ue_generated_file_260
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InteractiveToolsFramework/InteractiveToolsFramework.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InteractiveToolsFramework/InteractiveToolsFramework.hmake.hpp"
 }
 
 namespace ue_generated_file_261
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Core/InterchangeCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Core/InterchangeCore.hmake.hpp"
 }
 
 namespace ue_generated_file_262
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Engine/InterchangeEngine.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Engine/InterchangeEngine.hmake.hpp"
 }
 
 namespace ue_generated_file_263
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Json/Json.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Json/Json.hmake.hpp"
 }
 
 namespace ue_generated_file_264
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/JsonUtilities/JsonUtilities.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/JsonUtilities/JsonUtilities.hmake.hpp"
 }
 
 namespace ue_generated_file_265
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Landscape/Landscape.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Landscape/Landscape.hmake.hpp"
 }
 
 namespace ue_generated_file_266
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Launch/Launch.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Launch/Launch.hmake.hpp"
 }
 
 namespace ue_generated_file_267
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/LevelSequence/LevelSequence.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/LevelSequence/LevelSequence.hmake.hpp"
 }
 
 namespace ue_generated_file_268
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MRMesh/MRMesh.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MRMesh/MRMesh.hmake.hpp"
 }
 
 namespace ue_generated_file_269
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MassEntity/MassEntity.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MassEntity/MassEntity.hmake.hpp"
 }
 
 namespace ue_generated_file_270
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MaterialShaderQualitySettings/MaterialShaderQualitySettings.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MaterialShaderQualitySettings/MaterialShaderQualitySettings.hmake.hpp"
 }
 
 namespace ue_generated_file_271
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MathCore/MathCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MathCore/MathCore.hmake.hpp"
 }
 
 namespace ue_generated_file_272
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Media/Media.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Media/Media.hmake.hpp"
 }
 
 namespace ue_generated_file_273
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaAssets/MediaAssets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaAssets/MediaAssets.hmake.hpp"
 }
 
 namespace ue_generated_file_274
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaUtils/MediaUtils.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaUtils/MediaUtils.hmake.hpp"
 }
 
 namespace ue_generated_file_275
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversion/MeshConversion.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversion/MeshConversion.hmake.hpp"
 }
 
 namespace ue_generated_file_276
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversionEngineTypes/MeshConversionEngineTypes.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversionEngineTypes/MeshConversionEngineTypes.hmake.hpp"
 }
 
 namespace ue_generated_file_277
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshDescription/MeshDescription.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshDescription/MeshDescription.hmake.hpp"
 }
 
 namespace ue_generated_file_278
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshUtilitiesCommon/MeshUtilitiesCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshUtilitiesCommon/MeshUtilitiesCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_279
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Messaging/Messaging.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Messaging/Messaging.hmake.hpp"
 }
 
 namespace ue_generated_file_280
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingCommon/MessagingCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingCommon/MessagingCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_281
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingRpc/MessagingRpc.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingRpc/MessagingRpc.hmake.hpp"
 }
 
 namespace ue_generated_file_282
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayer/MoviePlayer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayer/MoviePlayer.hmake.hpp"
 }
 
 namespace ue_generated_file_283
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayerProxy/MoviePlayerProxy.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayerProxy/MoviePlayerProxy.hmake.hpp"
 }
 
 namespace ue_generated_file_284
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieScene/MovieScene.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieScene/MovieScene.hmake.hpp"
 }
 
 namespace ue_generated_file_285
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneCapture/MovieSceneCapture.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneCapture/MovieSceneCapture.hmake.hpp"
 }
 
 namespace ue_generated_file_286
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneTracks/MovieSceneTracks.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneTracks/MovieSceneTracks.hmake.hpp"
 }
 
 namespace ue_generated_file_287
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NNE/NNE.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NNE/NNE.hmake.hpp"
 }
 
 namespace ue_generated_file_288
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NavigationSystem/NavigationSystem.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NavigationSystem/NavigationSystem.hmake.hpp"
 }
 
 namespace ue_generated_file_289
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Navmesh/Navmesh.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Navmesh/Navmesh.hmake.hpp"
 }
 
 namespace ue_generated_file_290
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Common/NetCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Common/NetCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_291
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Core/NetCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Core/NetCore.hmake.hpp"
 }
 
 namespace ue_generated_file_292
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Iris/IrisCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Iris/IrisCore.hmake.hpp"
 }
 
 namespace ue_generated_file_293
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkFile/NetworkFile.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkFile/NetworkFile.hmake.hpp"
 }
 
 namespace ue_generated_file_294
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/HttpNetworkReplayStreaming/HttpNetworkReplayStreaming.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/HttpNetworkReplayStreaming/HttpNetworkReplayStreaming.hmake.hpp"
 }
 
 namespace ue_generated_file_295
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/LocalFileNetworkReplayStreaming/LocalFileNetworkReplayStreaming.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/LocalFileNetworkReplayStreaming/LocalFileNetworkReplayStreaming.hmake.hpp"
 }
 
 namespace ue_generated_file_296
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NetworkReplayStreaming/NetworkReplayStreaming.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NetworkReplayStreaming/NetworkReplayStreaming.hmake.hpp"
 }
 
 namespace ue_generated_file_297
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NullNetworkReplayStreaming/NullNetworkReplayStreaming.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NullNetworkReplayStreaming/NullNetworkReplayStreaming.hmake.hpp"
 }
 
 namespace ue_generated_file_298
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Networking/Networking.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Networking/Networking.hmake.hpp"
 }
 
 namespace ue_generated_file_299
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NonRealtimeAudioRenderer/NonRealtimeAudioRenderer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NonRealtimeAudioRenderer/NonRealtimeAudioRenderer.hmake.hpp"
 }
 
 namespace ue_generated_file_300
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NullDrv/NullDrv.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NullDrv/NullDrv.hmake.hpp"
 }
 
 namespace ue_generated_file_301
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/BuildPatchServices/BuildPatchServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/BuildPatchServices/BuildPatchServices.hmake.hpp"
 }
 
 namespace ue_generated_file_302
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Experimental/EventLoop/EventLoop.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Experimental/EventLoop/EventLoop.hmake.hpp"
 }
 
 namespace ue_generated_file_303
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTP/HTTP.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTP/HTTP.hmake.hpp"
 }
 
 namespace ue_generated_file_304
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTPServer/HTTPServer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTPServer/HTTPServer.hmake.hpp"
 }
 
 namespace ue_generated_file_305
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/ICMP/Icmp.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/ICMP/Icmp.hmake.hpp"
 }
 
 namespace ue_generated_file_306
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/SSL/SSL.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/SSL/SSL.hmake.hpp"
 }
 
 namespace ue_generated_file_307
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Voice/Voice.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Voice/Voice.hmake.hpp"
 }
 
 namespace ue_generated_file_308
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OodleDataCompression/OodleDataCompression.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OodleDataCompression/OodleDataCompression.hmake.hpp"
 }
 
 namespace ue_generated_file_309
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpenGLDrv/OpenGLDrv.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpenGLDrv/OpenGLDrv.hmake.hpp"
 }
 
 namespace ue_generated_file_310
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpusAudioDecoder/Module/OpusAudioDecoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpusAudioDecoder/Module/OpusAudioDecoder.hmake.hpp"
 }
 
 namespace ue_generated_file_311
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Overlay/Overlay.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Overlay/Overlay.hmake.hpp"
 }
 
 namespace ue_generated_file_312
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/PacketHandler/PacketHandler.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/PacketHandler/PacketHandler.hmake.hpp"
 }
 
 namespace ue_generated_file_313
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/ReliabilityHandlerComponent/ReliabilityHandlerComponent.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/ReliabilityHandlerComponent/ReliabilityHandlerComponent.hmake.hpp"
 }
 
 namespace ue_generated_file_314
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PakFile/PakFile.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PakFile/PakFile.hmake.hpp"
 }
 
 namespace ue_generated_file_315
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PerfCounters/PerfCounters.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PerfCounters/PerfCounters.hmake.hpp"
 }
 
 namespace ue_generated_file_316
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PhysicsCore/PhysicsCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PhysicsCore/PhysicsCore.hmake.hpp"
 }
 
 namespace ue_generated_file_317
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/LauncherPlatform/LauncherPlatform.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/LauncherPlatform/LauncherPlatform.hmake.hpp"
 }
 
 namespace ue_generated_file_318
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Rpc/PortalRpc.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Rpc/PortalRpc.hmake.hpp"
 }
 
 namespace ue_generated_file_319
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Services/PortalServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Services/PortalServices.hmake.hpp"
 }
 
 namespace ue_generated_file_320
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PreLoadScreen/PreLoadScreen.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PreLoadScreen/PreLoadScreen.hmake.hpp"
 }
 
 namespace ue_generated_file_321
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Projects/Projects.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Projects/Projects.hmake.hpp"
 }
 
 namespace ue_generated_file_322
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PropertyPath/PropertyPath.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PropertyPath/PropertyPath.hmake.hpp"
 }
 
 namespace ue_generated_file_323
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RHI/RHI.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RHI/RHI.hmake.hpp"
 }
 
 namespace ue_generated_file_324
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RSA/RSA.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RSA/RSA.hmake.hpp"
 }
 
 namespace ue_generated_file_325
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RadAudioCodec/Module/RadAudioDecoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RadAudioCodec/Module/RadAudioDecoder.hmake.hpp"
 }
 
 namespace ue_generated_file_326
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RawMesh/RawMesh.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RawMesh/RawMesh.hmake.hpp"
 }
 
 namespace ue_generated_file_327
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RenderCore/RenderCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RenderCore/RenderCore.hmake.hpp"
 }
 
 namespace ue_generated_file_328
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Renderer/Renderer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Renderer/Renderer.hmake.hpp"
 }
 
 namespace ue_generated_file_329
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RewindDebuggerRuntimeInterface/RewindDebuggerRuntimeInterface.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RewindDebuggerRuntimeInterface/RewindDebuggerRuntimeInterface.hmake.hpp"
 }
 
 namespace ue_generated_file_330
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SandboxFile/SandboxFile.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SandboxFile/SandboxFile.hmake.hpp"
 }
 
 namespace ue_generated_file_331
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Serialization/Serialization.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Serialization/Serialization.hmake.hpp"
 }
 
 namespace ue_generated_file_332
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionMessages/SessionMessages.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionMessages/SessionMessages.hmake.hpp"
 }
 
 namespace ue_generated_file_333
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionServices/SessionServices.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionServices/SessionServices.hmake.hpp"
 }
 
 namespace ue_generated_file_334
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SignalProcessing/SignalProcessing.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SignalProcessing/SignalProcessing.hmake.hpp"
 }
 
 namespace ue_generated_file_335
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SkeletalMeshDescription/SkeletalMeshDescription.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SkeletalMeshDescription/SkeletalMeshDescription.hmake.hpp"
 }
 
 namespace ue_generated_file_336
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Slate/Slate.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Slate/Slate.hmake.hpp"
 }
 
 namespace ue_generated_file_337
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateCore/SlateCore.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateCore/SlateCore.hmake.hpp"
 }
 
 namespace ue_generated_file_338
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateRHIRenderer/SlateRHIRenderer.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateRHIRenderer/SlateRHIRenderer.hmake.hpp"
 }
 
 namespace ue_generated_file_339
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Sockets/Sockets.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Sockets/Sockets.hmake.hpp"
 }
 
 namespace ue_generated_file_340
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SoundFieldRendering/SoundFieldRendering.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SoundFieldRendering/SoundFieldRendering.hmake.hpp"
 }
 
 namespace ue_generated_file_341
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StateStream/StateStream.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StateStream/StateStream.hmake.hpp"
 }
 
 namespace ue_generated_file_342
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StaticMeshDescription/StaticMeshDescription.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StaticMeshDescription/StaticMeshDescription.hmake.hpp"
 }
 
 namespace ue_generated_file_343
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClient/StorageServerClient.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClient/StorageServerClient.hmake.hpp"
 }
 
 namespace ue_generated_file_344
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClientDebug/StorageServerClientDebug.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClientDebug/StorageServerClientDebug.hmake.hpp"
 }
 
 namespace ue_generated_file_345
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingFile/StreamingFile.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingFile/StreamingFile.hmake.hpp"
 }
 
 namespace ue_generated_file_346
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingPauseRendering/StreamingPauseRendering.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingPauseRendering/StreamingPauseRendering.hmake.hpp"
 }
 
 namespace ue_generated_file_347
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StudioTelemetry/StudioTelemetry.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StudioTelemetry/StudioTelemetry.hmake.hpp"
 }
 
 namespace ue_generated_file_348
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SymsLib/SymsLib.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SymsLib/SymsLib.hmake.hpp"
 }
 
 namespace ue_generated_file_349
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SynthBenchmark/SynthBenchmark.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SynthBenchmark/SynthBenchmark.hmake.hpp"
 }
 
 namespace ue_generated_file_350
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TextureUtilitiesCommon/TextureUtilitiesCommon.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TextureUtilitiesCommon/TextureUtilitiesCommon.hmake.hpp"
 }
 
 namespace ue_generated_file_351
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TimeManagement/TimeManagement.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TimeManagement/TimeManagement.hmake.hpp"
 }
 
 namespace ue_generated_file_352
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TraceLog/TraceLog.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TraceLog/TraceLog.hmake.hpp"
 }
 
 namespace ue_generated_file_353
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementFramework/TypedElementFramework.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementFramework/TypedElementFramework.hmake.hpp"
 }
 
 namespace ue_generated_file_354
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementRuntime/TypedElementRuntime.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementRuntime/TypedElementRuntime.hmake.hpp"
 }
 
 namespace ue_generated_file_355
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UEJpegComp/UEJpegComp.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UEJpegComp/UEJpegComp.hmake.hpp"
 }
 
 namespace ue_generated_file_356
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UMG/UMG.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UMG/UMG.hmake.hpp"
 }
 
 namespace ue_generated_file_357
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UniversalObjectLocator/UniversalObjectLocator.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UniversalObjectLocator/UniversalObjectLocator.hmake.hpp"
 }
 
 namespace ue_generated_file_358
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Unix/UnixCommonStartup/UnixCommonStartup.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Unix/UnixCommonStartup/UnixCommonStartup.hmake.hpp"
 }
 
 namespace ue_generated_file_359
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UnrealGame/UnrealGame.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UnrealGame/UnrealGame.hmake.hpp"
 }
 
 namespace ue_generated_file_360
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VectorVM/VectorVM.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VectorVM/VectorVM.hmake.hpp"
 }
 
 namespace ue_generated_file_361
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VorbisAudioDecoder/Module/VorbisAudioDecoder.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VorbisAudioDecoder/Module/VorbisAudioDecoder.hmake.hpp"
 }
 
 namespace ue_generated_file_362
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/XmlParser/XmlParser.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/XmlParser/XmlParser.hmake.hpp"
 }
 
 namespace ue_generated_file_363
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/AtomicQueue/AtomicQueue.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/AtomicQueue/AtomicQueue.hmake.hpp"
 }
 
 namespace ue_generated_file_364
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/BLAKE3/BLAKE3.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/BLAKE3/BLAKE3.hmake.hpp"
 }
 
 namespace ue_generated_file_365
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Eigen/Eigen.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Eigen/Eigen.hmake.hpp"
 }
 
 namespace ue_generated_file_366
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/GuidelinesSupportLibrary/GuidelinesSupportLibrary.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/GuidelinesSupportLibrary/GuidelinesSupportLibrary.hmake.hpp"
 }
 
 namespace ue_generated_file_367
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/ICU/ICU.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/ICU/ICU.hmake.hpp"
 }
 
 namespace ue_generated_file_368
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Imath/Imath.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Imath/Imath.hmake.hpp"
 }
 
 namespace ue_generated_file_369
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/IntelISPC.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/IntelISPC.hmake.hpp"
 }
 
 namespace ue_generated_file_370
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/LibTiff/LibTiff.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/LibTiff/LibTiff.hmake.hpp"
 }
 
 namespace ue_generated_file_371
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MaterialX/MaterialX.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MaterialX/MaterialX.hmake.hpp"
 }
 
 namespace ue_generated_file_372
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MikkTSpace/MikkTSpace.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MikkTSpace/MikkTSpace.hmake.hpp"
 }
 
 namespace ue_generated_file_373
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MsQuic/MsQuic.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MsQuic/MsQuic.hmake.hpp"
 }
 
 namespace ue_generated_file_374
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/NVIDIA/CUDA/CUDAHeader.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/NVIDIA/CUDA/CUDAHeader.hmake.hpp"
 }
 
 namespace ue_generated_file_375
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Ogg/UEOgg.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Ogg/UEOgg.hmake.hpp"
 }
 
 namespace ue_generated_file_376
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenGL/OpenGL.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenGL/OpenGL.hmake.hpp"
 }
 
 namespace ue_generated_file_377
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenSSL/OpenSSL.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenSSL/OpenSSL.hmake.hpp"
 }
 
 namespace ue_generated_file_378
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RapidJSON/RapidJSON.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RapidJSON/RapidJSON.hmake.hpp"
 }
 
 namespace ue_generated_file_379
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RenderDoc/RenderDoc.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RenderDoc/RenderDoc.hmake.hpp"
 }
 
 namespace ue_generated_file_380
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/SDL3/SDL3.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/SDL3/SDL3.hmake.hpp"
 }
 
 namespace ue_generated_file_381
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/Vorbis.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/Vorbis.hmake.hpp"
 }
 
 namespace ue_generated_file_382
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/VorbisFile.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/VorbisFile.hmake.hpp"
 }
 
 namespace ue_generated_file_383
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vulkan/Vulkan.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vulkan/Vulkan.hmake.hpp"
 }
 
 namespace ue_generated_file_384
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/asio/Asio.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/asio/Asio.hmake.hpp"
 }
 
 namespace ue_generated_file_385
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/jemalloc/jemalloc.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/jemalloc/jemalloc.hmake.hpp"
 }
 
 namespace ue_generated_file_386
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libOpus/libOpus.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libOpus/libOpus.hmake.hpp"
 }
 
 namespace ue_generated_file_387
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libPNG/UElibPNG.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libPNG/UElibPNG.hmake.hpp"
 }
 
 namespace ue_generated_file_388
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libSampleRate/UELibSampleRate.module.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libSampleRate/UELibSampleRate.hmake.hpp"
 }
 
 namespace ue_generated_file_389
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libcurl/libcurl.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libcurl/libcurl.hmake.hpp"
 }
 
 namespace ue_generated_file_390
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libjpeg-turbo/LibJpegTurbo.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libjpeg-turbo/LibJpegTurbo.hmake.hpp"
 }
 
 namespace ue_generated_file_391
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/mimalloc/mimalloc.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/mimalloc/mimalloc.hmake.hpp"
 }
 
 namespace ue_generated_file_392
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/nghttp2/nghttp2.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/nghttp2/nghttp2.hmake.hpp"
 }
 
 namespace ue_generated_file_393
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/openexr/UEOpenExr.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/openexr/UEOpenExr.hmake.hpp"
 }
 
 namespace ue_generated_file_394
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/stb_image_resize/stb_image_resize2.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/stb_image_resize/stb_image_resize2.hmake.hpp"
 }
 
 namespace ue_generated_file_395
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/xxhash/xxhash.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/xxhash/xxhash.hmake.hpp"
 }
 
 namespace ue_generated_file_396
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/zlib/zlib.prebuilt.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/zlib/zlib.hmake.hpp"
 }
 
 namespace ue_generated_file_397
 {
-#include "/home/hassan/Projects/UnrealEngine/Engine/Source/UnrealServer.target.hmake.hpp"
+#include "/home/hassan/Projects/UnrealEngine/Engine/Source/UnrealServer.hmake.hpp"
 }
 
 constexpr UeIncludedFile generatedUeFiles[] =
 {
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/2D/Paper2D/Source/Paper2D/Paper2D.module.hmake.hpp", .func = ue_generated_file_0::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/AI/AISupport/Source/AISupportModule/AISupportModule.module.hmake.hpp", .func = ue_generated_file_1::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ACLPlugin/Source/ACLPlugin/ACLPlugin.module.hmake.hpp", .func = ue_generated_file_2::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRig/Source/ControlRig/ControlRig.module.hmake.hpp", .func = ue_generated_file_3::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRigSpline/Source/ControlRigSpline/ControlRigSpline.module.hmake.hpp", .func = ue_generated_file_4::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusCore/OptimusCore.module.hmake.hpp", .func = ue_generated_file_5::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusSettings/OptimusSettings.module.hmake.hpp", .func = ue_generated_file_6::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/IKRig/Source/IKRig/IKRig.module.hmake.hpp", .func = ue_generated_file_7::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicLib/RigLogicLib.module.hmake.hpp", .func = ue_generated_file_8::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicModule/RigLogicModule.module.hmake.hpp", .func = ue_generated_file_9::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/TweeningUtils/Source/TweeningUtils/TweeningUtils.module.hmake.hpp", .func = ue_generated_file_10::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/EngineCameras/Source/EngineCameras/EngineCameras.module.hmake.hpp", .func = ue_generated_file_11::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/GameplayCameras/Source/GameplayCameras/GameplayCameras.module.hmake.hpp", .func = ue_generated_file_12::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosCloth/Source/ChaosCloth/ChaosCloth.module.hmake.hpp", .func = ue_generated_file_13::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosVD/Source/ChaosVDBlueprint/ChaosVDBlueprint.module.hmake.hpp", .func = ue_generated_file_14::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compositing/CompositeCore/Source/CompositeCore/CompositeCore.module.hmake.hpp", .func = ue_generated_file_15::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compression/OodleNetwork/Source/OodleNetworkHandlerComponent.module.hmake.hpp", .func = ue_generated_file_16::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/AnimationSharing/Source/AnimationSharing/AnimationSharing.module.hmake.hpp", .func = ue_generated_file_17::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokens/NamingTokens.module.hmake.hpp", .func = ue_generated_file_18::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokensUI/NamingTokensUI.module.hmake.hpp", .func = ue_generated_file_19::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/RenderDocPlugin/Source/RenderDocPlugin/RenderDocPlugin.module.hmake.hpp", .func = ue_generated_file_20::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/UObjectPlugin/Source/UObjectPlugin/UObjectPlugin.module.hmake.hpp", .func = ue_generated_file_21::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Editor/FacialAnimation/Source/FacialAnimation/FacialAnimation.module.hmake.hpp", .func = ue_generated_file_22::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/EnhancedInput/Source/EnhancedInput/EnhancedInput.module.hmake.hpp", .func = ue_generated_file_23::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/DatasmithContent/Source/DatasmithContent/DatasmithContent.module.hmake.hpp", .func = ue_generated_file_24::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/GLTFExporter/Source/GLTFExporter/GLTFExporter.module.hmake.hpp", .func = ue_generated_file_25::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/VariantManagerContent/Source/VariantManagerContent/VariantManagerContent.module.hmake.hpp", .func = ue_generated_file_26::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/AutomationUtils/Source/AutomationUtils/AutomationUtils.module.hmake.hpp", .func = ue_generated_file_27::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/BackChannel/Source/BackChannel/BackChannel.module.hmake.hpp", .func = ue_generated_file_28::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosCaching/Source/ChaosCaching/ChaosCaching.module.hmake.hpp", .func = ue_generated_file_29::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosNiagara/Source/ChaosNiagara/ChaosNiagara.module.hmake.hpp", .func = ue_generated_file_30::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosUserDataPT/Source/ChaosUserDataPT/ChaosUserDataPT.module.hmake.hpp", .func = ue_generated_file_31::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/CharacterAI/Source/CharacterAI/CharacterAI.module.hmake.hpp", .func = ue_generated_file_32::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowAssetTools/DataflowAssetTools.module.hmake.hpp", .func = ue_generated_file_33::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowEnginePlugin/DataflowEnginePlugin.module.hmake.hpp", .func = ue_generated_file_34::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowNodes/DataflowNodes.module.hmake.hpp", .func = ue_generated_file_35::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Fracture/Source/FractureEngine/FractureEngine.module.hmake.hpp", .func = ue_generated_file_36::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/FullBodyIK/FullBodyIK.module.hmake.hpp", .func = ue_generated_file_37::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/PBIK/PBIK.module.hmake.hpp", .func = ue_generated_file_38::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionDepNodes/GeometryCollectionDepNodes.module.hmake.hpp", .func = ue_generated_file_39::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionNodes/GeometryCollectionNodes.module.hmake.hpp", .func = ue_generated_file_40::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionTracks/GeometryCollectionTracks.module.hmake.hpp", .func = ue_generated_file_41::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryDataflow/Source/GeometryDataflowNodes/GeometryDataflowNodes.module.hmake.hpp", .func = ue_generated_file_42::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationData/GlobalConfigurationData.module.hmake.hpp", .func = ue_generated_file_43::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationDataCore/GlobalConfigurationDataCore.module.hmake.hpp", .func = ue_generated_file_44::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessage/LocalizableMessage.module.hmake.hpp", .func = ue_generated_file_45::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessageBlueprint/LocalizableMessageBlueprint.module.hmake.hpp", .func = ue_generated_file_46::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/NFORDenoise/Source/NFORDenoise/NFORDenoise.module.hmake.hpp", .func = ue_generated_file_47::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlanarCutPlugin/Source/PlanarCut/PlanarCut.module.hmake.hpp", .func = ue_generated_file_48::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCrypto/PlatformCrypto.module.hmake.hpp", .func = ue_generated_file_49::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoContext/PlatformCryptoContext.module.hmake.hpp", .func = ue_generated_file_50::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoTypes/PlatformCryptoTypes.module.hmake.hpp", .func = ue_generated_file_51::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PythonScriptPlugin/Source/PythonScriptPluginPreload/PythonScriptPluginPreload.module.hmake.hpp", .func = ue_generated_file_52::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/RuntimeTelemetry/Source/RuntimeTelemetry.module.hmake.hpp", .func = ue_generated_file_53::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/Niagara/Niagara.module.hmake.hpp", .func = ue_generated_file_54::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraAnimNotifies/NiagaraAnimNotifies.module.hmake.hpp", .func = ue_generated_file_55::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraCore/NiagaraCore.module.hmake.hpp", .func = ue_generated_file_56::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraShader/NiagaraShader.module.hmake.hpp", .func = ue_generated_file_57::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraVertexFactories/NiagaraVertexFactories.module.hmake.hpp", .func = ue_generated_file_58::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/NiagaraSimCaching/Source/NiagaraSimCaching/NiagaraSimCaching.module.hmake.hpp", .func = ue_generated_file_59::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Assets/Source/Assets/InterchangeAssets.module.hmake.hpp", .func = ue_generated_file_60::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Common/InterchangeCommon.module.hmake.hpp", .func = ue_generated_file_61::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Dispatcher/InterchangeDispatcher.module.hmake.hpp", .func = ue_generated_file_62::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Export/InterchangeExport.module.hmake.hpp", .func = ue_generated_file_63::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/FactoryNodes/InterchangeFactoryNodes.module.hmake.hpp", .func = ue_generated_file_64::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Import/InterchangeImport.module.hmake.hpp", .func = ue_generated_file_65::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Messages/InterchangeMessages.module.hmake.hpp", .func = ue_generated_file_66::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Nodes/InterchangeNodes.module.hmake.hpp", .func = ue_generated_file_67::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/CommonParser/InterchangeCommonParser.module.hmake.hpp", .func = ue_generated_file_68::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/GLTFCore/GLTFCore.module.hmake.hpp", .func = ue_generated_file_69::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Pipelines/InterchangePipelines.module.hmake.hpp", .func = ue_generated_file_70::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/ThirdParty/Draco/Draco.prebuilt.hmake.hpp", .func = ue_generated_file_71::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMedia/AvfMedia.module.hmake.hpp", .func = ue_generated_file_72::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMediaFactory/AvfMediaFactory.module.hmake.hpp", .func = ue_generated_file_73::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ExrReaderGpu/ExrReaderGpu.module.hmake.hpp", .func = ue_generated_file_74::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMedia/ImgMedia.module.hmake.hpp", .func = ue_generated_file_75::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaEngine/ImgMediaEngine.module.hmake.hpp", .func = ue_generated_file_76::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaFactory/ImgMediaFactory.module.hmake.hpp", .func = ue_generated_file_77::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/OpenExrWrapper/OpenExrWrapper.module.hmake.hpp", .func = ue_generated_file_78::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaCompositing/Source/MediaCompositing/MediaCompositing.module.hmake.hpp", .func = ue_generated_file_79::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaPlate/Source/MediaPlate/MediaPlate.module.hmake.hpp", .func = ue_generated_file_80::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/TcpMessaging/Source/TcpMessaging/TcpMessaging.module.hmake.hpp", .func = ue_generated_file_81::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/UdpMessaging/Source/UdpMessaging/UdpMessaging.module.hmake.hpp", .func = ue_generated_file_82::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MetaHuman/MetaHumanSDK/Source/MetaHumanSDKRuntime/MetaHumanSDKRuntime.module.hmake.hpp", .func = ue_generated_file_83::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/ActorSequence/Source/ActorSequence/ActorSequence.module.hmake.hpp", .func = ue_generated_file_84::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/SequencerScripting/Source/SequencerScripting/SequencerScripting.module.hmake.hpp", .func = ue_generated_file_85::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/TemplateSequence/Source/TemplateSequence/TemplateSequence.module.hmake.hpp", .func = ue_generated_file_86::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiser/NNEDenoiser.module.hmake.hpp", .func = ue_generated_file_87::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiserShaders/NNEDenoiserShaders.module.hmake.hpp", .func = ue_generated_file_88::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/NNERuntimeORT/NNERuntimeORT.module.hmake.hpp", .func = ue_generated_file_89::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/ThirdParty/Onnxruntime/NNEOnnxruntime.prebuilt.hmake.hpp", .func = ue_generated_file_90::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineBase/Source/OnlineBase.module.hmake.hpp", .func = ue_generated_file_91::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommon/OnlineServicesCommon.module.hmake.hpp", .func = ue_generated_file_92::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommonEngineUtils/OnlineServicesCommonEngineUtils.module.hmake.hpp", .func = ue_generated_file_93::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesInterface/OnlineServicesInterface.module.hmake.hpp", .func = ue_generated_file_94::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystem/Source/OnlineSubsystem.module.hmake.hpp", .func = ue_generated_file_95::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemNull/Source/OnlineSubsystemNull.module.hmake.hpp", .func = ue_generated_file_96::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/OnlineSubsystemUtils.module.hmake.hpp", .func = ue_generated_file_97::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Portal/LauncherChunkInstaller/Source/LauncherChunkInstaller/LauncherChunkInstaller.module.hmake.hpp", .func = ue_generated_file_98::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ActorLayerUtilities/Source/ActorLayerUtilities/ActorLayerUtilities.module.hmake.hpp", .func = ue_generated_file_99::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidFileServer/Source/AndroidFileServer/AndroidFileServer.module.hmake.hpp", .func = ue_generated_file_100::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidPermission/Source/AndroidPermission/AndroidPermission.module.hmake.hpp", .func = ue_generated_file_101::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AppleImageUtils/Source/AppleImageUtils/AppleImageUtils.module.hmake.hpp", .func = ue_generated_file_102::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ArchVisCharacter/Source/ArchVisCharacter/ArchVisCharacter.module.hmake.hpp", .func = ue_generated_file_103::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AssetTags/Source/AssetTags/AssetTags.module.hmake.hpp", .func = ue_generated_file_104::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioCapture/Source/AudioCapture/AudioCapture.module.hmake.hpp", .func = ue_generated_file_105::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesia/AudioSynesthesia.module.hmake.hpp", .func = ue_generated_file_106::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesiaCore/AudioSynesthesiaCore.module.hmake.hpp", .func = ue_generated_file_107::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgets/AudioWidgets.module.hmake.hpp", .func = ue_generated_file_108::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgetsCore/AudioWidgetsCore.module.hmake.hpp", .func = ue_generated_file_109::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/CableComponent.module.hmake.hpp", .func = ue_generated_file_110::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ChunkDownloader/Source/ChunkDownloader.module.hmake.hpp", .func = ue_generated_file_111::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ComputeFramework/Source/ComputeFramework/ComputeFramework.module.hmake.hpp", .func = ue_generated_file_112::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CustomMeshComponent/Source/CustomMeshComponent/CustomMeshComponent.module.hmake.hpp", .func = ue_generated_file_113::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ExampleDeviceProfileSelector/Source/ExampleDeviceProfileSelector/ExampleDeviceProfileSelector.module.hmake.hpp", .func = ue_generated_file_114::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCache/GeometryCache.module.hmake.hpp", .func = ue_generated_file_115::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCacheTracks/GeometryCacheTracks.module.hmake.hpp", .func = ue_generated_file_116::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/DynamicMesh/DynamicMesh.module.hmake.hpp", .func = ue_generated_file_117::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/GeometryAlgorithms/GeometryAlgorithms.module.hmake.hpp", .func = ue_generated_file_118::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/MeshFileUtils/MeshFileUtils.module.hmake.hpp", .func = ue_generated_file_119::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GooglePAD/Source/GooglePAD/GooglePAD.module.hmake.hpp", .func = ue_generated_file_120::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsCore/HairStrandsCore.module.hmake.hpp", .func = ue_generated_file_121::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsDeformer/HairStrandsDeformer.module.hmake.hpp", .func = ue_generated_file_122::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsRuntime/HairStrandsRuntime.module.hmake.hpp", .func = ue_generated_file_123::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsSolver/HairStrandsSolver.module.hmake.hpp", .func = ue_generated_file_124::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/InputDebugging/Source/InputDebugging/InputDebugging.module.hmake.hpp", .func = ue_generated_file_125::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LinuxDeviceProfileSelector/Source/LinuxDeviceProfileSelector/LinuxDeviceProfileSelector.module.hmake.hpp", .func = ue_generated_file_126::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LocationServicesBPLibrary/Source/LocationServicesBPLibrary/LocationServicesBPLibrary.module.hmake.hpp", .func = ue_generated_file_127::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundEngine/MetasoundEngine.module.hmake.hpp", .func = ue_generated_file_128::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundFrontend/MetasoundFrontend.module.hmake.hpp", .func = ue_generated_file_129::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGenerator/MetasoundGenerator.module.hmake.hpp", .func = ue_generated_file_130::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGraphCore/MetasoundGraphCore.module.hmake.hpp", .func = ue_generated_file_131::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundStandardNodes/MetasoundStandardNodes.module.hmake.hpp", .func = ue_generated_file_132::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MobilePatchingUtils/Source/MobilePatchingUtils/MobilePatchingUtils.module.hmake.hpp", .func = ue_generated_file_133::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MsQuic/Source/MsQuicRuntime.module.hmake.hpp", .func = ue_generated_file_134::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ProceduralMeshComponent/Source/ProceduralMeshComponent/ProceduralMeshComponent.module.hmake.hpp", .func = ue_generated_file_135::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/PropertyBindingUtils/Source/PropertyBindingUtils/PropertyBindingUtils.module.hmake.hpp", .func = ue_generated_file_136::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ResonanceAudio/Source/ResonanceAudio/ResonanceAudio.module.hmake.hpp", .func = ue_generated_file_137::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/RigVM/Source/RigVM/RigVM.module.hmake.hpp", .func = ue_generated_file_138::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SignificanceManager/Source/SignificanceManager/SignificanceManager.module.hmake.hpp", .func = ue_generated_file_139::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SoundFields/Source/SoundFields/SoundFields.module.hmake.hpp", .func = ue_generated_file_140::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeDeveloper/StateTreeDeveloper.module.hmake.hpp", .func = ue_generated_file_141::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeModule/StateTreeModule.module.hmake.hpp", .func = ue_generated_file_142::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Synthesis/Source/Synthesis/Synthesis.module.hmake.hpp", .func = ue_generated_file_143::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/WaveTable/Source/WaveTable/WaveTable.module.hmake.hpp", .func = ue_generated_file_144::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/TraceUtilities/Source/TraceUtilities/TraceUtilities.module.hmake.hpp", .func = ue_generated_file_145::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/VirtualProduction/Takes/Source/TakeMovieScene/TakeMovieScene.module.hmake.hpp", .func = ue_generated_file_146::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/CsvMetrics/CsvMetrics.module.hmake.hpp", .func = ue_generated_file_147::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsCore/WorldMetricsCore.module.hmake.hpp", .func = ue_generated_file_148::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsTest/WorldMetricsTest.module.hmake.hpp", .func = ue_generated_file_149::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Shaders/Shaders.prebuilt.hmake.hpp", .func = ue_generated_file_150::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AITestSuite/AITestSuite.module.hmake.hpp", .func = ue_generated_file_151::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AutomationController/AutomationController.module.hmake.hpp", .func = ue_generated_file_152::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DerivedDataCache/DerivedDataCache.module.hmake.hpp", .func = ue_generated_file_153::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DesktopPlatform/DesktopPlatform.module.hmake.hpp", .func = ue_generated_file_154::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DirectoryWatcher/DirectoryWatcher.module.hmake.hpp", .func = ue_generated_file_155::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DistributedBuildInterface/DistributedBuildInterface.prebuilt.hmake.hpp", .func = ue_generated_file_156::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DrawPrimitiveDebugger/DrawPrimitiveDebugger.module.hmake.hpp", .func = ue_generated_file_157::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/EditorAnalyticsSession/EditorAnalyticsSession.module.hmake.hpp", .func = ue_generated_file_158::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/FunctionalTesting/FunctionalTesting.module.hmake.hpp", .func = ue_generated_file_159::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LauncherServices/LauncherServices.module.hmake.hpp", .func = ue_generated_file_160::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Localization/Localization.module.hmake.hpp", .func = ue_generated_file_161::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LocalizationService/LocalizationService.module.hmake.hpp", .func = ue_generated_file_162::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MassEntityTestSuite/MassEntityTestSuite.module.hmake.hpp", .func = ue_generated_file_163::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MessageLog/MessageLog.module.hmake.hpp", .func = ue_generated_file_164::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ProfileVisualizer/ProfileVisualizer.module.hmake.hpp", .func = ue_generated_file_165::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ScreenShotComparisonTools/ScreenShotComparisonTools.module.hmake.hpp", .func = ue_generated_file_166::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Settings/Settings.module.hmake.hpp", .func = ue_generated_file_167::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFileDialogs/SlateFileDialogs.module.hmake.hpp", .func = ue_generated_file_168::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFontDialog/SlateFontDialog.module.hmake.hpp", .func = ue_generated_file_169::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateReflector/SlateReflector.module.hmake.hpp", .func = ue_generated_file_170::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SourceControl/SourceControl.module.hmake.hpp", .func = ue_generated_file_171::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetDeviceServices/TargetDeviceServices.module.hmake.hpp", .func = ue_generated_file_172::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetPlatform/TargetPlatform.module.hmake.hpp", .func = ue_generated_file_173::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TextureFormat/TextureFormat.module.hmake.hpp", .func = ue_generated_file_174::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolMenus/ToolMenus.module.hmake.hpp", .func = ue_generated_file_175::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolWidgets/ToolWidgets.module.hmake.hpp", .func = ue_generated_file_176::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceAnalysis/TraceAnalysis.module.hmake.hpp", .func = ue_generated_file_177::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceServices/TraceServices.module.hmake.hpp", .func = ue_generated_file_178::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TranslationEditor/TranslationEditor.module.hmake.hpp", .func = ue_generated_file_179::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/Documentation/Documentation.module.hmake.hpp", .func = ue_generated_file_180::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/MainFrame/MainFrame.module.hmake.hpp", .func = ue_generated_file_181::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/UnrealEdMessages/UnrealEdMessages.module.hmake.hpp", .func = ue_generated_file_182::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AIModule/AIModule.module.hmake.hpp", .func = ue_generated_file_183::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVEncoder/AVEncoder.module.hmake.hpp", .func = ue_generated_file_184::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVIWriter/AVIWriter.module.hmake.hpp", .func = ue_generated_file_185::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdpcmAudioDecoder/Module/AdpcmAudioDecoder.module.hmake.hpp", .func = ue_generated_file_186::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdvancedWidgets/AdvancedWidgets.module.hmake.hpp", .func = ue_generated_file_187::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Advertising/Advertising/Advertising.module.hmake.hpp", .func = ue_generated_file_188::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/Analytics/Analytics.module.hmake.hpp", .func = ue_generated_file_189::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsET/AnalyticsET.module.hmake.hpp", .func = ue_generated_file_190::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsHorde/AnalyticsHorde.module.hmake.hpp", .func = ue_generated_file_191::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsLog/AnalyticsLog.module.hmake.hpp", .func = ue_generated_file_192::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/TelemetryUtils/TelemetryUtils.module.hmake.hpp", .func = ue_generated_file_193::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimGraphRuntime/AnimGraphRuntime.module.hmake.hpp", .func = ue_generated_file_194::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimationCore/AnimationCore.module.hmake.hpp", .func = ue_generated_file_195::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AppFramework/AppFramework.module.hmake.hpp", .func = ue_generated_file_196::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ApplicationCore/ApplicationCore.module.hmake.hpp", .func = ue_generated_file_197::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AssetRegistry/AssetRegistry.module.hmake.hpp", .func = ue_generated_file_198::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioAnalyzer/AudioAnalyzer.module.hmake.hpp", .func = ue_generated_file_199::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioCaptureCore/AudioCaptureCore.module.hmake.hpp", .func = ue_generated_file_200::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioExtensions/AudioExtensions.module.hmake.hpp", .func = ue_generated_file_201::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkCore/AudioLinkCore.module.hmake.hpp", .func = ue_generated_file_202::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkEngine/AudioLinkEngine.module.hmake.hpp", .func = ue_generated_file_203::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixer/AudioMixer.module.hmake.hpp", .func = ue_generated_file_204::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixerCore/AudioMixerCore.module.hmake.hpp", .func = ue_generated_file_205::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioPlatformConfiguration/AudioPlatformConfiguration.module.hmake.hpp", .func = ue_generated_file_206::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutoRTFM/AutoRTFM.module.hmake.hpp", .func = ue_generated_file_207::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationMessages/AutomationMessages.module.hmake.hpp", .func = ue_generated_file_208::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationTest/AutomationTest.module.hmake.hpp", .func = ue_generated_file_209::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationWorker/AutomationWorker.module.hmake.hpp", .func = ue_generated_file_210::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BinkAudioDecoder/Module/BinkAudioDecoder.module.hmake.hpp", .func = ue_generated_file_211::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BuildSettings/BuildSettings.module.hmake.hpp", .func = ue_generated_file_212::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CUDA/Source/CUDA.module.hmake.hpp", .func = ue_generated_file_213::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Cbor/Cbor.module.hmake.hpp", .func = ue_generated_file_214::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CinematicCamera/CinematicCamera.module.hmake.hpp", .func = ue_generated_file_215::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeCommon/ClothingSystemRuntimeCommon.module.hmake.hpp", .func = ue_generated_file_216::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeInterface/ClothingSystemRuntimeInterface.module.hmake.hpp", .func = ue_generated_file_217::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeNv/ClothingSystemRuntimeNv.module.hmake.hpp", .func = ue_generated_file_218::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CookOnTheFly/CookOnTheFly.module.hmake.hpp", .func = ue_generated_file_219::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Core/Core.module.hmake.hpp", .func = ue_generated_file_220::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreOnline/CoreOnline.module.hmake.hpp", .func = ue_generated_file_221::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CorePreciseFP/CorePreciseFP.module.hmake.hpp", .func = ue_generated_file_222::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreUObject/CoreUObject.module.hmake.hpp", .func = ue_generated_file_223::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/DeveloperSettings/DeveloperSettings.module.hmake.hpp", .func = ue_generated_file_224::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Engine/Engine.module.hmake.hpp", .func = ue_generated_file_225::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineMessages/EngineMessages.module.hmake.hpp", .func = ue_generated_file_226::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineSettings/EngineSettings.module.hmake.hpp", .func = ue_generated_file_227::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Animation/Constraints/Constraints.module.hmake.hpp", .func = ue_generated_file_228::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Chaos/Chaos.module.hmake.hpp", .func = ue_generated_file_229::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosCore/ChaosCore.module.hmake.hpp", .func = ue_generated_file_230::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosSolverEngine/ChaosSolverEngine.module.hmake.hpp", .func = ue_generated_file_231::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosVisualDebugger/ChaosVDRuntime.module.hmake.hpp", .func = ue_generated_file_232::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Core/DataflowCore.module.hmake.hpp", .func = ue_generated_file_233::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Engine/DataflowEngine.module.hmake.hpp", .func = ue_generated_file_234::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Simulation/DataflowSimulation.module.hmake.hpp", .func = ue_generated_file_235::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/FieldSystem/Source/FieldSystemEngine/FieldSystemEngine.module.hmake.hpp", .func = ue_generated_file_236::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/GeometryCollectionEngine/GeometryCollectionEngine.module.hmake.hpp", .func = ue_generated_file_237::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ISMPool/ISMPool.module.hmake.hpp", .func = ue_generated_file_238::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IndexedCacheStorage/IndexedCacheStorage.module.hmake.hpp", .func = ue_generated_file_239::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/HttpClient/IoStoreHttpClient.module.hmake.hpp", .func = ue_generated_file_240::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemand/IoStoreOnDemand.module.hmake.hpp", .func = ue_generated_file_241::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemandCore/IoStoreOnDemandCore.module.hmake.hpp", .func = ue_generated_file_242::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Voronoi/Voronoi.module.hmake.hpp", .func = ue_generated_file_243::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EyeTracker/EyeTracker.module.hmake.hpp", .func = ue_generated_file_244::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/FieldNotification/FieldNotification.module.hmake.hpp", .func = ue_generated_file_245::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Foliage/Foliage.module.hmake.hpp", .func = ue_generated_file_246::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayDebugger/GameplayDebugger.module.hmake.hpp", .func = ue_generated_file_247::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTags/GameplayTags.module.hmake.hpp", .func = ue_generated_file_248::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTasks/GameplayTasks.module.hmake.hpp", .func = ue_generated_file_249::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryCore/GeometryCore.module.hmake.hpp", .func = ue_generated_file_250::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryFramework/GeometryFramework.module.hmake.hpp", .func = ue_generated_file_251::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/HeadMountedDisplay/HeadMountedDisplay.module.hmake.hpp", .func = ue_generated_file_252::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/IESFile/IESFile.module.hmake.hpp", .func = ue_generated_file_253::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageCore/ImageCore.module.hmake.hpp", .func = ue_generated_file_254::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWrapper/ImageWrapper.module.hmake.hpp", .func = ue_generated_file_255::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWriteQueue/ImageWriteQueue.module.hmake.hpp", .func = ue_generated_file_256::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputCore/InputCore.module.hmake.hpp", .func = ue_generated_file_257::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputDevice/InputDevice.module.hmake.hpp", .func = ue_generated_file_258::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InstallBundleManager/InstallBundleManager.module.hmake.hpp", .func = ue_generated_file_259::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InteractiveToolsFramework/InteractiveToolsFramework.module.hmake.hpp", .func = ue_generated_file_260::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Core/InterchangeCore.module.hmake.hpp", .func = ue_generated_file_261::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Engine/InterchangeEngine.module.hmake.hpp", .func = ue_generated_file_262::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Json/Json.module.hmake.hpp", .func = ue_generated_file_263::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/JsonUtilities/JsonUtilities.module.hmake.hpp", .func = ue_generated_file_264::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Landscape/Landscape.module.hmake.hpp", .func = ue_generated_file_265::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Launch/Launch.module.hmake.hpp", .func = ue_generated_file_266::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/LevelSequence/LevelSequence.module.hmake.hpp", .func = ue_generated_file_267::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MRMesh/MRMesh.module.hmake.hpp", .func = ue_generated_file_268::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MassEntity/MassEntity.module.hmake.hpp", .func = ue_generated_file_269::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MaterialShaderQualitySettings/MaterialShaderQualitySettings.module.hmake.hpp", .func = ue_generated_file_270::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MathCore/MathCore.module.hmake.hpp", .func = ue_generated_file_271::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Media/Media.module.hmake.hpp", .func = ue_generated_file_272::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaAssets/MediaAssets.module.hmake.hpp", .func = ue_generated_file_273::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaUtils/MediaUtils.module.hmake.hpp", .func = ue_generated_file_274::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversion/MeshConversion.module.hmake.hpp", .func = ue_generated_file_275::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversionEngineTypes/MeshConversionEngineTypes.module.hmake.hpp", .func = ue_generated_file_276::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshDescription/MeshDescription.module.hmake.hpp", .func = ue_generated_file_277::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshUtilitiesCommon/MeshUtilitiesCommon.module.hmake.hpp", .func = ue_generated_file_278::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Messaging/Messaging.module.hmake.hpp", .func = ue_generated_file_279::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingCommon/MessagingCommon.module.hmake.hpp", .func = ue_generated_file_280::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingRpc/MessagingRpc.module.hmake.hpp", .func = ue_generated_file_281::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayer/MoviePlayer.module.hmake.hpp", .func = ue_generated_file_282::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayerProxy/MoviePlayerProxy.module.hmake.hpp", .func = ue_generated_file_283::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieScene/MovieScene.module.hmake.hpp", .func = ue_generated_file_284::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneCapture/MovieSceneCapture.module.hmake.hpp", .func = ue_generated_file_285::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneTracks/MovieSceneTracks.module.hmake.hpp", .func = ue_generated_file_286::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NNE/NNE.module.hmake.hpp", .func = ue_generated_file_287::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NavigationSystem/NavigationSystem.module.hmake.hpp", .func = ue_generated_file_288::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Navmesh/Navmesh.module.hmake.hpp", .func = ue_generated_file_289::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Common/NetCommon.module.hmake.hpp", .func = ue_generated_file_290::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Core/NetCore.module.hmake.hpp", .func = ue_generated_file_291::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Iris/IrisCore.module.hmake.hpp", .func = ue_generated_file_292::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkFile/NetworkFile.module.hmake.hpp", .func = ue_generated_file_293::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/HttpNetworkReplayStreaming/HttpNetworkReplayStreaming.module.hmake.hpp", .func = ue_generated_file_294::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/LocalFileNetworkReplayStreaming/LocalFileNetworkReplayStreaming.module.hmake.hpp", .func = ue_generated_file_295::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NetworkReplayStreaming/NetworkReplayStreaming.module.hmake.hpp", .func = ue_generated_file_296::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NullNetworkReplayStreaming/NullNetworkReplayStreaming.module.hmake.hpp", .func = ue_generated_file_297::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Networking/Networking.module.hmake.hpp", .func = ue_generated_file_298::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NonRealtimeAudioRenderer/NonRealtimeAudioRenderer.module.hmake.hpp", .func = ue_generated_file_299::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NullDrv/NullDrv.module.hmake.hpp", .func = ue_generated_file_300::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/BuildPatchServices/BuildPatchServices.module.hmake.hpp", .func = ue_generated_file_301::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Experimental/EventLoop/EventLoop.module.hmake.hpp", .func = ue_generated_file_302::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTP/HTTP.module.hmake.hpp", .func = ue_generated_file_303::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTPServer/HTTPServer.module.hmake.hpp", .func = ue_generated_file_304::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/ICMP/Icmp.module.hmake.hpp", .func = ue_generated_file_305::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/SSL/SSL.module.hmake.hpp", .func = ue_generated_file_306::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Voice/Voice.module.hmake.hpp", .func = ue_generated_file_307::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OodleDataCompression/OodleDataCompression.prebuilt.hmake.hpp", .func = ue_generated_file_308::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpenGLDrv/OpenGLDrv.module.hmake.hpp", .func = ue_generated_file_309::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpusAudioDecoder/Module/OpusAudioDecoder.module.hmake.hpp", .func = ue_generated_file_310::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Overlay/Overlay.module.hmake.hpp", .func = ue_generated_file_311::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/PacketHandler/PacketHandler.module.hmake.hpp", .func = ue_generated_file_312::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/ReliabilityHandlerComponent/ReliabilityHandlerComponent.module.hmake.hpp", .func = ue_generated_file_313::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PakFile/PakFile.module.hmake.hpp", .func = ue_generated_file_314::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PerfCounters/PerfCounters.module.hmake.hpp", .func = ue_generated_file_315::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PhysicsCore/PhysicsCore.module.hmake.hpp", .func = ue_generated_file_316::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/LauncherPlatform/LauncherPlatform.module.hmake.hpp", .func = ue_generated_file_317::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Rpc/PortalRpc.module.hmake.hpp", .func = ue_generated_file_318::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Services/PortalServices.module.hmake.hpp", .func = ue_generated_file_319::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PreLoadScreen/PreLoadScreen.module.hmake.hpp", .func = ue_generated_file_320::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Projects/Projects.module.hmake.hpp", .func = ue_generated_file_321::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PropertyPath/PropertyPath.module.hmake.hpp", .func = ue_generated_file_322::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RHI/RHI.module.hmake.hpp", .func = ue_generated_file_323::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RSA/RSA.module.hmake.hpp", .func = ue_generated_file_324::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RadAudioCodec/Module/RadAudioDecoder.module.hmake.hpp", .func = ue_generated_file_325::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RawMesh/RawMesh.module.hmake.hpp", .func = ue_generated_file_326::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RenderCore/RenderCore.module.hmake.hpp", .func = ue_generated_file_327::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Renderer/Renderer.module.hmake.hpp", .func = ue_generated_file_328::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RewindDebuggerRuntimeInterface/RewindDebuggerRuntimeInterface.module.hmake.hpp", .func = ue_generated_file_329::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SandboxFile/SandboxFile.module.hmake.hpp", .func = ue_generated_file_330::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Serialization/Serialization.module.hmake.hpp", .func = ue_generated_file_331::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionMessages/SessionMessages.module.hmake.hpp", .func = ue_generated_file_332::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionServices/SessionServices.module.hmake.hpp", .func = ue_generated_file_333::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SignalProcessing/SignalProcessing.module.hmake.hpp", .func = ue_generated_file_334::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SkeletalMeshDescription/SkeletalMeshDescription.module.hmake.hpp", .func = ue_generated_file_335::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Slate/Slate.module.hmake.hpp", .func = ue_generated_file_336::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateCore/SlateCore.module.hmake.hpp", .func = ue_generated_file_337::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateRHIRenderer/SlateRHIRenderer.module.hmake.hpp", .func = ue_generated_file_338::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Sockets/Sockets.module.hmake.hpp", .func = ue_generated_file_339::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SoundFieldRendering/SoundFieldRendering.module.hmake.hpp", .func = ue_generated_file_340::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StateStream/StateStream.module.hmake.hpp", .func = ue_generated_file_341::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StaticMeshDescription/StaticMeshDescription.module.hmake.hpp", .func = ue_generated_file_342::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClient/StorageServerClient.module.hmake.hpp", .func = ue_generated_file_343::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClientDebug/StorageServerClientDebug.module.hmake.hpp", .func = ue_generated_file_344::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingFile/StreamingFile.module.hmake.hpp", .func = ue_generated_file_345::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingPauseRendering/StreamingPauseRendering.module.hmake.hpp", .func = ue_generated_file_346::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StudioTelemetry/StudioTelemetry.module.hmake.hpp", .func = ue_generated_file_347::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SymsLib/SymsLib.prebuilt.hmake.hpp", .func = ue_generated_file_348::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SynthBenchmark/SynthBenchmark.module.hmake.hpp", .func = ue_generated_file_349::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TextureUtilitiesCommon/TextureUtilitiesCommon.module.hmake.hpp", .func = ue_generated_file_350::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TimeManagement/TimeManagement.module.hmake.hpp", .func = ue_generated_file_351::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TraceLog/TraceLog.module.hmake.hpp", .func = ue_generated_file_352::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementFramework/TypedElementFramework.module.hmake.hpp", .func = ue_generated_file_353::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementRuntime/TypedElementRuntime.module.hmake.hpp", .func = ue_generated_file_354::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UEJpegComp/UEJpegComp.prebuilt.hmake.hpp", .func = ue_generated_file_355::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UMG/UMG.module.hmake.hpp", .func = ue_generated_file_356::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UniversalObjectLocator/UniversalObjectLocator.module.hmake.hpp", .func = ue_generated_file_357::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Unix/UnixCommonStartup/UnixCommonStartup.module.hmake.hpp", .func = ue_generated_file_358::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UnrealGame/UnrealGame.module.hmake.hpp", .func = ue_generated_file_359::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VectorVM/VectorVM.module.hmake.hpp", .func = ue_generated_file_360::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VorbisAudioDecoder/Module/VorbisAudioDecoder.module.hmake.hpp", .func = ue_generated_file_361::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/XmlParser/XmlParser.module.hmake.hpp", .func = ue_generated_file_362::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/AtomicQueue/AtomicQueue.prebuilt.hmake.hpp", .func = ue_generated_file_363::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/BLAKE3/BLAKE3.prebuilt.hmake.hpp", .func = ue_generated_file_364::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Eigen/Eigen.prebuilt.hmake.hpp", .func = ue_generated_file_365::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/GuidelinesSupportLibrary/GuidelinesSupportLibrary.prebuilt.hmake.hpp", .func = ue_generated_file_366::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/ICU/ICU.prebuilt.hmake.hpp", .func = ue_generated_file_367::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Imath/Imath.prebuilt.hmake.hpp", .func = ue_generated_file_368::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/IntelISPC.prebuilt.hmake.hpp", .func = ue_generated_file_369::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/LibTiff/LibTiff.prebuilt.hmake.hpp", .func = ue_generated_file_370::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MaterialX/MaterialX.prebuilt.hmake.hpp", .func = ue_generated_file_371::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MikkTSpace/MikkTSpace.prebuilt.hmake.hpp", .func = ue_generated_file_372::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MsQuic/MsQuic.prebuilt.hmake.hpp", .func = ue_generated_file_373::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/NVIDIA/CUDA/CUDAHeader.prebuilt.hmake.hpp", .func = ue_generated_file_374::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Ogg/UEOgg.prebuilt.hmake.hpp", .func = ue_generated_file_375::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenGL/OpenGL.prebuilt.hmake.hpp", .func = ue_generated_file_376::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenSSL/OpenSSL.prebuilt.hmake.hpp", .func = ue_generated_file_377::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RapidJSON/RapidJSON.prebuilt.hmake.hpp", .func = ue_generated_file_378::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RenderDoc/RenderDoc.prebuilt.hmake.hpp", .func = ue_generated_file_379::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/SDL3/SDL3.prebuilt.hmake.hpp", .func = ue_generated_file_380::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/Vorbis.prebuilt.hmake.hpp", .func = ue_generated_file_381::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/VorbisFile.prebuilt.hmake.hpp", .func = ue_generated_file_382::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vulkan/Vulkan.prebuilt.hmake.hpp", .func = ue_generated_file_383::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/asio/Asio.prebuilt.hmake.hpp", .func = ue_generated_file_384::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/jemalloc/jemalloc.prebuilt.hmake.hpp", .func = ue_generated_file_385::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libOpus/libOpus.prebuilt.hmake.hpp", .func = ue_generated_file_386::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libPNG/UElibPNG.prebuilt.hmake.hpp", .func = ue_generated_file_387::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libSampleRate/UELibSampleRate.module.hmake.hpp", .func = ue_generated_file_388::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libcurl/libcurl.prebuilt.hmake.hpp", .func = ue_generated_file_389::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libjpeg-turbo/LibJpegTurbo.prebuilt.hmake.hpp", .func = ue_generated_file_390::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/mimalloc/mimalloc.prebuilt.hmake.hpp", .func = ue_generated_file_391::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/nghttp2/nghttp2.prebuilt.hmake.hpp", .func = ue_generated_file_392::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/openexr/UEOpenExr.prebuilt.hmake.hpp", .func = ue_generated_file_393::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/stb_image_resize/stb_image_resize2.prebuilt.hmake.hpp", .func = ue_generated_file_394::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/xxhash/xxhash.prebuilt.hmake.hpp", .func = ue_generated_file_395::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/zlib/zlib.prebuilt.hmake.hpp", .func = ue_generated_file_396::specify},
-    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/UnrealServer.target.hmake.hpp", .func = ue_generated_file_397::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/2D/Paper2D/Source/Paper2D/Paper2D.hmake.hpp", .logicalName = "Paper2D", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_0::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/AI/AISupport/Source/AISupportModule/AISupportModule.hmake.hpp", .logicalName = "AISupportModule", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_1::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ACLPlugin/Source/ACLPlugin/ACLPlugin.hmake.hpp", .logicalName = "ACLPlugin", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_2::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRig/Source/ControlRig/ControlRig.hmake.hpp", .logicalName = "ControlRig", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_3::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/ControlRigSpline/Source/ControlRigSpline/ControlRigSpline.hmake.hpp", .logicalName = "ControlRigSpline", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_4::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusCore/OptimusCore.hmake.hpp", .logicalName = "OptimusCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_5::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/DeformerGraph/Source/OptimusSettings/OptimusSettings.hmake.hpp", .logicalName = "OptimusSettings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_6::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/IKRig/Source/IKRig/IKRig.hmake.hpp", .logicalName = "IKRig", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_7::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicLib/RigLogicLib.hmake.hpp", .logicalName = "RigLogicLib", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_8::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/RigLogic/Source/RigLogicModule/RigLogicModule.hmake.hpp", .logicalName = "RigLogicModule", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_9::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Animation/TweeningUtils/Source/TweeningUtils/TweeningUtils.hmake.hpp", .logicalName = "TweeningUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_10::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/EngineCameras/Source/EngineCameras/EngineCameras.hmake.hpp", .logicalName = "EngineCameras", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_11::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Cameras/GameplayCameras/Source/GameplayCameras/GameplayCameras.hmake.hpp", .logicalName = "GameplayCameras", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_12::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosCloth/Source/ChaosCloth/ChaosCloth.hmake.hpp", .logicalName = "ChaosCloth", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_13::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/ChaosVD/Source/ChaosVDBlueprint/ChaosVDBlueprint.hmake.hpp", .logicalName = "ChaosVDBlueprint", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_14::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compositing/CompositeCore/Source/CompositeCore/CompositeCore.hmake.hpp", .logicalName = "CompositeCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_15::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Compression/OodleNetwork/Source/OodleNetworkHandlerComponent.hmake.hpp", .logicalName = "OodleNetworkHandlerComponent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_16::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/AnimationSharing/Source/AnimationSharing/AnimationSharing.hmake.hpp", .logicalName = "AnimationSharing", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_17::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokens/NamingTokens.hmake.hpp", .logicalName = "NamingTokens", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_18::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/NamingTokens/Source/NamingTokensUI/NamingTokensUI.hmake.hpp", .logicalName = "NamingTokensUI", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_19::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/RenderDocPlugin/Source/RenderDocPlugin/RenderDocPlugin.hmake.hpp", .logicalName = "RenderDocPlugin", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_20::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Developer/UObjectPlugin/Source/UObjectPlugin/UObjectPlugin.hmake.hpp", .logicalName = "UObjectPlugin", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_21::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Editor/FacialAnimation/Source/FacialAnimation/FacialAnimation.hmake.hpp", .logicalName = "FacialAnimation", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_22::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/EnhancedInput/Source/EnhancedInput/EnhancedInput.hmake.hpp", .logicalName = "EnhancedInput", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_23::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/DatasmithContent/Source/DatasmithContent/DatasmithContent.hmake.hpp", .logicalName = "DatasmithContent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_24::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/GLTFExporter/Source/GLTFExporter/GLTFExporter.hmake.hpp", .logicalName = "GLTFExporter", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_25::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Enterprise/VariantManagerContent/Source/VariantManagerContent/VariantManagerContent.hmake.hpp", .logicalName = "VariantManagerContent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_26::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/AutomationUtils/Source/AutomationUtils/AutomationUtils.hmake.hpp", .logicalName = "AutomationUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_27::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/BackChannel/Source/BackChannel/BackChannel.hmake.hpp", .logicalName = "BackChannel", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_28::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosCaching/Source/ChaosCaching/ChaosCaching.hmake.hpp", .logicalName = "ChaosCaching", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_29::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosNiagara/Source/ChaosNiagara/ChaosNiagara.hmake.hpp", .logicalName = "ChaosNiagara", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_30::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/ChaosUserDataPT/Source/ChaosUserDataPT/ChaosUserDataPT.hmake.hpp", .logicalName = "ChaosUserDataPT", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_31::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/CharacterAI/Source/CharacterAI/CharacterAI.hmake.hpp", .logicalName = "CharacterAI", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_32::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowAssetTools/DataflowAssetTools.hmake.hpp", .logicalName = "DataflowAssetTools", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_33::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowEnginePlugin/DataflowEnginePlugin.hmake.hpp", .logicalName = "DataflowEnginePlugin", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_34::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Dataflow/Source/DataflowNodes/DataflowNodes.hmake.hpp", .logicalName = "DataflowNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_35::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/Fracture/Source/FractureEngine/FractureEngine.hmake.hpp", .logicalName = "FractureEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_36::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/FullBodyIK/FullBodyIK.hmake.hpp", .logicalName = "FullBodyIK", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_37::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/FullBodyIK/Source/PBIK/PBIK.hmake.hpp", .logicalName = "PBIK", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_38::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionDepNodes/GeometryCollectionDepNodes.hmake.hpp", .logicalName = "GeometryCollectionDepNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_39::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionNodes/GeometryCollectionNodes.hmake.hpp", .logicalName = "GeometryCollectionNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_40::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryCollectionPlugin/Source/GeometryCollectionTracks/GeometryCollectionTracks.hmake.hpp", .logicalName = "GeometryCollectionTracks", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_41::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GeometryDataflow/Source/GeometryDataflowNodes/GeometryDataflowNodes.hmake.hpp", .logicalName = "GeometryDataflowNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_42::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationData/GlobalConfigurationData.hmake.hpp", .logicalName = "GlobalConfigurationData", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_43::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/GlobalConfigurationData/Source/GlobalConfigurationDataCore/GlobalConfigurationDataCore.hmake.hpp", .logicalName = "GlobalConfigurationDataCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_44::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessage/LocalizableMessage.hmake.hpp", .logicalName = "LocalizableMessage", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_45::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/LocalizableMessage/Source/LocalizableMessageBlueprint/LocalizableMessageBlueprint.hmake.hpp", .logicalName = "LocalizableMessageBlueprint", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_46::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/NFORDenoise/Source/NFORDenoise/NFORDenoise.hmake.hpp", .logicalName = "NFORDenoise", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_47::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlanarCutPlugin/Source/PlanarCut/PlanarCut.hmake.hpp", .logicalName = "PlanarCut", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_48::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCrypto/PlatformCrypto.hmake.hpp", .logicalName = "PlatformCrypto", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_49::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoContext/PlatformCryptoContext.hmake.hpp", .logicalName = "PlatformCryptoContext", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_50::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PlatformCrypto/Source/PlatformCryptoTypes/PlatformCryptoTypes.hmake.hpp", .logicalName = "PlatformCryptoTypes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_51::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/PythonScriptPlugin/Source/PythonScriptPluginPreload/PythonScriptPluginPreload.hmake.hpp", .logicalName = "PythonScriptPluginPreload", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_52::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Experimental/RuntimeTelemetry/Source/RuntimeTelemetry.hmake.hpp", .logicalName = "RuntimeTelemetry", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_53::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/Niagara/Niagara.hmake.hpp", .logicalName = "Niagara", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_54::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraAnimNotifies/NiagaraAnimNotifies.hmake.hpp", .logicalName = "NiagaraAnimNotifies", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_55::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraCore/NiagaraCore.hmake.hpp", .logicalName = "NiagaraCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_56::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraShader/NiagaraShader.hmake.hpp", .logicalName = "NiagaraShader", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_57::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/Niagara/Source/NiagaraVertexFactories/NiagaraVertexFactories.hmake.hpp", .logicalName = "NiagaraVertexFactories", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_58::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/FX/NiagaraSimCaching/Source/NiagaraSimCaching/NiagaraSimCaching.hmake.hpp", .logicalName = "NiagaraSimCaching", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_59::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Assets/Source/Assets/InterchangeAssets.hmake.hpp", .logicalName = "InterchangeAssets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_60::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Common/InterchangeCommon.hmake.hpp", .logicalName = "InterchangeCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_61::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Dispatcher/InterchangeDispatcher.hmake.hpp", .logicalName = "InterchangeDispatcher", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_62::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Export/InterchangeExport.hmake.hpp", .logicalName = "InterchangeExport", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_63::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/FactoryNodes/InterchangeFactoryNodes.hmake.hpp", .logicalName = "InterchangeFactoryNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_64::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Import/InterchangeImport.hmake.hpp", .logicalName = "InterchangeImport", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_65::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Messages/InterchangeMessages.hmake.hpp", .logicalName = "InterchangeMessages", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_66::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Nodes/InterchangeNodes.hmake.hpp", .logicalName = "InterchangeNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_67::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/CommonParser/InterchangeCommonParser.hmake.hpp", .logicalName = "InterchangeCommonParser", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_68::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Parsers/GLTFCore/GLTFCore.hmake.hpp", .logicalName = "GLTFCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_69::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/Pipelines/InterchangePipelines.hmake.hpp", .logicalName = "InterchangePipelines", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_70::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Interchange/Runtime/Source/ThirdParty/Draco/Draco.hmake.hpp", .logicalName = "Draco", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_71::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMedia/AvfMedia.hmake.hpp", .logicalName = "AvfMedia", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_72::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/AvfMedia/Source/AvfMediaFactory/AvfMediaFactory.hmake.hpp", .logicalName = "AvfMediaFactory", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_73::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ExrReaderGpu/ExrReaderGpu.hmake.hpp", .logicalName = "ExrReaderGpu", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::RttiExcept, .func = ue_generated_file_74::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMedia/ImgMedia.hmake.hpp", .logicalName = "ImgMedia", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_75::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaEngine/ImgMediaEngine.hmake.hpp", .logicalName = "ImgMediaEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_76::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/ImgMediaFactory/ImgMediaFactory.hmake.hpp", .logicalName = "ImgMediaFactory", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_77::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/ImgMedia/Source/OpenExrWrapper/OpenExrWrapper.hmake.hpp", .logicalName = "OpenExrWrapper", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::RttiExcept, .func = ue_generated_file_78::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaCompositing/Source/MediaCompositing/MediaCompositing.hmake.hpp", .logicalName = "MediaCompositing", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_79::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Media/MediaPlate/Source/MediaPlate/MediaPlate.hmake.hpp", .logicalName = "MediaPlate", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_80::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/TcpMessaging/Source/TcpMessaging/TcpMessaging.hmake.hpp", .logicalName = "TcpMessaging", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_81::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Messaging/UdpMessaging/Source/UdpMessaging/UdpMessaging.hmake.hpp", .logicalName = "UdpMessaging", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_82::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MetaHuman/MetaHumanSDK/Source/MetaHumanSDKRuntime/MetaHumanSDKRuntime.hmake.hpp", .logicalName = "MetaHumanSDKRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_83::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/ActorSequence/Source/ActorSequence/ActorSequence.hmake.hpp", .logicalName = "ActorSequence", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_84::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/SequencerScripting/Source/SequencerScripting/SequencerScripting.hmake.hpp", .logicalName = "SequencerScripting", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_85::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/MovieScene/TemplateSequence/Source/TemplateSequence/TemplateSequence.hmake.hpp", .logicalName = "TemplateSequence", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_86::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiser/NNEDenoiser.hmake.hpp", .logicalName = "NNEDenoiser", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_87::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNEDenoiser/Source/NNEDenoiserShaders/NNEDenoiserShaders.hmake.hpp", .logicalName = "NNEDenoiserShaders", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_88::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/NNERuntimeORT/NNERuntimeORT.hmake.hpp", .logicalName = "NNERuntimeORT", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_89::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/NNE/NNERuntimeORT/Source/ThirdParty/Onnxruntime/NNEOnnxruntime.hmake.hpp", .logicalName = "NNEOnnxruntime", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_90::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineBase/Source/OnlineBase.hmake.hpp", .logicalName = "OnlineBase", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_91::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommon/OnlineServicesCommon.hmake.hpp", .logicalName = "OnlineServicesCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_92::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesCommonEngineUtils/OnlineServicesCommonEngineUtils.hmake.hpp", .logicalName = "OnlineServicesCommonEngineUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_93::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineServices/Source/OnlineServicesInterface/OnlineServicesInterface.hmake.hpp", .logicalName = "OnlineServicesInterface", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_94::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystem/Source/OnlineSubsystem.hmake.hpp", .logicalName = "OnlineSubsystem", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_95::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemNull/Source/OnlineSubsystemNull.hmake.hpp", .logicalName = "OnlineSubsystemNull", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_96::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/OnlineSubsystemUtils.hmake.hpp", .logicalName = "OnlineSubsystemUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_97::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Portal/LauncherChunkInstaller/Source/LauncherChunkInstaller/LauncherChunkInstaller.hmake.hpp", .logicalName = "LauncherChunkInstaller", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_98::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ActorLayerUtilities/Source/ActorLayerUtilities/ActorLayerUtilities.hmake.hpp", .logicalName = "ActorLayerUtilities", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_99::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidFileServer/Source/AndroidFileServer/AndroidFileServer.hmake.hpp", .logicalName = "AndroidFileServer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_100::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AndroidPermission/Source/AndroidPermission/AndroidPermission.hmake.hpp", .logicalName = "AndroidPermission", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_101::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AppleImageUtils/Source/AppleImageUtils/AppleImageUtils.hmake.hpp", .logicalName = "AppleImageUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_102::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ArchVisCharacter/Source/ArchVisCharacter/ArchVisCharacter.hmake.hpp", .logicalName = "ArchVisCharacter", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_103::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AssetTags/Source/AssetTags/AssetTags.hmake.hpp", .logicalName = "AssetTags", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_104::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioCapture/Source/AudioCapture/AudioCapture.hmake.hpp", .logicalName = "AudioCapture", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_105::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesia/AudioSynesthesia.hmake.hpp", .logicalName = "AudioSynesthesia", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_106::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioSynesthesia/Source/AudioSynesthesiaCore/AudioSynesthesiaCore.hmake.hpp", .logicalName = "AudioSynesthesiaCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_107::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgets/AudioWidgets.hmake.hpp", .logicalName = "AudioWidgets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_108::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/AudioWidgets/Source/AudioWidgetsCore/AudioWidgetsCore.hmake.hpp", .logicalName = "AudioWidgetsCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_109::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/CableComponent.hmake.hpp", .logicalName = "CableComponent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_110::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ChunkDownloader/Source/ChunkDownloader.hmake.hpp", .logicalName = "ChunkDownloader", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_111::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ComputeFramework/Source/ComputeFramework/ComputeFramework.hmake.hpp", .logicalName = "ComputeFramework", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_112::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/CustomMeshComponent/Source/CustomMeshComponent/CustomMeshComponent.hmake.hpp", .logicalName = "CustomMeshComponent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_113::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ExampleDeviceProfileSelector/Source/ExampleDeviceProfileSelector/ExampleDeviceProfileSelector.hmake.hpp", .logicalName = "ExampleDeviceProfileSelector", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_114::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCache/GeometryCache.hmake.hpp", .logicalName = "GeometryCache", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_115::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryCache/Source/GeometryCacheTracks/GeometryCacheTracks.hmake.hpp", .logicalName = "GeometryCacheTracks", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_116::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/DynamicMesh/DynamicMesh.hmake.hpp", .logicalName = "DynamicMesh", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_117::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/GeometryAlgorithms/GeometryAlgorithms.hmake.hpp", .logicalName = "GeometryAlgorithms", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_118::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GeometryProcessing/Source/MeshFileUtils/MeshFileUtils.hmake.hpp", .logicalName = "MeshFileUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_119::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/GooglePAD/Source/GooglePAD/GooglePAD.hmake.hpp", .logicalName = "GooglePAD", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_120::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsCore/HairStrandsCore.hmake.hpp", .logicalName = "HairStrandsCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_121::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsDeformer/HairStrandsDeformer.hmake.hpp", .logicalName = "HairStrandsDeformer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_122::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsRuntime/HairStrandsRuntime.hmake.hpp", .logicalName = "HairStrandsRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_123::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/HairStrands/Source/HairStrandsSolver/HairStrandsSolver.hmake.hpp", .logicalName = "HairStrandsSolver", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_124::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/InputDebugging/Source/InputDebugging/InputDebugging.hmake.hpp", .logicalName = "InputDebugging", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_125::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LinuxDeviceProfileSelector/Source/LinuxDeviceProfileSelector/LinuxDeviceProfileSelector.hmake.hpp", .logicalName = "LinuxDeviceProfileSelector", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_126::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/LocationServicesBPLibrary/Source/LocationServicesBPLibrary/LocationServicesBPLibrary.hmake.hpp", .logicalName = "LocationServicesBPLibrary", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_127::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundEngine/MetasoundEngine.hmake.hpp", .logicalName = "MetasoundEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_128::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundFrontend/MetasoundFrontend.hmake.hpp", .logicalName = "MetasoundFrontend", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_129::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGenerator/MetasoundGenerator.hmake.hpp", .logicalName = "MetasoundGenerator", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_130::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundGraphCore/MetasoundGraphCore.hmake.hpp", .logicalName = "MetasoundGraphCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_131::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Metasound/Source/MetasoundStandardNodes/MetasoundStandardNodes.hmake.hpp", .logicalName = "MetasoundStandardNodes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_132::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MobilePatchingUtils/Source/MobilePatchingUtils/MobilePatchingUtils.hmake.hpp", .logicalName = "MobilePatchingUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_133::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/MsQuic/Source/MsQuicRuntime.hmake.hpp", .logicalName = "MsQuicRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_134::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ProceduralMeshComponent/Source/ProceduralMeshComponent/ProceduralMeshComponent.hmake.hpp", .logicalName = "ProceduralMeshComponent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_135::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/PropertyBindingUtils/Source/PropertyBindingUtils/PropertyBindingUtils.hmake.hpp", .logicalName = "PropertyBindingUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_136::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/ResonanceAudio/Source/ResonanceAudio/ResonanceAudio.hmake.hpp", .logicalName = "ResonanceAudio", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_137::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/RigVM/Source/RigVM/RigVM.hmake.hpp", .logicalName = "RigVM", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_138::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SignificanceManager/Source/SignificanceManager/SignificanceManager.hmake.hpp", .logicalName = "SignificanceManager", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_139::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/SoundFields/Source/SoundFields/SoundFields.hmake.hpp", .logicalName = "SoundFields", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_140::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeDeveloper/StateTreeDeveloper.hmake.hpp", .logicalName = "StateTreeDeveloper", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_141::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/StateTree/Source/StateTreeModule/StateTreeModule.hmake.hpp", .logicalName = "StateTreeModule", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_142::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/Synthesis/Source/Synthesis/Synthesis.hmake.hpp", .logicalName = "Synthesis", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_143::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/Runtime/WaveTable/Source/WaveTable/WaveTable.hmake.hpp", .logicalName = "WaveTable", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_144::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/TraceUtilities/Source/TraceUtilities/TraceUtilities.hmake.hpp", .logicalName = "TraceUtilities", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_145::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/VirtualProduction/Takes/Source/TakeMovieScene/TakeMovieScene.hmake.hpp", .logicalName = "TakeMovieScene", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_146::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/CsvMetrics/CsvMetrics.hmake.hpp", .logicalName = "CsvMetrics", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_147::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsCore/WorldMetricsCore.hmake.hpp", .logicalName = "WorldMetricsCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_148::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Plugins/WorldMetrics/Source/WorldMetricsTest/WorldMetricsTest.hmake.hpp", .logicalName = "WorldMetricsTest", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_149::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Shaders/Shaders.hmake.hpp", .logicalName = "Shaders", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_150::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AITestSuite/AITestSuite.hmake.hpp", .logicalName = "AITestSuite", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_151::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/AutomationController/AutomationController.hmake.hpp", .logicalName = "AutomationController", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_152::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DerivedDataCache/DerivedDataCache.hmake.hpp", .logicalName = "DerivedDataCache", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_153::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DesktopPlatform/DesktopPlatform.hmake.hpp", .logicalName = "DesktopPlatform", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_154::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DirectoryWatcher/DirectoryWatcher.hmake.hpp", .logicalName = "DirectoryWatcher", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_155::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DistributedBuildInterface/DistributedBuildInterface.hmake.hpp", .logicalName = "DistributedBuildInterface", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_156::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/DrawPrimitiveDebugger/DrawPrimitiveDebugger.hmake.hpp", .logicalName = "DrawPrimitiveDebugger", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_157::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/EditorAnalyticsSession/EditorAnalyticsSession.hmake.hpp", .logicalName = "EditorAnalyticsSession", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_158::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/FunctionalTesting/FunctionalTesting.hmake.hpp", .logicalName = "FunctionalTesting", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_159::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LauncherServices/LauncherServices.hmake.hpp", .logicalName = "LauncherServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_160::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Localization/Localization.hmake.hpp", .logicalName = "Localization", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_161::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/LocalizationService/LocalizationService.hmake.hpp", .logicalName = "LocalizationService", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_162::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MassEntityTestSuite/MassEntityTestSuite.hmake.hpp", .logicalName = "MassEntityTestSuite", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_163::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/MessageLog/MessageLog.hmake.hpp", .logicalName = "MessageLog", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_164::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ProfileVisualizer/ProfileVisualizer.hmake.hpp", .logicalName = "ProfileVisualizer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_165::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ScreenShotComparisonTools/ScreenShotComparisonTools.hmake.hpp", .logicalName = "ScreenShotComparisonTools", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_166::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/Settings/Settings.hmake.hpp", .logicalName = "Settings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_167::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFileDialogs/SlateFileDialogs.hmake.hpp", .logicalName = "SlateFileDialogs", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_168::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateFontDialog/SlateFontDialog.hmake.hpp", .logicalName = "SlateFontDialog", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_169::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SlateReflector/SlateReflector.hmake.hpp", .logicalName = "SlateReflector", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_170::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/SourceControl/SourceControl.hmake.hpp", .logicalName = "SourceControl", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_171::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetDeviceServices/TargetDeviceServices.hmake.hpp", .logicalName = "TargetDeviceServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_172::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TargetPlatform/TargetPlatform.hmake.hpp", .logicalName = "TargetPlatform", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_173::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TextureFormat/TextureFormat.hmake.hpp", .logicalName = "TextureFormat", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_174::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolMenus/ToolMenus.hmake.hpp", .logicalName = "ToolMenus", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_175::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/ToolWidgets/ToolWidgets.hmake.hpp", .logicalName = "ToolWidgets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_176::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceAnalysis/TraceAnalysis.hmake.hpp", .logicalName = "TraceAnalysis", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_177::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TraceServices/TraceServices.hmake.hpp", .logicalName = "TraceServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_178::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Developer/TranslationEditor/TranslationEditor.hmake.hpp", .logicalName = "TranslationEditor", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_179::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/Documentation/Documentation.hmake.hpp", .logicalName = "Documentation", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_180::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/MainFrame/MainFrame.hmake.hpp", .logicalName = "MainFrame", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_181::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Editor/UnrealEdMessages/UnrealEdMessages.hmake.hpp", .logicalName = "UnrealEdMessages", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_182::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AIModule/AIModule.hmake.hpp", .logicalName = "AIModule", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_183::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVEncoder/AVEncoder.hmake.hpp", .logicalName = "AVEncoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_184::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AVIWriter/AVIWriter.hmake.hpp", .logicalName = "AVIWriter", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_185::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdpcmAudioDecoder/Module/AdpcmAudioDecoder.hmake.hpp", .logicalName = "AdpcmAudioDecoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_186::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AdvancedWidgets/AdvancedWidgets.hmake.hpp", .logicalName = "AdvancedWidgets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_187::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Advertising/Advertising/Advertising.hmake.hpp", .logicalName = "Advertising", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_188::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/Analytics/Analytics.hmake.hpp", .logicalName = "Analytics", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_189::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsET/AnalyticsET.hmake.hpp", .logicalName = "AnalyticsET", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_190::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsHorde/AnalyticsHorde.hmake.hpp", .logicalName = "AnalyticsHorde", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_191::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/AnalyticsLog/AnalyticsLog.hmake.hpp", .logicalName = "AnalyticsLog", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_192::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Analytics/TelemetryUtils/TelemetryUtils.hmake.hpp", .logicalName = "TelemetryUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_193::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimGraphRuntime/AnimGraphRuntime.hmake.hpp", .logicalName = "AnimGraphRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_194::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AnimationCore/AnimationCore.hmake.hpp", .logicalName = "AnimationCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_195::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AppFramework/AppFramework.hmake.hpp", .logicalName = "AppFramework", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_196::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ApplicationCore/ApplicationCore.hmake.hpp", .logicalName = "ApplicationCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_197::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AssetRegistry/AssetRegistry.hmake.hpp", .logicalName = "AssetRegistry", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_198::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioAnalyzer/AudioAnalyzer.hmake.hpp", .logicalName = "AudioAnalyzer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_199::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioCaptureCore/AudioCaptureCore.hmake.hpp", .logicalName = "AudioCaptureCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_200::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioExtensions/AudioExtensions.hmake.hpp", .logicalName = "AudioExtensions", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_201::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkCore/AudioLinkCore.hmake.hpp", .logicalName = "AudioLinkCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_202::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioLink/AudioLinkEngine/AudioLinkEngine.hmake.hpp", .logicalName = "AudioLinkEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_203::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixer/AudioMixer.hmake.hpp", .logicalName = "AudioMixer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_204::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioMixerCore/AudioMixerCore.hmake.hpp", .logicalName = "AudioMixerCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_205::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AudioPlatformConfiguration/AudioPlatformConfiguration.hmake.hpp", .logicalName = "AudioPlatformConfiguration", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_206::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutoRTFM/AutoRTFM.hmake.hpp", .logicalName = "AutoRTFM", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_207::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationMessages/AutomationMessages.hmake.hpp", .logicalName = "AutomationMessages", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_208::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationTest/AutomationTest.hmake.hpp", .logicalName = "AutomationTest", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_209::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/AutomationWorker/AutomationWorker.hmake.hpp", .logicalName = "AutomationWorker", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_210::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BinkAudioDecoder/Module/BinkAudioDecoder.hmake.hpp", .logicalName = "BinkAudioDecoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_211::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/BuildSettings/BuildSettings.hmake.hpp", .logicalName = "BuildSettings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_212::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CUDA/Source/CUDA.hmake.hpp", .logicalName = "CUDA", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_213::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Cbor/Cbor.hmake.hpp", .logicalName = "Cbor", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_214::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CinematicCamera/CinematicCamera.hmake.hpp", .logicalName = "CinematicCamera", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_215::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeCommon/ClothingSystemRuntimeCommon.hmake.hpp", .logicalName = "ClothingSystemRuntimeCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_216::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeInterface/ClothingSystemRuntimeInterface.hmake.hpp", .logicalName = "ClothingSystemRuntimeInterface", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_217::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ClothingSystemRuntimeNv/ClothingSystemRuntimeNv.hmake.hpp", .logicalName = "ClothingSystemRuntimeNv", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_218::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CookOnTheFly/CookOnTheFly.hmake.hpp", .logicalName = "CookOnTheFly", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_219::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Core/Core.hmake.hpp", .logicalName = "Core", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_220::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreOnline/CoreOnline.hmake.hpp", .logicalName = "CoreOnline", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_221::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CorePreciseFP/CorePreciseFP.hmake.hpp", .logicalName = "CorePreciseFP", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_222::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/CoreUObject/CoreUObject.hmake.hpp", .logicalName = "CoreUObject", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_223::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/DeveloperSettings/DeveloperSettings.hmake.hpp", .logicalName = "DeveloperSettings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_224::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Engine/Engine.hmake.hpp", .logicalName = "Engine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_225::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineMessages/EngineMessages.hmake.hpp", .logicalName = "EngineMessages", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_226::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EngineSettings/EngineSettings.hmake.hpp", .logicalName = "EngineSettings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_227::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Animation/Constraints/Constraints.hmake.hpp", .logicalName = "Constraints", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_228::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Chaos/Chaos.hmake.hpp", .logicalName = "Chaos", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_229::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosCore/ChaosCore.hmake.hpp", .logicalName = "ChaosCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_230::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosSolverEngine/ChaosSolverEngine.hmake.hpp", .logicalName = "ChaosSolverEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_231::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ChaosVisualDebugger/ChaosVDRuntime.hmake.hpp", .logicalName = "ChaosVDRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_232::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Core/DataflowCore.hmake.hpp", .logicalName = "DataflowCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_233::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Engine/DataflowEngine.hmake.hpp", .logicalName = "DataflowEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_234::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Dataflow/Simulation/DataflowSimulation.hmake.hpp", .logicalName = "DataflowSimulation", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_235::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/FieldSystem/Source/FieldSystemEngine/FieldSystemEngine.hmake.hpp", .logicalName = "FieldSystemEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_236::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/GeometryCollectionEngine/GeometryCollectionEngine.hmake.hpp", .logicalName = "GeometryCollectionEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_237::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/ISMPool/ISMPool.hmake.hpp", .logicalName = "ISMPool", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_238::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IndexedCacheStorage/IndexedCacheStorage.hmake.hpp", .logicalName = "IndexedCacheStorage", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_239::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/HttpClient/IoStoreHttpClient.hmake.hpp", .logicalName = "IoStoreHttpClient", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_240::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemand/IoStoreOnDemand.hmake.hpp", .logicalName = "IoStoreOnDemand", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_241::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/IoStore/OnDemandCore/IoStoreOnDemandCore.hmake.hpp", .logicalName = "IoStoreOnDemandCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_242::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Experimental/Voronoi/Voronoi.hmake.hpp", .logicalName = "Voronoi", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_243::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/EyeTracker/EyeTracker.hmake.hpp", .logicalName = "EyeTracker", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_244::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/FieldNotification/FieldNotification.hmake.hpp", .logicalName = "FieldNotification", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_245::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Foliage/Foliage.hmake.hpp", .logicalName = "Foliage", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_246::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayDebugger/GameplayDebugger.hmake.hpp", .logicalName = "GameplayDebugger", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_247::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTags/GameplayTags.hmake.hpp", .logicalName = "GameplayTags", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_248::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GameplayTasks/GameplayTasks.hmake.hpp", .logicalName = "GameplayTasks", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_249::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryCore/GeometryCore.hmake.hpp", .logicalName = "GeometryCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_250::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/GeometryFramework/GeometryFramework.hmake.hpp", .logicalName = "GeometryFramework", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_251::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/HeadMountedDisplay/HeadMountedDisplay.hmake.hpp", .logicalName = "HeadMountedDisplay", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_252::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/IESFile/IESFile.hmake.hpp", .logicalName = "IESFile", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_253::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageCore/ImageCore.hmake.hpp", .logicalName = "ImageCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_254::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWrapper/ImageWrapper.hmake.hpp", .logicalName = "ImageWrapper", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::RttiExcept, .func = ue_generated_file_255::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/ImageWriteQueue/ImageWriteQueue.hmake.hpp", .logicalName = "ImageWriteQueue", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_256::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputCore/InputCore.hmake.hpp", .logicalName = "InputCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_257::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InputDevice/InputDevice.hmake.hpp", .logicalName = "InputDevice", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_258::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InstallBundleManager/InstallBundleManager.hmake.hpp", .logicalName = "InstallBundleManager", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_259::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/InteractiveToolsFramework/InteractiveToolsFramework.hmake.hpp", .logicalName = "InteractiveToolsFramework", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_260::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Core/InterchangeCore.hmake.hpp", .logicalName = "InterchangeCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_261::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Interchange/Engine/InterchangeEngine.hmake.hpp", .logicalName = "InterchangeEngine", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_262::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Json/Json.hmake.hpp", .logicalName = "Json", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_263::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/JsonUtilities/JsonUtilities.hmake.hpp", .logicalName = "JsonUtilities", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_264::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Landscape/Landscape.hmake.hpp", .logicalName = "Landscape", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_265::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Launch/Launch.hmake.hpp", .logicalName = "Launch", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_266::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/LevelSequence/LevelSequence.hmake.hpp", .logicalName = "LevelSequence", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_267::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MRMesh/MRMesh.hmake.hpp", .logicalName = "MRMesh", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_268::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MassEntity/MassEntity.hmake.hpp", .logicalName = "MassEntity", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_269::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MaterialShaderQualitySettings/MaterialShaderQualitySettings.hmake.hpp", .logicalName = "MaterialShaderQualitySettings", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_270::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MathCore/MathCore.hmake.hpp", .logicalName = "MathCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_271::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Media/Media.hmake.hpp", .logicalName = "Media", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_272::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaAssets/MediaAssets.hmake.hpp", .logicalName = "MediaAssets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_273::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MediaUtils/MediaUtils.hmake.hpp", .logicalName = "MediaUtils", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_274::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversion/MeshConversion.hmake.hpp", .logicalName = "MeshConversion", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_275::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshConversionEngineTypes/MeshConversionEngineTypes.hmake.hpp", .logicalName = "MeshConversionEngineTypes", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_276::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshDescription/MeshDescription.hmake.hpp", .logicalName = "MeshDescription", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_277::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MeshUtilitiesCommon/MeshUtilitiesCommon.hmake.hpp", .logicalName = "MeshUtilitiesCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_278::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Messaging/Messaging.hmake.hpp", .logicalName = "Messaging", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_279::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingCommon/MessagingCommon.hmake.hpp", .logicalName = "MessagingCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_280::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MessagingRpc/MessagingRpc.hmake.hpp", .logicalName = "MessagingRpc", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_281::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayer/MoviePlayer.hmake.hpp", .logicalName = "MoviePlayer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_282::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MoviePlayerProxy/MoviePlayerProxy.hmake.hpp", .logicalName = "MoviePlayerProxy", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_283::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieScene/MovieScene.hmake.hpp", .logicalName = "MovieScene", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_284::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneCapture/MovieSceneCapture.hmake.hpp", .logicalName = "MovieSceneCapture", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_285::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/MovieSceneTracks/MovieSceneTracks.hmake.hpp", .logicalName = "MovieSceneTracks", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_286::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NNE/NNE.hmake.hpp", .logicalName = "NNE", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_287::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NavigationSystem/NavigationSystem.hmake.hpp", .logicalName = "NavigationSystem", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_288::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Navmesh/Navmesh.hmake.hpp", .logicalName = "Navmesh", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_289::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Common/NetCommon.hmake.hpp", .logicalName = "NetCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_290::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Core/NetCore.hmake.hpp", .logicalName = "NetCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_291::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Net/Iris/IrisCore.hmake.hpp", .logicalName = "IrisCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_292::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkFile/NetworkFile.hmake.hpp", .logicalName = "NetworkFile", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_293::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/HttpNetworkReplayStreaming/HttpNetworkReplayStreaming.hmake.hpp", .logicalName = "HttpNetworkReplayStreaming", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_294::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/LocalFileNetworkReplayStreaming/LocalFileNetworkReplayStreaming.hmake.hpp", .logicalName = "LocalFileNetworkReplayStreaming", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_295::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NetworkReplayStreaming/NetworkReplayStreaming.hmake.hpp", .logicalName = "NetworkReplayStreaming", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_296::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NetworkReplayStreaming/NullNetworkReplayStreaming/NullNetworkReplayStreaming.hmake.hpp", .logicalName = "NullNetworkReplayStreaming", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_297::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Networking/Networking.hmake.hpp", .logicalName = "Networking", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_298::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NonRealtimeAudioRenderer/NonRealtimeAudioRenderer.hmake.hpp", .logicalName = "NonRealtimeAudioRenderer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_299::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/NullDrv/NullDrv.hmake.hpp", .logicalName = "NullDrv", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_300::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/BuildPatchServices/BuildPatchServices.hmake.hpp", .logicalName = "BuildPatchServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_301::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Experimental/EventLoop/EventLoop.hmake.hpp", .logicalName = "EventLoop", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_302::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTP/HTTP.hmake.hpp", .logicalName = "HTTP", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_303::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/HTTPServer/HTTPServer.hmake.hpp", .logicalName = "HTTPServer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_304::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/ICMP/Icmp.hmake.hpp", .logicalName = "Icmp", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_305::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/SSL/SSL.hmake.hpp", .logicalName = "SSL", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_306::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Online/Voice/Voice.hmake.hpp", .logicalName = "Voice", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_307::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OodleDataCompression/OodleDataCompression.hmake.hpp", .logicalName = "OodleDataCompression", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_308::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpenGLDrv/OpenGLDrv.hmake.hpp", .logicalName = "OpenGLDrv", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_309::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/OpusAudioDecoder/Module/OpusAudioDecoder.hmake.hpp", .logicalName = "OpusAudioDecoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_310::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Overlay/Overlay.hmake.hpp", .logicalName = "Overlay", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_311::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/PacketHandler/PacketHandler.hmake.hpp", .logicalName = "PacketHandler", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_312::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PacketHandlers/ReliabilityHandlerComponent/ReliabilityHandlerComponent.hmake.hpp", .logicalName = "ReliabilityHandlerComponent", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_313::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PakFile/PakFile.hmake.hpp", .logicalName = "PakFile", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_314::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PerfCounters/PerfCounters.hmake.hpp", .logicalName = "PerfCounters", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_315::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PhysicsCore/PhysicsCore.hmake.hpp", .logicalName = "PhysicsCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_316::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/LauncherPlatform/LauncherPlatform.hmake.hpp", .logicalName = "LauncherPlatform", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_317::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Rpc/PortalRpc.hmake.hpp", .logicalName = "PortalRpc", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_318::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Portal/Services/PortalServices.hmake.hpp", .logicalName = "PortalServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_319::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PreLoadScreen/PreLoadScreen.hmake.hpp", .logicalName = "PreLoadScreen", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_320::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Projects/Projects.hmake.hpp", .logicalName = "Projects", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_321::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/PropertyPath/PropertyPath.hmake.hpp", .logicalName = "PropertyPath", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_322::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RHI/RHI.hmake.hpp", .logicalName = "RHI", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_323::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RSA/RSA.hmake.hpp", .logicalName = "RSA", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_324::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RadAudioCodec/Module/RadAudioDecoder.hmake.hpp", .logicalName = "RadAudioDecoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_325::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RawMesh/RawMesh.hmake.hpp", .logicalName = "RawMesh", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_326::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RenderCore/RenderCore.hmake.hpp", .logicalName = "RenderCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_327::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Renderer/Renderer.hmake.hpp", .logicalName = "Renderer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_328::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/RewindDebuggerRuntimeInterface/RewindDebuggerRuntimeInterface.hmake.hpp", .logicalName = "RewindDebuggerRuntimeInterface", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_329::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SandboxFile/SandboxFile.hmake.hpp", .logicalName = "SandboxFile", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_330::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Serialization/Serialization.hmake.hpp", .logicalName = "Serialization", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_331::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionMessages/SessionMessages.hmake.hpp", .logicalName = "SessionMessages", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_332::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SessionServices/SessionServices.hmake.hpp", .logicalName = "SessionServices", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_333::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SignalProcessing/SignalProcessing.hmake.hpp", .logicalName = "SignalProcessing", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_334::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SkeletalMeshDescription/SkeletalMeshDescription.hmake.hpp", .logicalName = "SkeletalMeshDescription", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_335::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Slate/Slate.hmake.hpp", .logicalName = "Slate", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_336::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateCore/SlateCore.hmake.hpp", .logicalName = "SlateCore", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_337::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SlateRHIRenderer/SlateRHIRenderer.hmake.hpp", .logicalName = "SlateRHIRenderer", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_338::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Sockets/Sockets.hmake.hpp", .logicalName = "Sockets", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_339::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SoundFieldRendering/SoundFieldRendering.hmake.hpp", .logicalName = "SoundFieldRendering", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_340::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StateStream/StateStream.hmake.hpp", .logicalName = "StateStream", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_341::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StaticMeshDescription/StaticMeshDescription.hmake.hpp", .logicalName = "StaticMeshDescription", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_342::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClient/StorageServerClient.hmake.hpp", .logicalName = "StorageServerClient", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_343::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StorageServerClientDebug/StorageServerClientDebug.hmake.hpp", .logicalName = "StorageServerClientDebug", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_344::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingFile/StreamingFile.hmake.hpp", .logicalName = "StreamingFile", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_345::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StreamingPauseRendering/StreamingPauseRendering.hmake.hpp", .logicalName = "StreamingPauseRendering", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_346::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/StudioTelemetry/StudioTelemetry.hmake.hpp", .logicalName = "StudioTelemetry", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_347::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SymsLib/SymsLib.hmake.hpp", .logicalName = "SymsLib", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_348::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/SynthBenchmark/SynthBenchmark.hmake.hpp", .logicalName = "SynthBenchmark", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_349::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TextureUtilitiesCommon/TextureUtilitiesCommon.hmake.hpp", .logicalName = "TextureUtilitiesCommon", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_350::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TimeManagement/TimeManagement.hmake.hpp", .logicalName = "TimeManagement", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_351::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TraceLog/TraceLog.hmake.hpp", .logicalName = "TraceLog", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_352::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementFramework/TypedElementFramework.hmake.hpp", .logicalName = "TypedElementFramework", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_353::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/TypedElementRuntime/TypedElementRuntime.hmake.hpp", .logicalName = "TypedElementRuntime", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_354::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UEJpegComp/UEJpegComp.hmake.hpp", .logicalName = "UEJpegComp", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_355::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UMG/UMG.hmake.hpp", .logicalName = "UMG", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_356::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UniversalObjectLocator/UniversalObjectLocator.hmake.hpp", .logicalName = "UniversalObjectLocator", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_357::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/Unix/UnixCommonStartup/UnixCommonStartup.hmake.hpp", .logicalName = "UnixCommonStartup", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_358::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UnrealGame/UnrealGame.hmake.hpp", .logicalName = "UnrealGame", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_359::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VectorVM/VectorVM.hmake.hpp", .logicalName = "VectorVM", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_360::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/VorbisAudioDecoder/Module/VorbisAudioDecoder.hmake.hpp", .logicalName = "VorbisAudioDecoder", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_361::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/XmlParser/XmlParser.hmake.hpp", .logicalName = "XmlParser", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_362::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/AtomicQueue/AtomicQueue.hmake.hpp", .logicalName = "AtomicQueue", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_363::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/BLAKE3/BLAKE3.hmake.hpp", .logicalName = "BLAKE3", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_364::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Eigen/Eigen.hmake.hpp", .logicalName = "Eigen", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_365::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/GuidelinesSupportLibrary/GuidelinesSupportLibrary.hmake.hpp", .logicalName = "GuidelinesSupportLibrary", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_366::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/ICU/ICU.hmake.hpp", .logicalName = "ICU", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_367::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Imath/Imath.hmake.hpp", .logicalName = "Imath", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_368::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/IntelISPC.hmake.hpp", .logicalName = "IntelISPC", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_369::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/LibTiff/LibTiff.hmake.hpp", .logicalName = "LibTiff", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_370::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MaterialX/MaterialX.hmake.hpp", .logicalName = "MaterialX", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_371::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MikkTSpace/MikkTSpace.hmake.hpp", .logicalName = "MikkTSpace", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_372::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/MsQuic/MsQuic.hmake.hpp", .logicalName = "MsQuic", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_373::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/NVIDIA/CUDA/CUDAHeader.hmake.hpp", .logicalName = "CUDAHeader", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_374::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Ogg/UEOgg.hmake.hpp", .logicalName = "UEOgg", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_375::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenGL/OpenGL.hmake.hpp", .logicalName = "OpenGL", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_376::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/OpenSSL/OpenSSL.hmake.hpp", .logicalName = "OpenSSL", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_377::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RapidJSON/RapidJSON.hmake.hpp", .logicalName = "RapidJSON", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_378::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/RenderDoc/RenderDoc.hmake.hpp", .logicalName = "RenderDoc", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_379::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/SDL3/SDL3.hmake.hpp", .logicalName = "SDL3", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_380::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/Vorbis.hmake.hpp", .logicalName = "Vorbis", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_381::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vorbis/VorbisFile.hmake.hpp", .logicalName = "VorbisFile", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_382::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Vulkan/Vulkan.hmake.hpp", .logicalName = "Vulkan", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_383::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/asio/Asio.hmake.hpp", .logicalName = "Asio", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_384::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/jemalloc/jemalloc.hmake.hpp", .logicalName = "jemalloc", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_385::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libOpus/libOpus.hmake.hpp", .logicalName = "libOpus", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_386::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libPNG/UElibPNG.hmake.hpp", .logicalName = "UElibPNG", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_387::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libSampleRate/UELibSampleRate.hmake.hpp", .logicalName = "UELibSampleRate", .kind = UeFileKind::Module, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_388::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libcurl/libcurl.hmake.hpp", .logicalName = "libcurl", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_389::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/libjpeg-turbo/LibJpegTurbo.hmake.hpp", .logicalName = "LibJpegTurbo", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_390::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/mimalloc/mimalloc.hmake.hpp", .logicalName = "mimalloc", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_391::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/nghttp2/nghttp2.hmake.hpp", .logicalName = "nghttp2", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_392::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/openexr/UEOpenExr.hmake.hpp", .logicalName = "UEOpenExr", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_393::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/stb_image_resize/stb_image_resize2.hmake.hpp", .logicalName = "stb_image_resize2", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_394::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/xxhash/xxhash.hmake.hpp", .logicalName = "xxhash", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_395::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/zlib/zlib.hmake.hpp", .logicalName = "zlib", .kind = UeFileKind::Prebuilt, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_396::specify},
+    {.path = "/home/hassan/Projects/UnrealEngine/Engine/Source/UnrealServer.hmake.hpp", .logicalName = "UnrealServer", .kind = UeFileKind::Target, .configuration = UeConfigurationProfile::Default, .func = ue_generated_file_397::specify},
 };
 
 // Bootstrap command row derived from this checkout's successful local UBT invocation:
 //     make UnrealServer-Linux-Debug
 // cppCompileCommand comes from UnrealServerMetadata.txt's BASE-COMMAND and maps to the shared
-// CppCompileEnvironment/toolchain prefix. HMake removes UBT's -c because CppSrc appends -c,
+// CppCompileEnvironment/toolchain prefix. HMake removes UBT's -c and semantic RTTI/exception
+// policy because CppSrc appends -c and each Configuration appends its own semantic policy,
 // dependency, source, and -o arguments per file. cCompileCommand selects C mode on that prefix.
 // Link fields come from UBT's adjacent response files; archiveCommand uses llvm-ar beside clang++.
 // HMake launches these commands directly while they fit the configured command-line
@@ -2422,8 +2423,8 @@ const UeBuildCommandEntry generatedUeBuildCommands[] =
         .targetType = UeTargetType::Server,
         .commands =
         {
-            .cppCompileCommand = R"HMAKE_UE_COMMAND(/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/bin/clang++ -DUSE_DEBUG_LOGGING=0 -DUSE_EVENT_LOGGING=0 --driver-mode=g++ -gz=zlib -nostdinc++ -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include/c++/v1 -fbinutils-version=2.36 -fno-math-errno -fno-rtti -mssse3 -ffunction-sections -fdata-sections -fno-PIE -target x86_64-unknown-linux-gnu --sysroot=/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu -pipe -msse4.2 -DIS_PROGRAM=0 -DUE_SERVER=1 -DUSE_NULL_RHI=1 -DUSE_SHADER_COMPILER_WORKER_TRACE=0 -DUE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1 -DWITH_VERSE_VM=0 -DENABLE_PGO_PROFILE=0 -DUSE_VORBIS_FOR_STREAMING=1 -DUSE_XMA2_FOR_STREAMING=1 -DWITH_DEV_AUTOMATION_TESTS=1 -DWITH_PERF_AUTOMATION_TESTS=1 -DWITH_LOW_LEVEL_TESTS=0 -DEXPLICIT_TESTS_TARGET=0 -DWITH_TESTS=1 -DUNICODE -D_UNICODE -D__UNREAL__ -DIS_MONOLITHIC=1 -DUE_MERGED_MODULES=0 -DWITH_ENGINE=1 -DWITH_UNREAL_DEVELOPER_TOOLS=1 -DWITH_UNREAL_TARGET_DEVELOPER_TOOLS=1 -DWITH_APPLICATION_CORE=1 -DWITH_COREUOBJECT=1 -DUE_WITH_CONSTINIT_UOBJECT=0 -DUE_TRACE_ENABLED=1 -DUE_TRACE_FORCE_ENABLED=0 -DWITH_VERSE=1 -DUE_USE_VERSE_PATHS=1 -DWITH_VERSE_BPVM=1 -DUSE_STATS_WITHOUT_ENGINE=0 -DWITH_PLUGIN_SUPPORT=0 -DWITH_ACCESSIBILITY=1 -DWITH_PERFCOUNTERS=1 -DWITH_FIXED_TIME_STEP_SUPPORT=1 -DUSE_LOGGING_IN_SHIPPING=0 -DALLOW_CONSOLE_IN_SHIPPING=0 -DALLOW_PROFILEGPU_IN_TEST=0 -DALLOW_PROFILEGPU_IN_SHIPPING=0 -DWITH_LOGGING_TO_MEMORY=0 -DUSE_CACHE_FREED_OS_ALLOCS=1 -DUSE_CHECKS_IN_SHIPPING=0 -DUSE_UTF8_TCHARS=0 -DUSE_ESTIMATED_UTCNOW=0 -DUE_ALLOW_EXEC_COMMANDS_IN_SHIPPING=1 -DWITH_EDITOR=0 -DWITH_EDITORONLY_DATA=0 -DWITH_CLIENT_CODE=0 -DWITH_SERVER_CODE=1 -DUE_FNAME_OUTLINE_NUMBER=0 -DWITH_PUSH_MODEL=0 -DWITH_CEF3=0 -DWITH_LIVE_CODING=0 -DWITH_CPP_MODULES=0 -DWITH_PROCESS_PRIORITY_CONTROL=0 -DUE_DEFINE_FORCEINLINE_HINT_TO_INLINE=0 '-DUBT_MODULE_MANIFEST="UnrealServer-Linux-Debug.modules"' '-DUBT_MODULE_MANIFEST_DEBUGGAME="UnrealServer-Linux-DebugGame.modules"' -DUBT_COMPILED_PLATFORM=Linux -DUBT_COMPILED_TARGET=Server -DUBT_COMPILED_ARCHITECTURE=x64 '-DUE_APP_NAME="UnrealServer"' -DUE_WARNINGS_AS_ERRORS=0 '-DUE_ENGINE_DIRECTORY="../../../Engine/"' -DFORCE_ANSI_ALLOCATOR=0 -DUSE_MALLOC_BINNED2=1 -DUSE_MALLOC_BINNED3=0 -DINT64_T_TYPES_NOT_LONG_LONG=1 -DPLATFORM_LINUX=1 -DPLATFORM_UNIX=1 -DLINUX=1 -DPLATFORM_SUPPORTS_JEMALLOC=1 -DOVERRIDE_PLATFORM_HEADER_NAME=Linux -DPLATFORM_LINUXARM64=0 -DNDEBUG=1 -DUE_BUILD_DEBUG=1 -Wall -Werror -ftabstop=4 -Wenum-conversion -Wshadow -Wno-dllexport-explicit-instantiation-decl -Wno-undefined-var-template -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-function -Wno-unused-lambda-capture -Wno-unused-local-typedef -Wno-unused-private-field -Wno-unused-variable -Wno-unknown-pragmas -Wno-tautological-compare -Wno-switch -Wno-invalid-offsetof -Wno-inconsistent-missing-override -Wno-gnu-string-literal-operator-template -Wno-missing-template-arg-list-after-template-kw -Wno-cast-function-type-mismatch -Wno-extra-qualification -Wno-nan-infinity-disabled -Wno-nontrivial-memaccess -Wno-invalid-unevaluated-string -Wno-deprecated-copy -Wno-bitwise-instead-of-logical -Wno-ordered-compare-function-pointers -Wno-deprecated-volatile -Wno-deprecated-anon-enum-enum-conversion -Wno-ambiguous-reversed-operator -Wno-enum-float-conversion -Wno-enum-enum-conversion -Wbitfield-enum-conversion -Wdelete-non-virtual-dtor -Wundef -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-conversion -Wno-c++11-narrowing -Wdeprecated-declarations -Wno-error=deprecated-declarations -Wno-shorten-64-to-32 -Wno-deprecated-copy-with-user-provided-copy -fdiagnostics-absolute-paths -fdiagnostics-color -Wno-dangling -Wno-undefined-bool-conversion -ffp-contract=off -fno-delete-null-pointer-checks -O0 -fno-inline -fstack-protector -fno-optimize-sibling-calls -fno-omit-frame-pointer -fno-exceptions -DPLATFORM_EXCEPTIONS_DISABLED=1 -gdwarf-4 -ggnu-pubnames -fvisibility-ms-compat -fvisibility-inlines-hidden -x c++ -std=c++20 -I/home/hassan/Projects/UnrealEngine/Engine/Source -include/home/hassan/Projects/UnrealEngine/Engine/Source/HMakeSharedDefs.h )HMAKE_UE_COMMAND",
-            .cCompileCommand = R"HMAKE_UE_COMMAND(/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/bin/clang++ -DUSE_DEBUG_LOGGING=0 -DUSE_EVENT_LOGGING=0 --driver-mode=g++ -gz=zlib -nostdinc++ -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include/c++/v1 -fbinutils-version=2.36 -fno-math-errno -fno-rtti -mssse3 -ffunction-sections -fdata-sections -fno-PIE -target x86_64-unknown-linux-gnu --sysroot=/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu -pipe -msse4.2 -DIS_PROGRAM=0 -DUE_SERVER=1 -DUSE_NULL_RHI=1 -DUSE_SHADER_COMPILER_WORKER_TRACE=0 -DUE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1 -DWITH_VERSE_VM=0 -DENABLE_PGO_PROFILE=0 -DUSE_VORBIS_FOR_STREAMING=1 -DUSE_XMA2_FOR_STREAMING=1 -DWITH_DEV_AUTOMATION_TESTS=1 -DWITH_PERF_AUTOMATION_TESTS=1 -DWITH_LOW_LEVEL_TESTS=0 -DEXPLICIT_TESTS_TARGET=0 -DWITH_TESTS=1 -DUNICODE -D_UNICODE -D__UNREAL__ -DIS_MONOLITHIC=1 -DUE_MERGED_MODULES=0 -DWITH_ENGINE=1 -DWITH_UNREAL_DEVELOPER_TOOLS=1 -DWITH_UNREAL_TARGET_DEVELOPER_TOOLS=1 -DWITH_APPLICATION_CORE=1 -DWITH_COREUOBJECT=1 -DUE_WITH_CONSTINIT_UOBJECT=0 -DUE_TRACE_ENABLED=1 -DUE_TRACE_FORCE_ENABLED=0 -DWITH_VERSE=1 -DUE_USE_VERSE_PATHS=1 -DWITH_VERSE_BPVM=1 -DUSE_STATS_WITHOUT_ENGINE=0 -DWITH_PLUGIN_SUPPORT=0 -DWITH_ACCESSIBILITY=1 -DWITH_PERFCOUNTERS=1 -DWITH_FIXED_TIME_STEP_SUPPORT=1 -DUSE_LOGGING_IN_SHIPPING=0 -DALLOW_CONSOLE_IN_SHIPPING=0 -DALLOW_PROFILEGPU_IN_TEST=0 -DALLOW_PROFILEGPU_IN_SHIPPING=0 -DWITH_LOGGING_TO_MEMORY=0 -DUSE_CACHE_FREED_OS_ALLOCS=1 -DUSE_CHECKS_IN_SHIPPING=0 -DUSE_UTF8_TCHARS=0 -DUSE_ESTIMATED_UTCNOW=0 -DUE_ALLOW_EXEC_COMMANDS_IN_SHIPPING=1 -DWITH_EDITOR=0 -DWITH_EDITORONLY_DATA=0 -DWITH_CLIENT_CODE=0 -DWITH_SERVER_CODE=1 -DUE_FNAME_OUTLINE_NUMBER=0 -DWITH_PUSH_MODEL=0 -DWITH_CEF3=0 -DWITH_LIVE_CODING=0 -DWITH_CPP_MODULES=0 -DWITH_PROCESS_PRIORITY_CONTROL=0 -DUE_DEFINE_FORCEINLINE_HINT_TO_INLINE=0 '-DUBT_MODULE_MANIFEST="UnrealServer-Linux-Debug.modules"' '-DUBT_MODULE_MANIFEST_DEBUGGAME="UnrealServer-Linux-DebugGame.modules"' -DUBT_COMPILED_PLATFORM=Linux -DUBT_COMPILED_TARGET=Server -DUBT_COMPILED_ARCHITECTURE=x64 '-DUE_APP_NAME="UnrealServer"' -DUE_WARNINGS_AS_ERRORS=0 '-DUE_ENGINE_DIRECTORY="../../../Engine/"' -DFORCE_ANSI_ALLOCATOR=0 -DUSE_MALLOC_BINNED2=1 -DUSE_MALLOC_BINNED3=0 -DINT64_T_TYPES_NOT_LONG_LONG=1 -DPLATFORM_LINUX=1 -DPLATFORM_UNIX=1 -DLINUX=1 -DPLATFORM_SUPPORTS_JEMALLOC=1 -DOVERRIDE_PLATFORM_HEADER_NAME=Linux -DPLATFORM_LINUXARM64=0 -DNDEBUG=1 -DUE_BUILD_DEBUG=1 -Wall -Werror -ftabstop=4 -Wenum-conversion -Wshadow -Wno-dllexport-explicit-instantiation-decl -Wno-undefined-var-template -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-function -Wno-unused-lambda-capture -Wno-unused-local-typedef -Wno-unused-private-field -Wno-unused-variable -Wno-unknown-pragmas -Wno-tautological-compare -Wno-switch -Wno-invalid-offsetof -Wno-inconsistent-missing-override -Wno-gnu-string-literal-operator-template -Wno-missing-template-arg-list-after-template-kw -Wno-cast-function-type-mismatch -Wno-extra-qualification -Wno-nan-infinity-disabled -Wno-nontrivial-memaccess -Wno-invalid-unevaluated-string -Wno-deprecated-copy -Wno-bitwise-instead-of-logical -Wno-ordered-compare-function-pointers -Wno-deprecated-volatile -Wno-deprecated-anon-enum-enum-conversion -Wno-ambiguous-reversed-operator -Wno-enum-float-conversion -Wno-enum-enum-conversion -Wbitfield-enum-conversion -Wdelete-non-virtual-dtor -Wundef -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-conversion -Wno-c++11-narrowing -Wdeprecated-declarations -Wno-error=deprecated-declarations -Wno-shorten-64-to-32 -Wno-deprecated-copy-with-user-provided-copy -fdiagnostics-absolute-paths -fdiagnostics-color -Wno-dangling -Wno-undefined-bool-conversion -ffp-contract=off -fno-delete-null-pointer-checks -O0 -fno-inline -fstack-protector -fno-optimize-sibling-calls -fno-omit-frame-pointer -fno-exceptions -DPLATFORM_EXCEPTIONS_DISABLED=1 -gdwarf-4 -ggnu-pubnames -fvisibility-ms-compat -fvisibility-inlines-hidden -x c -I/home/hassan/Projects/UnrealEngine/Engine/Source -include/home/hassan/Projects/UnrealEngine/Engine/Source/HMakeSharedDefs.h )HMAKE_UE_COMMAND",
+            .cppCompileCommand = R"HMAKE_UE_COMMAND(/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/bin/clang++ -DUSE_DEBUG_LOGGING=0 -DUSE_EVENT_LOGGING=0 --driver-mode=g++ -gz=zlib -nostdinc++ -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include/c++/v1 -fbinutils-version=2.36 -fno-math-errno -mssse3 -ffunction-sections -fdata-sections -fno-PIE -target x86_64-unknown-linux-gnu --sysroot=/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu -pipe -msse4.2 -DIS_PROGRAM=0 -DUE_SERVER=1 -DUSE_NULL_RHI=1 -DUSE_SHADER_COMPILER_WORKER_TRACE=0 -DUE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1 -DWITH_VERSE_VM=0 -DENABLE_PGO_PROFILE=0 -DUSE_VORBIS_FOR_STREAMING=1 -DUSE_XMA2_FOR_STREAMING=1 -DWITH_DEV_AUTOMATION_TESTS=1 -DWITH_PERF_AUTOMATION_TESTS=1 -DWITH_LOW_LEVEL_TESTS=0 -DEXPLICIT_TESTS_TARGET=0 -DWITH_TESTS=1 -DUNICODE -D_UNICODE -D__UNREAL__ -DIS_MONOLITHIC=1 -DUE_MERGED_MODULES=0 -DWITH_ENGINE=1 -DWITH_UNREAL_DEVELOPER_TOOLS=1 -DWITH_UNREAL_TARGET_DEVELOPER_TOOLS=1 -DWITH_APPLICATION_CORE=1 -DWITH_COREUOBJECT=1 -DUE_WITH_CONSTINIT_UOBJECT=0 -DUE_TRACE_ENABLED=1 -DUE_TRACE_FORCE_ENABLED=0 -DWITH_VERSE=1 -DUE_USE_VERSE_PATHS=1 -DWITH_VERSE_BPVM=1 -DUSE_STATS_WITHOUT_ENGINE=0 -DWITH_PLUGIN_SUPPORT=0 -DWITH_ACCESSIBILITY=1 -DWITH_PERFCOUNTERS=1 -DWITH_FIXED_TIME_STEP_SUPPORT=1 -DUSE_LOGGING_IN_SHIPPING=0 -DALLOW_CONSOLE_IN_SHIPPING=0 -DALLOW_PROFILEGPU_IN_TEST=0 -DALLOW_PROFILEGPU_IN_SHIPPING=0 -DWITH_LOGGING_TO_MEMORY=0 -DUSE_CACHE_FREED_OS_ALLOCS=1 -DUSE_CHECKS_IN_SHIPPING=0 -DUSE_UTF8_TCHARS=0 -DUSE_ESTIMATED_UTCNOW=0 -DUE_ALLOW_EXEC_COMMANDS_IN_SHIPPING=1 -DWITH_EDITOR=0 -DWITH_EDITORONLY_DATA=0 -DWITH_CLIENT_CODE=0 -DWITH_SERVER_CODE=1 -DUE_FNAME_OUTLINE_NUMBER=0 -DWITH_PUSH_MODEL=0 -DWITH_CEF3=0 -DWITH_LIVE_CODING=0 -DWITH_CPP_MODULES=0 -DWITH_PROCESS_PRIORITY_CONTROL=0 -DUE_DEFINE_FORCEINLINE_HINT_TO_INLINE=0 '-DUBT_MODULE_MANIFEST="UnrealServer-Linux-Debug.modules"' '-DUBT_MODULE_MANIFEST_DEBUGGAME="UnrealServer-Linux-DebugGame.modules"' -DUBT_COMPILED_PLATFORM=Linux -DUBT_COMPILED_TARGET=Server -DUBT_COMPILED_ARCHITECTURE=x64 '-DUE_APP_NAME="UnrealServer"' -DUE_WARNINGS_AS_ERRORS=0 '-DUE_ENGINE_DIRECTORY="../../../Engine/"' -DFORCE_ANSI_ALLOCATOR=0 -DUSE_MALLOC_BINNED2=1 -DUSE_MALLOC_BINNED3=0 -DINT64_T_TYPES_NOT_LONG_LONG=1 -DPLATFORM_LINUX=1 -DPLATFORM_UNIX=1 -DLINUX=1 -DPLATFORM_SUPPORTS_JEMALLOC=1 -DOVERRIDE_PLATFORM_HEADER_NAME=Linux -DPLATFORM_LINUXARM64=0 -DNDEBUG=1 -DUE_BUILD_DEBUG=1 -Wall -Werror -ftabstop=4 -Wenum-conversion -Wshadow -Wno-dllexport-explicit-instantiation-decl -Wno-undefined-var-template -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-function -Wno-unused-lambda-capture -Wno-unused-local-typedef -Wno-unused-private-field -Wno-unused-variable -Wno-unknown-pragmas -Wno-tautological-compare -Wno-switch -Wno-invalid-offsetof -Wno-inconsistent-missing-override -Wno-gnu-string-literal-operator-template -Wno-missing-template-arg-list-after-template-kw -Wno-cast-function-type-mismatch -Wno-extra-qualification -Wno-nan-infinity-disabled -Wno-nontrivial-memaccess -Wno-invalid-unevaluated-string -Wno-deprecated-copy -Wno-bitwise-instead-of-logical -Wno-ordered-compare-function-pointers -Wno-deprecated-volatile -Wno-deprecated-anon-enum-enum-conversion -Wno-ambiguous-reversed-operator -Wno-enum-float-conversion -Wno-enum-enum-conversion -Wbitfield-enum-conversion -Wdelete-non-virtual-dtor -Wundef -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-conversion -Wno-c++11-narrowing -Wdeprecated-declarations -Wno-error=deprecated-declarations -Wno-shorten-64-to-32 -Wno-deprecated-copy-with-user-provided-copy -fdiagnostics-absolute-paths -fdiagnostics-color -Wno-dangling -Wno-undefined-bool-conversion -ffp-contract=off -fno-delete-null-pointer-checks -O0 -fno-inline -fstack-protector -fno-optimize-sibling-calls -fno-omit-frame-pointer -gdwarf-4 -ggnu-pubnames -fvisibility-ms-compat -fvisibility-inlines-hidden -x c++ -std=c++20 -I/home/hassan/Projects/UnrealEngine/Engine/Source -include/home/hassan/Projects/UnrealEngine/Engine/Source/HMakeSharedDefs.h )HMAKE_UE_COMMAND",
+            .cCompileCommand = R"HMAKE_UE_COMMAND(/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/bin/clang++ -DUSE_DEBUG_LOGGING=0 -DUSE_EVENT_LOGGING=0 --driver-mode=g++ -gz=zlib -nostdinc++ -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include -isystem/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/include/c++/v1 -fbinutils-version=2.36 -fno-math-errno -mssse3 -ffunction-sections -fdata-sections -fno-PIE -target x86_64-unknown-linux-gnu --sysroot=/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu -pipe -msse4.2 -DIS_PROGRAM=0 -DUE_SERVER=1 -DUSE_NULL_RHI=1 -DUSE_SHADER_COMPILER_WORKER_TRACE=0 -DUE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1 -DWITH_VERSE_VM=0 -DENABLE_PGO_PROFILE=0 -DUSE_VORBIS_FOR_STREAMING=1 -DUSE_XMA2_FOR_STREAMING=1 -DWITH_DEV_AUTOMATION_TESTS=1 -DWITH_PERF_AUTOMATION_TESTS=1 -DWITH_LOW_LEVEL_TESTS=0 -DEXPLICIT_TESTS_TARGET=0 -DWITH_TESTS=1 -DUNICODE -D_UNICODE -D__UNREAL__ -DIS_MONOLITHIC=1 -DUE_MERGED_MODULES=0 -DWITH_ENGINE=1 -DWITH_UNREAL_DEVELOPER_TOOLS=1 -DWITH_UNREAL_TARGET_DEVELOPER_TOOLS=1 -DWITH_APPLICATION_CORE=1 -DWITH_COREUOBJECT=1 -DUE_WITH_CONSTINIT_UOBJECT=0 -DUE_TRACE_ENABLED=1 -DUE_TRACE_FORCE_ENABLED=0 -DWITH_VERSE=1 -DUE_USE_VERSE_PATHS=1 -DWITH_VERSE_BPVM=1 -DUSE_STATS_WITHOUT_ENGINE=0 -DWITH_PLUGIN_SUPPORT=0 -DWITH_ACCESSIBILITY=1 -DWITH_PERFCOUNTERS=1 -DWITH_FIXED_TIME_STEP_SUPPORT=1 -DUSE_LOGGING_IN_SHIPPING=0 -DALLOW_CONSOLE_IN_SHIPPING=0 -DALLOW_PROFILEGPU_IN_TEST=0 -DALLOW_PROFILEGPU_IN_SHIPPING=0 -DWITH_LOGGING_TO_MEMORY=0 -DUSE_CACHE_FREED_OS_ALLOCS=1 -DUSE_CHECKS_IN_SHIPPING=0 -DUSE_UTF8_TCHARS=0 -DUSE_ESTIMATED_UTCNOW=0 -DUE_ALLOW_EXEC_COMMANDS_IN_SHIPPING=1 -DWITH_EDITOR=0 -DWITH_EDITORONLY_DATA=0 -DWITH_CLIENT_CODE=0 -DWITH_SERVER_CODE=1 -DUE_FNAME_OUTLINE_NUMBER=0 -DWITH_PUSH_MODEL=0 -DWITH_CEF3=0 -DWITH_LIVE_CODING=0 -DWITH_CPP_MODULES=0 -DWITH_PROCESS_PRIORITY_CONTROL=0 -DUE_DEFINE_FORCEINLINE_HINT_TO_INLINE=0 '-DUBT_MODULE_MANIFEST="UnrealServer-Linux-Debug.modules"' '-DUBT_MODULE_MANIFEST_DEBUGGAME="UnrealServer-Linux-DebugGame.modules"' -DUBT_COMPILED_PLATFORM=Linux -DUBT_COMPILED_TARGET=Server -DUBT_COMPILED_ARCHITECTURE=x64 '-DUE_APP_NAME="UnrealServer"' -DUE_WARNINGS_AS_ERRORS=0 '-DUE_ENGINE_DIRECTORY="../../../Engine/"' -DFORCE_ANSI_ALLOCATOR=0 -DUSE_MALLOC_BINNED2=1 -DUSE_MALLOC_BINNED3=0 -DINT64_T_TYPES_NOT_LONG_LONG=1 -DPLATFORM_LINUX=1 -DPLATFORM_UNIX=1 -DLINUX=1 -DPLATFORM_SUPPORTS_JEMALLOC=1 -DOVERRIDE_PLATFORM_HEADER_NAME=Linux -DPLATFORM_LINUXARM64=0 -DNDEBUG=1 -DUE_BUILD_DEBUG=1 -Wall -Werror -ftabstop=4 -Wenum-conversion -Wshadow -Wno-dllexport-explicit-instantiation-decl -Wno-undefined-var-template -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-function -Wno-unused-lambda-capture -Wno-unused-local-typedef -Wno-unused-private-field -Wno-unused-variable -Wno-unknown-pragmas -Wno-tautological-compare -Wno-switch -Wno-invalid-offsetof -Wno-inconsistent-missing-override -Wno-gnu-string-literal-operator-template -Wno-missing-template-arg-list-after-template-kw -Wno-cast-function-type-mismatch -Wno-extra-qualification -Wno-nan-infinity-disabled -Wno-nontrivial-memaccess -Wno-invalid-unevaluated-string -Wno-deprecated-copy -Wno-bitwise-instead-of-logical -Wno-ordered-compare-function-pointers -Wno-deprecated-volatile -Wno-deprecated-anon-enum-enum-conversion -Wno-ambiguous-reversed-operator -Wno-enum-float-conversion -Wno-enum-enum-conversion -Wbitfield-enum-conversion -Wdelete-non-virtual-dtor -Wundef -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-conversion -Wno-c++11-narrowing -Wdeprecated-declarations -Wno-error=deprecated-declarations -Wno-shorten-64-to-32 -Wno-deprecated-copy-with-user-provided-copy -fdiagnostics-absolute-paths -fdiagnostics-color -Wno-dangling -Wno-undefined-bool-conversion -ffp-contract=off -fno-delete-null-pointer-checks -O0 -fno-inline -fstack-protector -fno-optimize-sibling-calls -fno-omit-frame-pointer -gdwarf-4 -ggnu-pubnames -fvisibility-ms-compat -fvisibility-inlines-hidden -x c -I/home/hassan/Projects/UnrealEngine/Engine/Source -include/home/hassan/Projects/UnrealEngine/Engine/Source/HMakeSharedDefs.h )HMAKE_UE_COMMAND",
             .linkCommand = R"HMAKE_UE_COMMAND(/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/bin/clang++ -fdiagnostics-absolute-paths -fdiagnostics-color --driver-mode=g++ -fuse-ld=lld -gz=zlib -rdynamic -Wl,--unresolved-symbols=ignore-in-shared-libs -Wl,--gdb-index '-Wl,-rpath=${ORIGIN}' '-Wl,-rpath-link=${ORIGIN}' '-Wl,-rpath=${ORIGIN}/..' '-Wl,-rpath=${ORIGIN}/../../../Engine/Binaries/ThirdParty/Qualcomm/Linux' '-Wl,-rpath=${ORIGIN}/../../../Engine/Binaries/ThirdParty/PhysX3/Unix/x86_64-unknown-linux-gnu' -Wl,--disable-new-dtags -Wl,--as-needed -Wl,--hash-style=gnu -Wl,--build-id -Wl,--gc-sections -Wl,-no-pie -target x86_64-unknown-linux-gnu --sysroot=/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu -B/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/usr/lib -B/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/usr/lib64 -L/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/usr/lib -L/home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/usr/lib64 -o ")HMAKE_UE_COMMAND",
             .linkDependenciesPrefix = R"HMAKE_UE_COMMAND('-Wl,-rpath=${ORIGIN}/../../Plugins/Compression/OodleNetwork/Sdks/2.9.14/lib/Linux' '-Wl,-rpath=${ORIGIN}/../../Plugins/Interchange/Runtime/Source/ThirdParty/Draco/lib/Linux' '-Wl,-rpath=${ORIGIN}/../ThirdParty/MsQuic/v220/linux' -Wl,-rpath-link=/home/hassan/Projects/UnrealEngine/Engine/Binaries/Linux -L/home/hassan/Projects/UnrealEngine/Engine/Binaries/ThirdParty/MsQuic/v220/linux -Wl,--start-group /home/hassan/Projects/UnrealEngine/Engine/Source/Runtime/UEJpegComp/Lib/Unix/x86_64-unknown-linux-gnu/uejpeg_linux.a )HMAKE_UE_COMMAND",
             .linkCommandSuffix = R"HMAKE_UE_COMMAND(-Wl,--start-group -lpthread -ldl -Wl,--unresolved-symbols=ignore-in-shared-libs -Wl,--end-group -lrt -lm -nodefaultlibs /home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/lib64/libc++.a /home/hassan/Projects/UnrealEngine/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/v26_clang-20.1.8-rockylinux8/x86_64-unknown-linux-gnu/lib64/libc++abi.a -lm -lc -lpthread -lgcc_s -lgcc )HMAKE_UE_COMMAND",
@@ -2516,8 +2517,20 @@ const UeBuildCommandEntry generatedUeBuildCommands[] =
 };
 } // namespace
 
-void configurationSpecification(Configuration &)
+// Expand the UE graph only when this configuration is active. Profile-marked modules create their
+// producer archives lazily as the consumer graph reaches them.
+void configurationSpecification(Configuration &config)
 {
+    auto &configuration = static_cast<UeConfiguration &>(config);
+    configuration.createProducerConfigurations();
+
+    for (const string &target : configuration.requestedTargets)
+    {
+        configuration.getOrAddTarget(target);
+    }
+
+    // Dynamically created producers do not receive this callback, so finalize them after expansion.
+    configuration.finalizeProducerConfigurations();
 }
 
 void buildSpecification()
@@ -2541,19 +2554,13 @@ void buildSpecification()
             "/home/hassan/Projects/UnrealEngine/Engine/Intermediate/Build/Linux/UnrealServer/Inc", false))
         // UBT: TargetRules.bCompileISPC plus Linux ISPCToolChain's host compiler.
         .setIspcCompiler(Node::getNode(
-            "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/bin/Linux/ispc", true))
-        .requestTarget("UnrealServer");
+            "/home/hassan/Projects/UnrealEngine/Engine/Source/ThirdParty/Intel/ISPC/bin/Linux/ispc", true));
+    configuration.jumboFileSize = 384 * 1024;
+    configuration.requestTarget("UnrealServer");
     // UBT's compile command already selects the bundled libc++ headers. Do not
     // add HMake's host standard-library target (which would leak /usr/include).
-    configuration.jumboFileSize = 384 * 1024;
     configuration.assign(ConfigType::DEBUG, TargetType::LIBRARY_STATIC, IsCppMod::NO, JumboBuild::YES,
-                         AssignStandardCppTarget::NO);
-
-    // Expand only the requested UE roots; dependencies continue to be discovered lazily.
-    for (const string &target : configuration.requestedTargets)
-    {
-        configuration.getOrAddTarget(target);
-    }
+                         AssignStandardCppTarget::NO, RTTI::OFF, ExceptionHandling::OFF);
 
     CALL_CONFIGURATION_SPECIFICATION
 }

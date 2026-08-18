@@ -39,114 +39,6 @@ class UePathNormalizationScope
     }
 };
 
-struct ParsedUeFile
-{
-    string_view logicalName;
-    UeFileKind kind;
-    std::optional<UePlatformGroup> platformGroup;
-    std::optional<UePlatform> platform;
-};
-
-UePlatform parsePlatform(const string_view name, const string_view file)
-{
-    if (name == "Linux")
-        return UePlatform::Linux;
-    if (name == "Windows" || name == "Win64")
-        return UePlatform::Windows;
-    if (name == "Mac")
-        return UePlatform::Mac;
-    if (name == "Android")
-        return UePlatform::Android;
-    if (name == "IOS")
-        return UePlatform::IOS;
-    printErrorMessage(FORMAT("Unknown UE platform '{}' in generated file registration.\nFile: {}", name, file));
-}
-
-UePlatformGroup parsePlatformGroup(const string_view name, const string_view file)
-{
-    if (name == "Unix")
-        return UePlatformGroup::Unix;
-    if (name == "Windows")
-        return UePlatformGroup::Windows;
-    if (name == "Microsoft")
-        return UePlatformGroup::Microsoft;
-    if (name == "Apple")
-        return UePlatformGroup::Apple;
-    if (name == "Desktop")
-        return UePlatformGroup::Desktop;
-    if (name == "Linux")
-        return UePlatformGroup::Linux;
-    if (name == "Android")
-        return UePlatformGroup::Android;
-    printErrorMessage(FORMAT("Unknown UE platform group '{}' in generated file registration.\nFile: {}", name, file));
-}
-
-ParsedUeFile parseUeFile(const string_view file)
-{
-    constexpr string_view hmakeSuffix = ".hmake.hpp";
-    constexpr string_view moduleSuffix = ".module";
-    constexpr string_view prebuiltSuffix = ".prebuilt";
-    constexpr string_view targetSuffix = ".target";
-    constexpr string_view groupMarker = ".group.";
-    constexpr string_view platformMarker = ".platform.";
-
-    const size_t separator = file.find_last_of("/\\");
-    string_view name = separator == string_view::npos ? file : file.substr(separator + 1);
-    if (!name.ends_with(hmakeSuffix))
-    {
-        printErrorMessage(FORMAT("Generated UE file does not end in '.hmake.hpp'.\nFile: {}", file));
-    }
-    name.remove_suffix(hmakeSuffix.size());
-
-    UeFileKind kind;
-    if (name.ends_with(moduleSuffix))
-    {
-        kind = UeFileKind::Module;
-        name.remove_suffix(moduleSuffix.size());
-    }
-    else if (name.ends_with(prebuiltSuffix))
-    {
-        kind = UeFileKind::Prebuilt;
-        name.remove_suffix(prebuiltSuffix.size());
-    }
-    else if (name.ends_with(targetSuffix))
-    {
-        kind = UeFileKind::Target;
-        name.remove_suffix(targetSuffix.size());
-    }
-    else
-    {
-        printErrorMessage(
-            FORMAT("Generated UE filename must contain '.module', '.prebuilt', or '.target'.\nFile: {}", file));
-    }
-
-    string_view logicalName = name;
-    std::optional<UePlatformGroup> parsedPlatformGroup;
-    std::optional<UePlatform> parsedPlatform;
-    const size_t group = name.rfind(groupMarker);
-    const size_t platform = name.rfind(platformMarker);
-    if (group != string_view::npos && platform != string_view::npos)
-    {
-        printErrorMessage(FORMAT("Generated UE filename contains both group and platform selectors.\nFile: {}", file));
-    }
-    if (group != string_view::npos)
-    {
-        logicalName = name.substr(0, group);
-        parsedPlatformGroup = parsePlatformGroup(name.substr(group + groupMarker.size()), file);
-    }
-    else if (platform != string_view::npos)
-    {
-        logicalName = name.substr(0, platform);
-        parsedPlatform = parsePlatform(name.substr(platform + platformMarker.size()), file);
-    }
-
-    if (logicalName.empty())
-    {
-        printErrorMessage(FORMAT("Generated UE filename has no logical module or target name.\nFile: {}", file));
-    }
-    return {.logicalName = logicalName, .kind = kind, .platformGroup = parsedPlatformGroup, .platform = parsedPlatform};
-}
-
 string makeApiMacro(const string_view logicalName)
 {
     // UBT's UEBuildModule constructor performs the same basic transformation:
@@ -160,6 +52,72 @@ string makeApiMacro(const string_view logicalName)
     result += "_API";
     return result;
 }
+
+bool directoryHasUPlugin(const path &directory)
+{
+    // Ancestors are shared by many modules, so the answer is worth caching.
+    static flat_hash_map<string, bool> cache;
+    const auto existing = cache.find(directory.string());
+    if (existing != cache.end())
+    {
+        return existing->second;
+    }
+
+    bool found = false;
+    std::error_code error;
+    for (const std::filesystem::directory_entry &entry : std::filesystem::directory_iterator(directory, error))
+    {
+        if (entry.path().extension() == ".uplugin")
+        {
+            found = true;
+            break;
+        }
+    }
+    cache.emplace(directory.string(), found);
+    return found;
+}
+
+path getModuleGeneratedIncludeRoot(const path &configuredRoot, const Node *moduleDirectory)
+{
+    // UBT stores a plugin module's generated headers under the plugin's own Intermediate directory and every other
+    // module's under Engine/Intermediate. The enclosing *.uplugin file identifies a plugin; a directory named "Source"
+    // does not, because those nest freely inside Engine/Source (Runtime/CUDA/Source, Experimental/FieldSystem/Source,
+    // and much of ThirdParty). setGeneratedIncludeRoot() supplies the engine-anchored path, so only a plugin module
+    // needs its target-specific suffix re-anchored.
+    path pluginRoot;
+    for (path directory = moduleDirectory->filePath; !directory.empty();)
+    {
+        if (directoryHasUPlugin(directory))
+        {
+            pluginRoot = directory;
+            break;
+        }
+
+        const path parent = directory.parent_path();
+        if (parent == directory)
+        {
+            break;
+        }
+        directory = parent;
+    }
+    if (pluginRoot.empty())
+    {
+        return configuredRoot;
+    }
+
+    path intermediateSuffix;
+    bool foundIntermediate = false;
+    const string_view intermediateDirectoryName = os == OS::NT ? "intermediate" : "Intermediate";
+    for (const path &component : configuredRoot)
+    {
+        foundIntermediate |= component.string() == intermediateDirectoryName;
+        if (foundIntermediate)
+        {
+            intermediateSuffix /= component;
+        }
+    }
+    return foundIntermediate ? pluginRoot / intermediateSuffix : configuredRoot;
+}
 } // namespace
 
 namespace
@@ -172,8 +130,9 @@ namespace
                set.logicalName, selector, firstFile->filePath, secondFile->filePath));
 }
 
-void addSpecifyFunc(string logicalName, const UeFileKind kind, const std::optional<UePlatformGroup> platformGroup,
-                    const std::optional<UePlatform> platform, const UeSpecifyFunction func, Node *file)
+void addSpecifyFunc(string logicalName, const UeFileKind kind, const UeConfigurationProfile configuration,
+                    const std::optional<UePlatformGroup> platformGroup, const std::optional<UePlatform> platform,
+                    const UeSpecifyFunction func, Node *file)
 {
     // registerGeneratedUeSpecifyFuncs() calls this once per discovered *.hmake.hpp
     // file. UBT obtains comparable metadata while RulesCompiler builds a
@@ -196,16 +155,22 @@ void addSpecifyFunc(string logicalName, const UeFileKind kind, const std::option
         // like module or a TargetRules-like top-level target.
         set.logicalName = std::move(logicalName);
         set.kind = kind;
+        set.configuration = configuration;
     }
     else if (set.kind != kind)
     {
         printErrorMessage(
             FORMAT("UE specification '{}' was registered as both a module and a target.", set.logicalName));
     }
-
+    else if (set.configuration != configuration)
+    {
+        printErrorMessage(FORMAT("UE specification files disagree about their configuration profile.\n"
+                                 "Target: {}\nFile: {}",
+                                 set.logicalName, file->filePath));
+    }
     if (!platformGroup && !platform)
     {
-        // Exactly one unsuffixed specification is required, matching UBT's required
+        // Exactly one unselected specification is required, matching UBT's required
         // base ModuleName/TargetName rules type.
         if (set.base)
         {
@@ -256,16 +221,16 @@ void addSpecifyFunc(string logicalName, const UeFileKind kind, const std::option
 void registerGeneratedUeSpecifyFuncs(const std::span<const UeIncludedFile> files)
 {
     specifyFunctionSets.reserve(files.size());
-    for (const auto &[path, func] : files)
+    for (const UeIncludedFile &includedFile : files)
     {
-        if (path.empty() || func == nullptr)
+        if (includedFile.path.empty() || includedFile.logicalName.empty() || includedFile.func == nullptr)
         {
-            printErrorMessage("A generated UE file registration requires a path and specify function.");
+            printErrorMessage("A generated UE file registration requires a path, logical name, and specify function.");
         }
 
-        const auto [logicalName, kind, platformGroup, platform] = parseUeFile(path);
-        Node *file = Node::getNode(path, true);
-        addSpecifyFunc(string(logicalName), kind, platformGroup, platform, func, file);
+        Node *file = Node::getNode(includedFile.path, true);
+        addSpecifyFunc(string(includedFile.logicalName), includedFile.kind, includedFile.configuration,
+                       includedFile.platformGroup, includedFile.platform, includedFile.func, file);
     }
 }
 
@@ -315,27 +280,59 @@ bool UeCppTarget::conditionalAddModuleDirectory(const NodeOrStr &directory)
     return true;
 }
 
-// TODO(UE cycles): Delete both cycle-dependency implementations when UE module cycles are removed.
-UeCppTarget &UeCppTarget::addPrivateCycleDependency(const string_view dependency)
+// TODO(UE cycles): Delete all four cycle-dependency implementations when UE module cycles are removed.
+UeCppTarget &UeCppTarget::addCycleDependency(const DepType depType, const bool link, const string_view dependency)
 {
     auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
-    DSC<UeCppTarget> &dependencyTarget = ueConfiguration.getOrAddTarget(dependency);
 
-    // Retain the ordinary PRIVATE producer/PLOAT semantics, but omit scheduler edges that would close the legacy
-    // module cycle.
-    ueConfiguration.currentTarget().deps<false>(DepType::PRIVATE, true, true, dependencyTarget);
+    // Same reachability rule as DSCExtension::addNamedDependency.
+    DSC<UeCppTarget> &dependencyTarget =
+        ueConfiguration.getOrAddTarget(dependency, link && implementationRequested);
+    if (link)
+    {
+        linkDependencies.emplace_back(&dependencyTarget.getSourceTarget());
+    }
+
+    // Retain the ordinary producer/PLOAT semantics, but omit scheduler edges that would close the UE module
+    // cycle. An include-path relation carries no linker input, matching the *OpDeps functions.
+    ueConfiguration.currentTarget().deps<false>(depType, true, link, dependencyTarget);
     return *this;
+}
+
+UeCppTarget &UeCppTarget::addPrivateCycleDependency(const string_view dependency)
+{
+    return addCycleDependency(DepType::PRIVATE, true, dependency);
 }
 
 UeCppTarget &UeCppTarget::addPublicCycleDependency(const string_view dependency)
 {
-    auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
-    DSC<UeCppTarget> &dependencyTarget = ueConfiguration.getOrAddTarget(dependency);
+    return addCycleDependency(DepType::PUBLIC, true, dependency);
+}
 
-    // Retain the ordinary PUBLIC producer/PLOAT semantics, but omit scheduler edges that would close the legacy
-    // module cycle.
-    ueConfiguration.currentTarget().deps<false>(DepType::PUBLIC, true, true, dependencyTarget);
-    return *this;
+UeCppTarget &UeCppTarget::addPrivateCycleOpDependency(const string_view dependency)
+{
+    return addCycleDependency(DepType::PRIVATE, false, dependency);
+}
+
+UeCppTarget &UeCppTarget::addPublicCycleOpDependency(const string_view dependency)
+{
+    return addCycleDependency(DepType::PUBLIC, false, dependency);
+}
+
+void UeCppTarget::requestImplementation()
+{
+    if (implementationRequested)
+    {
+        return;
+    }
+    // Set before recursing. UE's module cycles can reach this target again, and this flag terminates that walk in
+    // both modes. prepareModuleInputs() separately decides whether this target is allowed to materialize sources.
+    implementationRequested = true;
+    prepareModuleInputs();
+    for (UeCppTarget *dependency : linkDependencies)
+    {
+        dependency->requestImplementation();
+    }
 }
 
 void UeCppTarget::propagateSelectiveBuild()
@@ -400,39 +397,72 @@ void UeCppTarget::completeRoundOne()
     CppTarget::completeRoundOne();
 }
 
-void UeCppTarget::prepareModuleInputs(const bool compileSources)
+void UeCppTarget::prepareModuleInputs()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (Node *moduleDirectory : moduleDirectories)
+        if (!moduleDirectoriesReady)
         {
-            if (compileSources)
-            {
-                findInputFiles(moduleDirectory);
-            }
-            if (bAddDefaultIncludePaths)
-            {
-                addDefaultIncludePaths(moduleDirectory);
-            }
+            return;
         }
 
-        const auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
-        if (ueConfiguration.generatedIncludeRoot != nullptr)
+        if (!moduleIncludesPrepared)
         {
-            const path moduleGeneratedRoot = path(ueConfiguration.generatedIncludeRoot->filePath) / intermediateName;
-            const path uhtDirectory = moduleGeneratedRoot / "UHT";
-            if (std::filesystem::is_directory(uhtDirectory))
+            for (Node *moduleDirectory : moduleDirectories)
             {
-                addGeneratedCode(Node::getNode(uhtDirectory.string(), false), compileSources);
+                if (bAddDefaultIncludePaths)
+                {
+                    addDefaultIncludePaths(moduleDirectory);
+                }
             }
 
-            // VNI headers are generated beside UHT output. UBT adds this directory
-            // to the module compile environment but does not compile sources from it.
-            const path vniDirectory = moduleGeneratedRoot / "VNI";
-            if (std::filesystem::is_directory(vniDirectory))
+            const auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
+            path uhtDirectory;
+            path vniDirectory;
+            if (ueConfiguration.generatedIncludeRoot != nullptr && !moduleDirectories.empty())
+            {
+                const path generatedIncludeRoot = getModuleGeneratedIncludeRoot(
+                    ueConfiguration.generatedIncludeRoot->filePath, moduleDirectories.front());
+                const path moduleGeneratedRoot = generatedIncludeRoot / intermediateName;
+                uhtDirectory = moduleGeneratedRoot / "UHT";
+                vniDirectory = moduleGeneratedRoot / "VNI";
+            }
+
+            if (!uhtDirectory.empty() && std::filesystem::is_directory(uhtDirectory))
+            {
+                Node *directory = Node::getNode(uhtDirectory.string(), false);
+                publicIncludesSource(directory);
+                generatedCodeDirectories.emplace_back(directory);
+            }
+
+            // VNI headers are generated beside UHT output. UBT adds this directory to the module compile environment
+            // but does not compile sources from it.
+            if (!vniDirectory.empty() && std::filesystem::is_directory(vniDirectory))
             {
                 publicIncludesSource(Node::getNode(vniDirectory.string(), false));
             }
+            moduleIncludesPrepared = true;
+        }
+
+        if (!implementationRequested || sourceInputsPrepared)
+        {
+            return;
+        }
+        sourceInputsPrepared = true;
+        if (addCppSource == AddCppSource::NO)
+        {
+            return;
+        }
+
+        // Source scanning must precede generated-code scanning: handwritten sources identify generated .cpp files
+        // included inline and therefore excluded from standalone compilation.
+        for (Node *moduleDirectory : moduleDirectories)
+        {
+            findInputFiles(moduleDirectory);
+        }
+        for (Node *directory : generatedCodeDirectories)
+        {
+            addGeneratedCode(directory);
         }
     }
 }
@@ -442,7 +472,7 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory)
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         // UBT equivalent: UEBuildModuleCPP.FindInputFiles() and
-        // FindInputFilesFromDirectoryRecursive(). A .module.hmake.hpp user does
+        // FindInputFilesFromDirectoryRecursive(). A *.hmake.hpp user does
         // not list ordinary module sources.
         if (std::filesystem::exists(path(moduleDirectory->filePath) / ".ubtignore"))
         {
@@ -626,7 +656,7 @@ void UeCppTarget::addDefaultIncludePaths(Node *moduleDirectory)
         // module-private header first.
         addDirectoryIfPresent("Private", false);
 
-        // Classes is UBT's legacy public UObject-header directory. Public is a
+        // Classes is UBT's compatibility public UObject-header directory. Public is a
         // normal propagated include. UBT exposes Internal to consumers in the
         // same rules scope (and to engine modules). All modules in this first
         // engine-only stage are engine modules, so propagation is the correct
@@ -638,44 +668,38 @@ void UeCppTarget::addDefaultIncludePaths(Node *moduleDirectory)
     }
 }
 
-UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory, const bool compileSources)
+UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        publicIncludesSource(directory);
-
-        if (compileSources)
+        vector<Node *> standaloneGeneratedSources;
+        for (const std::filesystem::directory_entry &entry :
+             std::filesystem::recursive_directory_iterator(directory->filePath))
         {
-            vector<Node *> standaloneGeneratedSources;
-            for (const std::filesystem::directory_entry &entry :
-                 std::filesystem::recursive_directory_iterator(directory->filePath))
+            if (entry.is_regular_file() && entry.path().filename().string().ends_with(".gen.cpp"))
             {
-                if (entry.is_regular_file() && entry.path().filename().string().ends_with(".gen.cpp"))
+                const string fileName = entry.path().filename().string();
+                const string generatedName = fileName.substr(0, fileName.size() - string_view(".gen.cpp").size());
+                if (inlinedGeneratedCppNames.contains(generatedName))
                 {
-                    const string fileName = entry.path().filename().string();
-                    const string generatedName = fileName.substr(0, fileName.size() - string_view(".gen.cpp").size());
-                    if (inlinedGeneratedCppNames.contains(generatedName))
-                    {
-                        continue;
-                    }
-
-                    // UBT compiles generated implementations not claimed by an
-                    // UE_INLINE_GENERATED_CPP_BY_NAME include as separate inputs.
-                    // This includes each module's *.init.gen.cpp.
-                    standaloneGeneratedSources.emplace_back(Node::getNode(entry));
+                    continue;
                 }
+
+                // UBT compiles generated implementations not claimed by an UE_INLINE_GENERATED_CPP_BY_NAME include
+                // as separate inputs. This includes each module's *.init.gen.cpp.
+                standaloneGeneratedSources.emplace_back(Node::getNode(entry));
             }
+        }
 
-            std::ranges::sort(standaloneGeneratedSources, {}, [](const Node *node) { return node->filePath; });
-            if (!standaloneGeneratedSources.empty())
+        std::ranges::sort(standaloneGeneratedSources, {}, [](const Node *node) { return node->filePath; });
+        if (!standaloneGeneratedSources.empty())
+        {
+            // UBT's unity builder keeps generated implementation files in their own unity blobs. Preserve that
+            // separation while still allowing size-based partitioning within this generated-code group.
+            startJumboGroup();
+            for (Node *source : standaloneGeneratedSources)
             {
-                // UBT's unity builder keeps generated implementation files in their own unity blobs. Preserve that
-                // separation while still allowing size-based partitioning within this generated-code group.
-                startJumboGroup();
-                for (Node *source : standaloneGeneratedSources)
-                {
-                    moduleFiles(source);
-                }
+                moduleFiles(source);
             }
         }
     }
@@ -699,7 +723,7 @@ void UeConfiguration::initialize()
                 ispcCompilerFeatures.includeDirectories.emplace_back(Node::getNode(directory, false));
             }
             ispcCompilerFeatures.compileDefinitions.clear();
-            ispcCompilerFeatures.compileDefinitions.reserve(buildCommands->ispcDefinitionArguments.size());
+            ispcCompilerFeatures.compileDefinitions.reserve(buildCommands->ispcDefinitionArguments.size() + 1);
             for (const string &argument : buildCommands->ispcDefinitionArguments)
             {
                 if (!argument.starts_with("-D") || argument.size() == 2)
@@ -710,6 +734,12 @@ void UeConfiguration::initialize()
                 ispcCompilerFeatures.compileDefinitions.emplace_back(argument.substr(2));
             }
         }
+        std::erase_if(ispcCompilerFeatures.compileDefinitions, [](const string &definition) {
+            return definition.starts_with("PLATFORM_EXCEPTIONS_DISABLED=");
+        });
+        ispcCompilerFeatures.compileDefinitions.emplace_back(
+            evaluate(ExceptionHandling::ON) ? "PLATFORM_EXCEPTIONS_DISABLED=0"
+                                            : "PLATFORM_EXCEPTIONS_DISABLED=1");
     }
     Configuration::initialize();
     if (buildCommands)
@@ -724,6 +754,27 @@ void UeConfiguration::initialize()
         linkCommandSuffix = buildCommands->linkCommandSuffix;
         if (!buildCommands->archiveCommand.empty())
             archiveCommand = buildCommands->archiveCommand;
+
+        if (!buildCommands->cppCompileCommand.empty())
+        {
+            if (compilerFeatures.compiler.bTFamily != BTFamily::GCC)
+            {
+                printErrorMessage(FORMAT("UE semantic compile-command policy currently supports GCC-family command "
+                                         "rows only.\nConfiguration: {}",
+                                         name));
+            }
+
+            cppCompileCommand += evaluate(RTTI::ON) ? "-frtti " : "-fno-rtti ";
+            cppCompileCommand += evaluate(ExceptionHandling::ON) ? "-fexceptions " : "-fno-exceptions ";
+            const string_view exceptionDefinition = evaluate(ExceptionHandling::ON)
+                                                        ? "-DPLATFORM_EXCEPTIONS_DISABLED=0 "
+                                                        : "-DPLATFORM_EXCEPTIONS_DISABLED=1 ";
+            cppCompileCommand += exceptionDefinition;
+            if (!buildCommands->cCompileCommand.empty())
+            {
+                cCompileCommand += exceptionDefinition;
+            }
+        }
     }
 }
 
@@ -828,6 +879,104 @@ UeConfiguration &UeConfiguration::setBuildCommands(const std::span<const UeBuild
     return setBuildCommands(entry->commands);
 }
 
+UeConfiguration &UeConfiguration::createProducerConfigurations()
+{
+    if (profile != UeConfigurationProfile::Default)
+    {
+        printErrorMessage(FORMAT("Only a Default UE configuration can create producer configurations.\n"
+                                 "Configuration: {}",
+                                 name));
+    }
+    if (!producerConfigurations.empty() || !configuredTargets.empty())
+    {
+        printErrorMessage(FORMAT("UE producer configurations must be created once, before configuring targets.\n"
+                                 "Configuration: {}",
+                                 name));
+    }
+
+    UeConfiguration &rttiExcept = getUeConfiguration(name + "RttiExcept");
+    rttiExcept.copySettingsFrom(*this);
+    rttiExcept.platform = platform;
+    rttiExcept.platformGroups = platformGroups;
+    rttiExcept.architecture = architecture;
+    rttiExcept.buildConfiguration = buildConfiguration;
+    rttiExcept.ueTargetType = ueTargetType;
+    rttiExcept.generatedIncludeRoot = generatedIncludeRoot;
+    rttiExcept.buildCommands = buildCommands;
+
+    rttiExcept.profile = UeConfigurationProfile::RttiExcept;
+    // The profile exists for these two semantics; everything else is inherited so both configurations agree on ABI.
+    rttiExcept.assign(RTTI::ON, ExceptionHandling::ON);
+    // A producer archives only the modules registered under its profile. Its transitive dependencies still provide
+    // include paths and header-units under these semantics, but their translation units belong to the consumer.
+    rttiExcept.addCppSource = AddCppSource::NO;
+
+    // callConfigurationSpecification() deliberately does not reach a configuration created during its own loop, so
+    // the creator owns the producer's lifecycle.
+    rttiExcept.initialize();
+    producerConfigurations.emplace(UeConfigurationProfile::RttiExcept, &rttiExcept);
+    return *this;
+}
+
+void UeConfiguration::finalizeProducerConfigurations() const
+{
+    for (const auto &[producerProfile, producer] : producerConfigurations)
+    {
+        producer->postConfigurationSpecification();
+    }
+}
+
+UeConfiguration &UeConfiguration::getProducerConfiguration(const UeConfigurationProfile producerProfile) const
+{
+    const auto producer = producerConfigurations.find(producerProfile);
+    if (producer == producerConfigurations.end())
+    {
+        printErrorMessage(FORMAT("UE configuration has no producer for a module's configuration profile.\n"
+                                 "Configuration: {}\nProfile: {}\n"
+                                 "Hint: call createProducerConfigurations() before expanding targets.",
+                                 name, static_cast<uint8_t>(producerProfile)));
+    }
+    return *producer->second;
+}
+
+PLOAT &UeConfiguration::addProducerArchive(const string &logicalName, const UeConfigurationProfile producerProfile)
+{
+    UeConfiguration &producer = getProducerConfiguration(producerProfile);
+    DSC<UeCppTarget> &implementation = producer.getOrAddTarget(logicalName);
+    if (implementation.ploat == nullptr || implementation.ploat->linkTargetType != TargetType::LIBRARY_STATIC)
+    {
+        printErrorMessage(FORMAT("A UE module built by a producer configuration has no static archive.\n"
+                                 "Configuration: {}\nProducer: {}\nModule: {}",
+                                 name, producer.name, logicalName));
+    }
+    LOAT &archive = implementation.getLOAT();
+
+    // PLOAT::completeRoundOne() resolves a LOAT's output directory from myBuildDir, so at configure time that is the
+    // only member holding the archive's location. At build time the location comes from the restored output node.
+    Node *archiveDirectory;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        archiveDirectory = archive.myBuildDir;
+    }
+    else
+    {
+        archiveDirectory = Node::getNode(string(archive.getOutputDirectoryV()), false);
+    }
+
+    // A prebuilt library resolved purely by path. LIBRARY_STATIC and PLIBRARY_STATIC share one filename convention, so
+    // the proxy names the same file the producer archives. Nothing about the producer's link closure or object-file
+    // producers crosses the configuration boundary; this configuration computes its own closure from its own graph.
+    PLOAT &proxy = targets<PLOAT>.emplace_back(*this, archive.getOutputName(), archiveDirectory,
+                                               TargetType::PLIBRARY_STATIC,
+                                               name + slashc + logicalName + "-producer-archive", false, false);
+    ploats.emplace_back(&proxy);
+
+    // Makes dependents create their ordinary round-zero edge to this proxy, which in turn waits for the real archive.
+    proxy.hasObjectFiles = true;
+    proxy.realBTargets[0].addDep<BTargetType::UNKNOWN>(&archive.realBTargets[0]);
+    return proxy;
+}
+
 DSC<UeCppTarget> &UeConfiguration::currentTarget() const
 {
     // specify() receives the configuration so all decentralized functions have the
@@ -892,7 +1041,8 @@ PLOAT &UeConfiguration::getOrAddPrebuiltLibrary(Node *libraryFile, const TargetT
     return library;
 }
 
-DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const UeFileKind fileKind)
+DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const UeFileKind fileKind,
+                                                     const UeConfigurationProfile moduleProfile)
 {
     // At this point the scanner registry has selected a logical rules declaration,
     // but its specify() functions have not yet populated the target.
@@ -919,6 +1069,27 @@ DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const 
         output = &GetExeLOAT(logicalName);
         break;
     case UeFileKind::Module:
+        if (moduleProfile != profile)
+        {
+            // This module needs compiler semantics this configuration does not provide, so it is not archived here.
+            // Either way the local target still owns the compile interface its dependents include.
+            cppTarget.assign(AddCppSource::NO);
+            if (producerConfigurations.contains(moduleProfile))
+            {
+                // A producer configuration archives it. Only the objects come from elsewhere, through an archive this
+                // configuration references by path.
+                output = &addProducerArchive(logicalName, moduleProfile);
+            }
+            // Otherwise this is that producer, reached through a dependency of the module it exists to archive. The
+            // consumer compiles and links this module itself, so there is deliberately no local output.
+            break;
+        }
+        if (profile != UeConfigurationProfile::Default)
+        {
+            // Producer configurations default to AddCppSource::NO. Only a module registered for this producer's
+            // profile materializes translation units; its transitive dependencies still build header units only.
+            cppTarget.assign(AddCppSource::YES);
+        }
         switch (targetType)
         {
         case TargetType::LIBRARY_SHARED:
@@ -956,23 +1127,12 @@ DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const 
     return dsc;
 }
 
-DSC<UeCppTarget> &UeConfiguration::getOrAddTarget(const string_view logicalName)
+DSC<UeCppTarget> &UeConfiguration::getOrAddTarget(const string_view logicalName, const bool requestImplementation)
 {
     // Lazy dependency expansion, comparable to
     // UEBuildTarget.FindOrCreateModuleByName(). No module is configured merely
     // because scanner.py registered it; it must be requested or reached by a dep.
     const string targetName(logicalName);
-    auto [iterator, inserted] = configuredTargets.try_emplace(targetName);
-    ConfiguredTarget &configuredTarget = iterator->second;
-    UeTargetState &state = configuredTarget.state;
-    UeFileKind &kind = configuredTarget.kind;
-    DSC<UeCppTarget> *&dsc = configuredTarget.dsc;
-    if (!inserted && (state == UeTargetState::Configured || state == UeTargetState::Configuring))
-    {
-        // Configuring is returned as well as Configured so circular module references
-        // reuse the object already in progress instead of recursively creating it.
-        return *dsc;
-    }
 
     // Similar failure point to RulesAssembly.CreateModuleRules() not finding a
     // ModuleRules definition for a dependency name.
@@ -988,10 +1148,33 @@ DSC<UeCppTarget> &UeConfiguration::getOrAddTarget(const string_view logicalName)
             FORMAT("UE target has specialized specify functions but no base function.\nTarget: {}", logicalName));
     }
 
+    auto [iterator, inserted] = configuredTargets.try_emplace(targetName);
+    ConfiguredTarget &configuredTarget = iterator->second;
+    UeTargetState &state = configuredTarget.state;
+    UeFileKind &kind = configuredTarget.kind;
+    DSC<UeCppTarget> *&dsc = configuredTarget.dsc;
+    if (!inserted && (state == UeTargetState::Configured || state == UeTargetState::Configuring))
+    {
+        // Configuring is returned as well as Configured so circular module references
+        // reuse the object already in progress instead of recursively creating it.
+        if (kind == UeFileKind::Module)
+        {
+            UeCppTarget &existing = dsc->getSourceTarget();
+            if (requestImplementation)
+            {
+                existing.requestImplementation();
+            }
+        }
+        return *dsc;
+    }
+
     kind = functions.kind;
-    dsc = &makeDscUeCppTarget(targetName, functions.kind);
+    dsc = &makeDscUeCppTarget(targetName, functions.kind, functions.configuration);
     state = UeTargetState::Configuring;
     DSC<UeCppTarget> *const target = dsc;
+    // Record reachability before the specify functions run because their dependencies consult it. The target-local
+    // AddCppSource policy independently decides whether prepareModuleInputs() materializes this target's sources.
+    target->getSourceTarget().implementationRequested = requestImplementation;
 
     // Dependencies declared by this function may recursively call getOrAddTarget().
     // The stack makes currentTarget() restore the parent correctly afterward.
@@ -1057,6 +1240,7 @@ DSC<UeCppTarget> &UeConfiguration::getOrAddTarget(const string_view logicalName)
             cppTarget.conditionalAddModuleDirectory(
                 Node::getNode(selectedSpecialization->file->getDirectoryStringView(), false));
         }
+        cppTarget.moduleDirectoriesReady = true;
     }
 
     // A nested dependency may have rehashed configuredTargets, invalidating
@@ -1064,7 +1248,7 @@ DSC<UeCppTarget> &UeConfiguration::getOrAddTarget(const string_view logicalName)
     configuredTargets.find(targetName)->second.state = UeTargetState::Configured;
     if (functions.kind == UeFileKind::Module)
     {
-        target->getSourceTarget().prepareModuleInputs(true);
+        target->getSourceTarget().prepareModuleInputs();
     }
     return *target;
 }
