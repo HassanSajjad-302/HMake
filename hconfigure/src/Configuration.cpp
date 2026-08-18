@@ -54,6 +54,34 @@ void Configuration::postConfigurationSpecification() const
     }
 }
 
+void Configuration::copySettingsFrom(const Configuration &other)
+{
+    compilerFeatures = other.compilerFeatures;
+    ispcCompilerFeatures = other.ispcCompilerFeatures;
+    ploatFeatures = other.ploatFeatures;
+    linkerFeatures = other.linkerFeatures;
+    responseFileThreshold = other.responseFileThreshold;
+    targetType = other.targetType;
+    assignStandardCppTarget = other.assignStandardCppTarget;
+    buildTests = other.buildTests;
+    buildExamples = other.buildExamples;
+    testsExplicit = other.testsExplicit;
+    examplesExplicit = other.examplesExplicit;
+    isCppMod = other.isCppMod;
+    stdAsHeaderUnit = other.stdAsHeaderUnit;
+    bigHeaderUnit = other.bigHeaderUnit;
+    jumboBuild = other.jumboBuild;
+    jumboFileSize = other.jumboFileSize;
+    addCppSource = other.addCppSource;
+    treatHuAsHeaderFile = other.treatHuAsHeaderFile;
+    systemTarget = other.systemTarget;
+    useIPC = other.useIPC;
+    useConfigurationScope = other.useConfigurationScope;
+    alwaysConfigureThis = other.alwaysConfigureThis;
+    standAloneCommand = other.standAloneCommand;
+    duplicationWarning = other.duplicationWarning;
+}
+
 void Configuration::initialize()
 {
     cppCompileCommand = compilerFeatures.getCompileCommand();

@@ -232,6 +232,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     useIPC = configuration->evaluate(UseIPC::YES);
     jumboBuild = configuration->jumboBuild;
     jumboFileSize = configuration->jumboFileSize;
+    addCppSource = configuration->addCppSource;
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -406,6 +407,11 @@ void CppTarget::populateTransitiveProperties()
 
 void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::YES))
     {
         printErrorMessage(FORMAT("A regular source was added to a module-enabled target.\nTarget: {}\nSource file: {}\n"
@@ -483,6 +489,11 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
 
 void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportName)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::NO))
     {
         printErrorMessage(FORMAT("A module file was added to a target with modules disabled.\nTarget: {}\n"
@@ -1851,6 +1862,11 @@ CppTarget &CppTarget::interfaceCompilerFlags(const string &compilerFlags)
 void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr,
                                      const bool recursive)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::NO))
     {
         assignToCppSrcs = true;

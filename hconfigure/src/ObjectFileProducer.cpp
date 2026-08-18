@@ -80,7 +80,7 @@ void ObjectFileProducer::populateReqAndUseReqObjectFileProducers()
         }
     }
 
-    // TODO(UE cycles): Remove these erasures after UE's legacy circular module dependencies are eliminated.
+    // TODO(UE cycles): Remove these erasures when UE circular module dependencies no longer require cycle suppression.
     // A semantic cycle can feed this producer back through a dependency's exported closure.
     reqObjectFileProducers.erase(this);
     useReqObjectFileProducers.erase(this);

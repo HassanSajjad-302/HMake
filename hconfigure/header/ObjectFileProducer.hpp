@@ -13,7 +13,7 @@ class PLOAT;
 /// Scheduler metadata carried by a semantic PLOAT dependency.
 class PloatDepInfo
 {
-    // TODO(UE cycles): Remove this facet after UE's legacy circular module dependencies are eliminated.
+    // TODO(UE cycles): Remove this facet when UE circular module dependencies no longer require cycle suppression.
     bool acyclicDependency : 1 = true;
 
   public:
@@ -64,7 +64,7 @@ class OpDepInfo
 {
     bool opDependency : 1 = false;
     bool linkDependency : 1 = false;
-    // TODO(UE cycles): Remove this facet after UE's legacy circular module dependencies are eliminated.
+    // TODO(UE cycles): Remove this facet when UE circular module dependencies no longer require cycle suppression.
     bool acyclicDependency : 1 = true;
 
   public:

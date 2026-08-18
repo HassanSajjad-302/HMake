@@ -297,7 +297,7 @@ void PLOAT::populateReqAndUseReqDeps()
         }
     }
 
-    // TODO(UE cycles): Remove these erasures after UE's legacy circular module dependencies are eliminated.
+    // TODO(UE cycles): Remove these erasures when UE circular module dependencies no longer require cycle suppression.
     // A semantic cycle can feed this PLOAT back through a dependency's exported closure. It remains represented by
     // the other members of the cycle and must never be serialized as a self dependency.
     reqDeps.erase(this);

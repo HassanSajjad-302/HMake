@@ -107,6 +107,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         jumboBuild = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
+    {
+        addCppSource = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
     {
         treatHuAsHeaderFile = property;
