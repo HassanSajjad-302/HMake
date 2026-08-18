@@ -61,7 +61,8 @@ static BTargetType getBTargetTypePloat(const TargetType t)
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, const TargetType linkTargetType_)
     : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
               false),
-      config(config_), linkTargetType{linkTargetType_}
+      config(config_), hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC),
+      linkTargetType{linkTargetType_}
 {
     initializePLOAT();
 }
@@ -70,7 +71,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
               makeDirectory),
-      config(config_), linkTargetType(linkTargetType_)
+      config(config_), hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC),
+      linkTargetType(linkTargetType_)
 
 {
     initializePLOAT();
@@ -94,8 +96,8 @@ void PLOAT::initializePLOAT()
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_)
     : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
               false),
-      config(config_), outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
-      outputDirectory(myBuildDir_)
+      outputDirectory(myBuildDir_), outputName{getLastNameAfterSlash(outputName_)}, config(config_),
+      hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC), linkTargetType{linkTargetType_}
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
     {
@@ -112,7 +114,8 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
               makeDirectory),
-      config(config_), outputName(outputName_), linkTargetType(linkTargetType_), outputDirectory(myBuildDir_)
+      outputDirectory(myBuildDir_), outputName(outputName_), config(config_),
+      hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC), linkTargetType(linkTargetType_)
 
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
