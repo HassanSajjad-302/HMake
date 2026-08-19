@@ -2350,36 +2350,38 @@ void AdaptiveManager::completeRoundOne()
     }
     roundOneCompleted = true;
 
+    CppTarget &owner = *target;
     const CppModType compileUnitType =
-        target->configuration->evaluate(IsCppMod::YES) ? CppModType::PRIMARY_IMPLEMENTATION : CppModType::CPP_SRC;
-    const auto createCompileUnit = [this, compileUnitType](const Node *node, const bool isAJumboBuild) -> CppSrc * {
+        owner.configuration->evaluate(IsCppMod::YES) ? CppModType::PRIMARY_IMPLEMENTATION : CppModType::CPP_SRC;
+    const auto createCompileUnit = [&](const Node *node, const bool isAJumboBuild) -> CppSrc * {
         CppSrc *compileUnit;
         if (compileUnitType == CppModType::CPP_SRC)
         {
-            compileUnit = new CppSrc(target, node, compileUnitType);
+            compileUnit = new CppSrc(&owner, node, compileUnitType);
         }
         else
         {
-            compileUnit = new CppMod(target, node, compileUnitType);
+            compileUnit = new CppMod(&owner, node, compileUnitType);
         }
         compileUnit->isAJumboBuild = isAJumboBuild;
         return compileUnit;
     };
+    const auto getGeneratedNode = [&](const uint32_t index) {
+        return Node::getHalfNode(owner.myBuildDir->filePath + slashc + std::to_string(index) + ".gen.cpp");
+    };
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (uint32_t index = 0; index < target->adaptiveSourceNodes.size(); ++index)
+        for (uint32_t index = 0; index < owner.adaptiveSourceNodes.size(); ++index)
         {
-            Node *sourceNode = target->adaptiveSourceNodes[index];
-            Node *generatedNode =
-                Node::getHalfNode(target->myBuildDir->filePath + slashc + std::to_string(index) + ".gen.cpp");
+            Node *sourceNode = owner.adaptiveSourceNodes[index];
 
             // Configure never executes round zero, so ordinary CppSrc/CppMod objects are sufficient cache owners.
             // The generated jumbo slot always needs an entry. The standalone slot may already be owned by a source
             // that was first registered normally and later moved into adaptive compilation.
-            createCompileUnit(generatedNode, true);
+            createCompileUnit(getGeneratedNode(index), true);
             const uint64_t sourceCacheName = static_cast<uint64_t>(sourceNode->myId) << 32 |
-                                             static_cast<uint64_t>(target->cacheIndex) << 3 |
+                                             static_cast<uint64_t>(owner.cacheIndex) << 3 |
                                              static_cast<uint64_t>(compileUnitType);
             const auto sourceCache = nameToIndexMap.find(sourceCacheName);
             if (sourceCache == nameToIndexMap.end() || bTargetCaches[sourceCache->second].bTarget == nullptr)
@@ -2390,96 +2392,103 @@ void AdaptiveManager::completeRoundOne()
         return;
     }
 
-    if (target->jumboFileSize == 0)
+    if (owner.jumboFileSize == 0)
     {
-        printErrorMessage(FORMAT("Adaptive-unity jumbo size must be greater than zero.\nTarget: {}", target->name));
+        printErrorMessage(FORMAT("Adaptive-unity jumbo size must be greater than zero.\nTarget: {}", owner.name));
     }
 
-    const auto schedule = [&](CppSrc *compileUnit) {
+    const auto scheduleCompileUnit = [&](CppSrc *compileUnit) {
         // File-level prerequisites are attached to this manager through getCppSrc()/getCppModule(). The selected
         // compile unit waits on the manager, and the owning CppTarget waits on the selected compile unit.
         compileUnit->realBTargets[0].addDep<BTargetType::UNKNOWN>(&realBTargets[0]);
         if (compileUnitType == CppModType::CPP_SRC)
         {
-            target->srcFileDeps.emplace_back(compileUnit);
-            target->realBTargets[0].addDep<BTargetType::CPP_SRC>(&compileUnit->realBTargets[0]);
+            owner.srcFileDeps.emplace_back(compileUnit);
+            owner.realBTargets[0].addDep<BTargetType::CPP_SRC>(&compileUnit->realBTargets[0]);
         }
         else
         {
-            target->modFileDeps.emplace_back(static_cast<CppMod *>(compileUnit));
-            target->realBTargets[0].addDep<BTargetType::CPP_MOD>(&compileUnit->realBTargets[0]);
+            owner.modFileDeps.emplace_back(static_cast<CppMod *>(compileUnit));
+            owner.realBTargets[0].addDep<BTargetType::CPP_MOD>(&compileUnit->realBTargets[0]);
         }
     };
 
-    const auto writeAndScheduleGenerated = [&](const Node *generatedNode, const string &contents) {
+    const auto writeGeneratedPartition = [&](const uint32_t firstSourceIndex, const string &contents) {
+        const Node *generatedNode = getGeneratedNode(firstSourceIndex);
         if (const string &generatedPath = generatedNode->filePath;
             !std::filesystem::exists(generatedPath) || fileToString(generatedPath) != contents)
         {
             create_directories(path(generatedPath).parent_path());
             std::ofstream(generatedPath, std::ios::binary) << contents;
         }
-        schedule(createCompileUnit(generatedNode, true));
+        scheduleCompileUnit(createCompileUnit(generatedNode, true));
     };
 
+    constexpr string_view generatedPrefix = "// Generated by HMake adaptive unity.\n";
     uint64_t partitionSize = 0;
-    uint32_t generatedIndex = 0;
-    bool partitionStarted = false;
-    string contents;
+    uint32_t firstSourceIndex = 0;
+    string generatedContents(generatedPrefix);
 
-    const auto flush = [&] {
-        if (partitionStarted && !contents.empty())
+    const auto finishPartition = [&](const bool forceBoundary) {
+        const bool hasGeneratedSources = generatedContents.size() != generatedPrefix.size();
+
+        // UBT keeps a partition containing only working-set (virtual) files open. Its size and first slot therefore
+        // carry into the next real source. An explicit HMake group boundary always resets the partition.
+        if (!forceBoundary && !hasGeneratedSources)
         {
-            string file = "// Generated by HMake adaptive unity.\n";
-            file += contents;
-            writeAndScheduleGenerated(
-                Node::getHalfNode(target->myBuildDir->filePath + slashc + std::to_string(generatedIndex) + ".gen.cpp"),
-                file);
+            return;
+        }
+        if (hasGeneratedSources)
+        {
+            writeGeneratedPartition(firstSourceIndex, generatedContents);
         }
         partitionSize = 0;
-        partitionStarted = false;
-        contents.clear();
+        generatedContents.resize(generatedPrefix.size());
     };
 
     uint32_t groupIndex = 0;
-    for (uint32_t index = 0; index < target->adaptiveSourceNodes.size(); ++index)
+    for (uint32_t index = 0; index < owner.adaptiveSourceNodes.size(); ++index)
     {
-        if (groupIndex < target->adaptiveGroupStarts.size() && index == target->adaptiveGroupStarts[groupIndex])
+        if (groupIndex < owner.adaptiveGroupStarts.size() && index == owner.adaptiveGroupStarts[groupIndex])
         {
-            flush();
+            finishPartition(true);
             ++groupIndex;
         }
-        Node *sourceNode = target->adaptiveSourceNodes[index];
+        Node *sourceNode = owner.adaptiveSourceNodes[index];
         const uint64_t sourceSize = std::max<uint64_t>(sourceNode->fileSize, 1);
-        if (partitionSize != 0 && partitionSize + sourceSize > target->jumboFileSize)
+
+        // UBT isolates an oversized source from a preceding real-file blob. A virtual-only collection deliberately
+        // remains attached, as in UnityFileBuilder::EndCurrentUnityFile().
+        if (sourceSize > owner.jumboFileSize)
         {
-            flush();
+            finishPartition(false);
         }
-        if (!partitionStarted)
+        if (partitionSize == 0)
         {
             // The slot follows the virtual partition, even if its first source is in the working set. This keeps the
             // generated cache key stable while files enter and leave standalone adaptive compilation.
-            generatedIndex = index;
-            partitionStarted = true;
+            firstSourceIndex = index;
         }
 
         if (workingSet.contains(sourceNode))
         {
-            schedule(createCompileUnit(sourceNode, false));
+            scheduleCompileUnit(createCompileUnit(sourceNode, false));
         }
         else
         {
-            contents += "#include \"";
-            contents += target->getAdaptiveIncludeName(sourceNode);
-            contents += "\"\n";
+            generatedContents += "#include \"";
+            generatedContents += owner.getAdaptiveIncludeName(sourceNode);
+            generatedContents += "\"\n";
         }
 
         partitionSize += sourceSize;
-        if (partitionSize >= target->jumboFileSize)
+        // Add first and split only after exceeding the threshold; equality stays in the current collection.
+        if (partitionSize > owner.jumboFileSize)
         {
-            flush();
+            finishPartition(false);
         }
     }
-    flush();
+    finishPartition(true);
 }
 
 string AdaptiveManager::getPrintName() const

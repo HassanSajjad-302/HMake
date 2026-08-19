@@ -121,7 +121,7 @@ enum class UeFileKind : uint8_t
  * Default uses the ordinary UE configuration. RttiExcept names the few modules that require RTTI and exceptions;
  * those are archived by a separate producer configuration and linked into the Default build.
  */
-enum class UeConfigurationProfile : uint8_t
+enum class UeConfProfile : uint8_t
 {
     Default,
     RttiExcept,
@@ -238,13 +238,14 @@ class UeCppTarget : public CppTarget
     bool selectiveBuildSet = false;
 
     void propagateSelectiveBuild();
-    void prepareModuleInputs();
+    void prepareModuleIncludes();
+    void prepareModuleSources();
     UeCppTarget &addCycleDependency(DepType depType, bool link, string_view dependency);
 
     // Marks this module's link closure as required. implementationRequested doubles as the recursion guard, so UE's
     // circular module relations terminate even when this target has AddCppSource::NO.
     void requestImplementation();
-    void findInputFiles(Node *moduleDirectory);
+    void findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources);
     void addIspcSource(Node *source);
     void addDefaultIncludePaths(Node *moduleDirectory);
 
@@ -401,7 +402,7 @@ struct UeIncludedFile
     string_view path;
     string_view logicalName;
     UeFileKind kind = UeFileKind::Module;
-    UeConfigurationProfile configuration = UeConfigurationProfile::Default;
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
     std::optional<UePlatformGroup> platformGroup;
     std::optional<UePlatform> platform;
     UeSpecifyFunction func = nullptr;
@@ -442,7 +443,7 @@ struct UeSpecifyFunctionSet
 {
     string logicalName;
     UeFileKind kind = UeFileKind::Module;
-    UeConfigurationProfile configuration = UeConfigurationProfile::Default;
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
     std::optional<UeSpecifyFunctionBase> base;
     vector<UePlatformGroupSpecifyFunc> platformGroups;
     vector<UePlatformSpecifyFunc> platforms;
@@ -514,7 +515,7 @@ class UeConfiguration : public Configuration
 
     // Compiler-semantics profile this configuration provides. A module registered under a different profile is built
     // by the matching producer configuration and consumed here as a static archive.
-    UeConfigurationProfile profile = UeConfigurationProfile::Default;
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
 
     explicit UeConfiguration(const string &name);
 
@@ -583,20 +584,20 @@ class UeConfiguration : public Configuration
 
     // Configurations created by createProducerConfigurations(), keyed by the profile each one provides. Empty in a
     // producer configuration, because profiles do not nest.
-    flat_hash_map<UeConfigurationProfile, UeConfiguration *> producerConfigurations;
+    flat_hash_map<UeConfProfile, UeConfiguration *> producerConfigurations;
 
     DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind,
-                                         UeConfigurationProfile moduleProfile);
+                                         UeConfProfile moduleUeConfProfile);
     PLOAT &getOrAddPrebuiltLibrary(Node *libraryFile, TargetType libraryType);
     void initializeApiMacro(DSC<UeCppTarget> &target, bool defines) const;
 
     // Resolves the configuration that archives modules registered under the given profile. Errors when this
     // configuration has no producer for it.
-    UeConfiguration &getProducerConfiguration(UeConfigurationProfile producerProfile) const;
+    UeConfiguration &getProducerConfiguration(UeConfProfile producerUeConfProfile) const;
 
     // Creates the consumer-side stand-in for a module archived by a producer configuration. The returned PLOAT
     // resolves to the producer's archive file and carries only a scheduler edge to it.
-    PLOAT &addProducerArchive(const string &logicalName, UeConfigurationProfile producerProfile);
+    PLOAT &addProducerArchive(const string &logicalName, UeConfProfile producerUeConfProfile);
 
     friend class UeCppTarget;
     template <typename, typename> friend struct DSCExtension;

@@ -611,7 +611,7 @@ def generate(files: list[UeFile], commands: list[dict[str, object]], ue_root: Pa
             f".path = {cpp_string(file.path.as_posix())}",
             f".logicalName = {cpp_string(file.logical_name)}",
             f".kind = UeFileKind::{file.kind}",
-            f".configuration = UeConfigurationProfile::{file.configuration}",
+            f".ueConfProfile = UeConfProfile::{file.configuration}",
         ]
         if file.platform_group is not None:
             fields.append(f".platformGroup = UePlatformGroup::{file.platform_group}")
