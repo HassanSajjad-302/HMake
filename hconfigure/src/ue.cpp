@@ -297,7 +297,6 @@ void registerGeneratedUeSpecifyFuncs(const std::span<const UeIncludedFile> files
 UeCppTarget::UeCppTarget(const string &hmakeName, string logicalName_, UeConfiguration *configuration)
     : CppTarget(hmakeName, configuration), logicalName(std::move(logicalName_))
 {
-    isUeCppTarget = true;
     intermediateName = logicalName;
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -393,41 +392,6 @@ void UeCppTarget::requestImplementation()
     {
         dependency->requestImplementation();
     }
-}
-
-void UeCppTarget::propagateSelectiveBuild()
-{
-    // TODO(UE cycles): Remove this manual propagation when every UE module relation is a scheduler edge.
-    // Builder::setSelectiveBuild() may run after a parent reached this target
-    // recursively and reset selectiveBuild. Preserve that earlier propagated state.
-    if (selectiveBuildSet)
-    {
-        selectiveBuild = true;
-        return;
-    }
-    if (!selectiveBuild)
-    {
-        return;
-    }
-
-    selectiveBuildSet = true;
-    FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
-    {
-        if (dependency.isOpDependency() && producer->isUeCppTarget)
-        {
-            auto &ueDependency = static_cast<UeCppTarget &>(*producer);
-            ueDependency.selectiveBuild = true;
-            ueDependency.propagateSelectiveBuild();
-        }
-    }
-}
-
-void UeCppTarget::completeRoundOne()
-{
-    // Explicit UE cycle dependencies have no RealBTarget edge through which Builder can propagate selectiveBuild.
-    // Their semantic closure is order-independent, so target completion itself remains owned by the scheduler.
-    propagateSelectiveBuild();
-    CppTarget::completeRoundOne();
 }
 
 void UeCppTarget::prepareModuleIncludes()
@@ -953,8 +917,9 @@ UeConfiguration &UeConfiguration::createProducerConfigurations()
     rttiExcept.buildCommands = buildCommands;
 
     rttiExcept.ueConfProfile = UeConfProfile::RttiExcept;
-    // The profile exists for these two semantics; everything else is inherited so both configurations agree on ABI.
-    rttiExcept.assign(RTTI::ON, ExceptionHandling::ON);
+    // The profile exists for these compiler semantics, while its physical boundary is always a static archive even
+    // when the consumer combines its ordinary modules as object libraries.
+    rttiExcept.assign(RTTI::ON, ExceptionHandling::ON, TargetType::LIBRARY_STATIC);
     // A producer archives only the modules registered under its profile. Its transitive dependencies still provide
     // include paths and header-units under these semantics, but their translation units belong to the consumer.
     rttiExcept.addCppSource = AddCppSource::NO;

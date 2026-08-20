@@ -98,13 +98,23 @@ void ObjectFileProducer::completeRoundOne()
             object->doStatFile = true;
         }
 
-        // Round one runs after the complete target graph has been reconstructed. Add nonblocking compile-usage
-        // propagation now, but only when at least one path to the producer is known to be acyclic.
+        // Round one runs after the complete target graph has been reconstructed. Acyclic compile-usage paths can use
+        // ordinary nonblocking edges. Cycle-suppressed paths cannot enter the scheduler graph, so propagate their
+        // selection directly through the already-flattened producer closure.
         FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
         {
-            if (dependency.isOpDependency() && dependency.isAcyclicDependency())
+            if (!dependency.isOpDependency())
+            {
+                continue;
+            }
+
+            if (dependency.isAcyclicDependency())
             {
                 realBTargets[0].addDep<BTargetType::UNKNOWN, RelationType::SELECTIVE>(&producer->realBTargets[0]);
+            }
+            else if (selectiveBuild)
+            {
+                producer->selectiveBuild = true;
             }
         }
     }

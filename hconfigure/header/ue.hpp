@@ -173,8 +173,6 @@ class UeCppTarget : public CppTarget
     UeCppTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 
-    void completeRoundOne() override;
-
     // UBT: ModuleRules.ConditionalAddModuleDirectory(). Ordinary module roots are
     // automatic; this is only for an exceptional additional source directory.
     // Returns false without registering anything when the directory does not exist.
@@ -233,10 +231,6 @@ class UeCppTarget : public CppTarget
     IspcTarget *ispcTarget = nullptr;
     bool ispcOutputDirectoryAdded = false;
 
-    // TODO(UE cycles): Remove this guard with the manual selective-build propagation workaround.
-    bool selectiveBuildSet = false;
-
-    void propagateSelectiveBuild();
     void prepareModuleIncludes();
     void prepareModuleSources();
     UeCppTarget &addCycleDependency(DepType depType, bool link, string_view dependency);

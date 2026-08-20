@@ -392,7 +392,6 @@ class BTarget // BTarget
 
     /// Lightweight derived-type reflection for code built without RTTI.
     bool isCppTarget : 1 = false;
-    bool isUeCppTarget : 1 = false;
 
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
