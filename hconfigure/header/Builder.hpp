@@ -109,7 +109,8 @@ class Builder
     /// Builds all targets using the asynchronous scheduler.
     void executeRoundZero();
 
-    /// Stats and hashes files in parallel. The final pass includes files discovered while building.
+    /// Stats and hashes files in parallel. Regular-file hashing is skipped when `lastWriteTime` matches the cache.
+    /// The final pass includes files discovered while building.
     static void checkNodes();
 
     /// Runs ready round-1 targets.

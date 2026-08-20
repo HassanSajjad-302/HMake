@@ -374,7 +374,7 @@ void Builder::executeRoundZero()
             if (eventIndex == -1)
             {
                 const string buildCache = getBuildCache();
-                writeNodesCacheIfNewNodesAdded();
+                writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
@@ -472,7 +472,7 @@ void Builder::executeRoundZero()
                 }
 
                 const string buildCache = getBuildCache();
-                writeNodesCacheIfNewNodesAdded();
+                writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
@@ -813,15 +813,20 @@ void Builder::checkNodes()
         return;
     }
 
-    // Missing files have the stable sentinel hash 0 and need no I/O; remove them in-place before partitioning the real
-    // hashing work.
+    // performSystemCheck() resolves unchanged regular files from the persisted hash. Missing files use their sentinel
+    // hash. Remove both in-place before partitioning the remaining hashing work.
     uint32_t validCount = static_cast<uint32_t>(hashNodes.size());
     for (uint32_t i = 0; i < validCount;)
     {
-        if (hashNodes[i]->fileType == file_type::not_found)
+        Node *node = hashNodes[i];
+        if (node->fileType == file_type::not_found)
         {
-            hashNodes[i]->contentHash = Node::missingContentHash;
-            hashNodes[i]->hashCompleted = true;
+            node->contentHash = Node::missingContentHash;
+            node->hashCompleted = true;
+        }
+
+        if (node->hashCompleted)
+        {
             std::swap(hashNodes[i], hashNodes[--validCount]);
             // i stays: the swapped-in element must be rechecked.
         }

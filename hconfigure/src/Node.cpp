@@ -118,6 +118,7 @@ void Node::performSystemCheck()
         return;
     }
     statCompleted = true;
+    const uint64_t persistedLastWriteTime = lastWriteTime;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -202,6 +203,14 @@ void Node::performSystemCheck()
         lastWriteTime = {};
     }
 #endif
+
+    // Until this check, lastWriteTime/contentHash hold one persisted snapshot. An unchanged regular-file timestamp
+    // makes that content hash current, so Builder::checkNodes() can omit the file from its hashing work.
+    if (fileType == file_type::regular && contentHash != missingContentHash &&
+        lastWriteTime == persistedLastWriteTime)
+    {
+        hashCompleted = true;
+    }
 }
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
