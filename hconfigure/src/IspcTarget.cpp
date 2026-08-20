@@ -85,11 +85,11 @@ void IspcTarget::initializeGraph()
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const OpDepInfo objectDependency{false, true};
-        if (!cppTarget->reqObjectFileProducers.emplace(this, objectDependency).second)
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
+        // Treat ISPC output as a private raw-object dependency. With no PLOAT on this DSC, deps() exports the objects
+        // through useReq so a LIBRARY_OBJECT module can carry them to its eventual linker. A real static/shared PLOAT
+        // absorbs that private dependency and prevents it from propagating beyond the library boundary.
+        DSC dep{this, nullptr};
+        DSC{cppTarget, nullptr}.deps(DepType::PRIVATE, false, true, dep);
     }
 }
 
