@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -47,6 +48,9 @@ static void writeAll(int fd, const char *buf, std::size_t len)
 // inside isEventCompleted(builder, message).
 void send(const std::string &payload)
 {
+    std::cout.flush();
+    std::fflush(stdout);
+
     // Frame layout: payload | uint32 length | delimiter
     const auto len = static_cast<uint32_t>(payload.size());
 
