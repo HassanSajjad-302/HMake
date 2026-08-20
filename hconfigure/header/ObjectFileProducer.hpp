@@ -46,17 +46,24 @@ class PloatDepInfo
     {
         return PloatDepInfo{acyclicDependency && exported.acyclicDependency};
     }
+
+    bool operator==(const PloatDepInfo &) const = default;
 };
 
 using PloatDepInfoMap = flat_hash_map<PLOAT *, PloatDepInfo>;
 
-inline void mergePloatDependency(PloatDepInfoMap &dependencies, PLOAT *dependency, const PloatDepInfo dependencyInfo)
+inline bool mergePloatDependency(PloatDepInfoMap &dependencies, PLOAT *dependency,
+                                 const PloatDepInfo dependencyInfo)
 {
     const auto [entry, inserted] = dependencies.try_emplace(dependency, dependencyInfo);
-    if (!inserted)
+    if (inserted)
     {
-        entry->second = entry->second.unite(dependencyInfo);
+        return true;
     }
+
+    const PloatDepInfo previous = entry->second;
+    entry->second = previous.unite(dependencyInfo);
+    return entry->second != previous;
 }
 
 /// Facets carried by a dependency between two ObjectFileProducer targets.

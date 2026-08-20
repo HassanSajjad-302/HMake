@@ -233,8 +233,7 @@ class UeCppTarget : public CppTarget
     IspcTarget *ispcTarget = nullptr;
     bool ispcOutputDirectoryAdded = false;
 
-    // TODO(UE cycles): Remove both guards with the cycle-recursive round-one/selective-build workaround.
-    bool roundOneCalled = false;
+    // TODO(UE cycles): Remove this guard with the manual selective-build propagation workaround.
     bool selectiveBuildSet = false;
 
     void propagateSelectiveBuild();

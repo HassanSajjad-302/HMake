@@ -424,36 +424,9 @@ void UeCppTarget::propagateSelectiveBuild()
 
 void UeCppTarget::completeRoundOne()
 {
-    // TODO(UE cycles): Remove guarded recursion and use ordinary scheduler completion after UE cycles are removed.
-    // selectiveBuild belongs to round 0, but explicit UE cycle dependencies have
-    // no RealBTarget edge through which Builder could propagate it. Do it before
-    // the completion guard so a later selected parent can still reach this target.
+    // Explicit UE cycle dependencies have no RealBTarget edge through which Builder can propagate selectiveBuild.
+    // Their semantic closure is order-independent, so target completion itself remains owned by the scheduler.
     propagateSelectiveBuild();
-
-    if (roundOneCalled)
-    {
-        return;
-    }
-    roundOneCalled = true;
-
-    // Ordinary dependencies have already completed through scheduler ordering.
-    // An explicit cycle dependency has no scheduler edge, so this guarded walk
-    // completes it here. Marking roundOneCalled before recursion breaks the cycle.
-    FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
-    {
-        if (dependency.isOpDependency() && producer->isUeCppTarget)
-        {
-            static_cast<UeCppTarget *>(producer)->completeRoundOne();
-        }
-    }
-
-    // Ordinary CppTargets reach this manager through its scheduler edge. The guarded UE recursion above can enter a
-    // target directly, so complete adaptive partitioning locally before CppTarget consumes the selected compile units.
-    if (adaptiveManager)
-    {
-        adaptiveManager->completeRoundOne();
-    }
-
     CppTarget::completeRoundOne();
 }
 
@@ -766,7 +739,7 @@ UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory)
             }
         }
 
-        std::ranges::sort(standaloneGeneratedSources, {}, &Node::myId);
+        std::ranges::sort(standaloneGeneratedSources, {}, &Node::filePath);
         if (!standaloneGeneratedSources.empty())
         {
             // UBT's unity builder keeps generated implementation files in their own unity blobs. Preserve that

@@ -281,30 +281,44 @@ void PLOAT::readCacheAtBuildTime()
 
 void PLOAT::populateReqAndUseReqDeps()
 {
-
-    // Set is copied because new elements are to be inserted in it.
-
-    for (const auto localReqDeps = reqDeps; const auto &[dependency, dependencyInfo] : localReqDeps)
-    {
-        for (const auto &[exportedDependency, exportedInfo] : dependency->useReqDeps)
+    const auto populate = [this](PloatDepInfoMap &dependencies) {
+        // PLOAT cycle edges intentionally omit scheduler ordering. Walk the already-declared exported relationships
+        // to a fixed point so the cached link closure is independent of round-one completion order.
+        STACK_PMR_VECTOR(PLOAT *, pending, dependencies.size() + 1)
+        for (const auto &entry : dependencies)
         {
-            mergePloatDependency(reqDeps, exportedDependency, dependencyInfo.intersect(exportedInfo));
+            if (entry.first != this)
+            {
+                pending.emplace_back(entry.first);
+            }
         }
-    }
 
-    for (const auto localUseReqDeps = useReqDeps; const auto &[dependency, dependencyInfo] : localUseReqDeps)
-    {
-        for (const auto &[exportedDependency, exportedInfo] : dependency->useReqDeps)
+        for (size_t position = 0; position < pending.size(); ++position)
         {
-            mergePloatDependency(useReqDeps, exportedDependency, dependencyInfo.intersect(exportedInfo));
-        }
-    }
+            PLOAT *dependency = pending[position];
+            const PloatDepInfo dependencyInfo = dependencies.find(dependency)->second;
+            for (const auto &[exportedDependency, exportedInfo] : dependency->useReqDeps)
+            {
+                // Returning to the root adds no linker input. Its direct exports were seeded above, and skipping the
+                // self-entry avoids mutating this map through an aliased exported map.
+                if (exportedDependency == this)
+                {
+                    continue;
+                }
 
-    // TODO(UE cycles): Remove these erasures when UE circular module dependencies no longer require cycle suppression.
-    // A semantic cycle can feed this PLOAT back through a dependency's exported closure. It remains represented by
-    // the other members of the cycle and must never be serialized as a self dependency.
-    reqDeps.erase(this);
-    useReqDeps.erase(this);
+                if (mergePloatDependency(dependencies, exportedDependency,
+                                         dependencyInfo.intersect(exportedInfo)))
+                {
+                    // Each PLOAT is inserted once and can only be revisited once if an alternative acyclic path
+                    // upgrades its scheduler facet from false to true.
+                    pending.emplace_back(exportedDependency);
+                }
+            }
+        }
+    };
+
+    populate(reqDeps);
+    populate(useReqDeps);
 }
 
 string PLOAT::getPrintName() const

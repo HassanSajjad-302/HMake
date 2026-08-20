@@ -473,8 +473,13 @@ def link_commands(base_command: str, metadata: Path, ue_root: Path) -> tuple[str
 
     link_command = shlex.join([compiler.as_posix(), *linker_arguments[:output_index], "-o"]) + ' "'
     # MsQuic is represented by its prebuilt HMake target, so the graph supplies its link argument.
+    # HMake places every graph-discovered static dependency in one group. Close it before replaying UBT's suffix,
+    # which can contain a group of its own (lld rejects nested --start-group directives).
     link_command_suffix = shlex.join(
-        argument for argument in linker_arguments[inputs_index + 1 :] if argument != "-lmsquic"
+        [
+            "-Wl,--end-group",
+            *(argument for argument in linker_arguments[inputs_index + 1 :] if argument != "-lmsquic"),
+        ]
     ) + " "
 
     input_response = linker_arguments[inputs_index][len("-Wl,@") :]
