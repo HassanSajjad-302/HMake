@@ -557,8 +557,7 @@ void commandWithResponseFileImpl(String &command, const string &responseFile, co
     }
 
     const size_t arguments = commandView.find_first_not_of(" \t\r\n", end);
-    const string_view responseContents =
-        arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
+    const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
     writeResponseFile(responseFile, responseContents);
 
     command.clear();
@@ -670,6 +669,10 @@ void readBuildCache()
 void writeNodesCache()
 {
     const uint32_t newNodesSize = Node::idCount;
+    if (newNodesSize == cachedNodesCount)
+    {
+        return;
+    }
 
     size_t pos = 0;
     for (uint32_t i = 0; i < cachedNodesCount; ++i)
