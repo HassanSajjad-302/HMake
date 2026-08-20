@@ -328,8 +328,8 @@ TEST(StageTests, Test2)
     // Replacing public-lib1.hpp with two header-files and restoring lib1.cpp and main.cpp
     copyFilePath(testSourcePath / "Version/mainv0.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/lib1v0.cpp", testSourcePath / "lib1/private/lib1.cpp");
-    copyFilePath(testSourcePath / "Version/public-lib1v2.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
-    copyFilePath(testSourcePath / "Version/extra-includev2.hpp", testSourcePath / "lib1/public/extra-include.hpp");
+    copyFilePath(testSourcePath / "Version/public-lib1v1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+    copyFilePath(testSourcePath / "Version/extra-includev0.hpp", testSourcePath / "lib1/public/extra-include.hpp");
     BALANCES(Updates{}, "Debug/lib2-cpp");
     BALANCES(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib1-cpp");
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
@@ -339,8 +339,8 @@ TEST(StageTests, Test2)
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
     // Removing all libraries, making main simple and reconfiguring the project.
-    copyFilePath(testSourcePath / "Version/mainv3.cpp", testSourcePath / "main.cpp");
-    copyFilePath(testSourcePath / "Version/hmakev3.cpp", testSourcePath / "hmake.cpp");
+    copyFilePath(testSourcePath / "Version/mainv2.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
     BALANCES(Updates{}, "Debug/lib2-cpp");
@@ -357,14 +357,14 @@ TEST(StageTests, Test2)
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
     // Moving lib4.cpp code to temp.cpp in lib4/
     removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
-    copyFilePath(testSourcePath / "Version/tempv4.cpp", testSourcePath / "lib4/private/temp.cpp");
+    copyFilePath(testSourcePath / "Version/tempv0.cpp", testSourcePath / "lib4/private/temp.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsDebug = 1});
 
     // Copying an erroneous lib4.cpp to lib4/private. Also touching temp.cpp and removing lib/lib3.lib
-    copyFilePath(testSourcePath / "Version/lib4v5.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    copyFilePath(testSourcePath / "Version/lib4v1.cpp", testSourcePath / "lib4/private/lib4.cpp");
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /
                    getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib3"));
@@ -374,13 +374,13 @@ TEST(StageTests, Test2)
     ERROR_BALANCES(Updates{.errorFiles = 1}, "Debug/lib3");
 
     // Erroneous lib4.cpp replaced by an empty lib4.cpp
-    copyFilePath(testSourcePath / "Version/lib4v6.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    copyFilePath(testSourcePath / "Version/lib4v2.cpp", testSourcePath / "lib4/private/lib4.cpp");
     BALANCES(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Copying Erroneous lib4.cpp to lib4/private and changing the hmake.cpp and reconfiguring the project.
-    copyFilePath(testSourcePath / "Version/lib4v5.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    copyFilePath(testSourcePath / "Version/hmakev7.cpp", testSourcePath / "hmake.cpp");
+    copyFilePath(testSourcePath / "Version/lib4v1.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
     create_directories("Release/lib3/");
@@ -390,14 +390,14 @@ TEST(StageTests, Test2)
     ERROR_BALANCES(Updates{.errorFiles = 1});
 
     // Copying Empty lib4.cpp
-    copyFilePath(testSourcePath / "Version/lib4v6.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    copyFilePath(testSourcePath / "Version/lib4v2.cpp", testSourcePath / "lib4/private/lib4.cpp");
     BALANCES(Updates{.sourceFiles = 1}, "Release/lib4-cpp/");
     BALANCES(Updates{}, "Release/lib3-cpp/");
     BALANCES(Updates{.linkTargetsNoDebug = 2});
 
     // Restoring lib4.cpp. This hmake.cpp will make the selection between lib4.cpp and temp.cpp based on the cache
     // variable use-lib4.cpp value
-    copyFilePath(testSourcePath / "Version/hmakev8.cpp", testSourcePath / "hmake.cpp");
+    copyFilePath(testSourcePath / "Version/hmakev3.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/lib4v0.cpp", testSourcePath / "lib4/private/lib4.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
@@ -433,7 +433,7 @@ TEST(StageTests, Test2)
 
     // Adding a public compile definition for lib4 target. this is tested as compile-definition and compile-flags are
     // not cached like include-dirs and others.
-    copyFilePath(testSourcePath / "Version/hmakev9.cpp", testSourcePath / "hmake.cpp");
+    copyFilePath(testSourcePath / "Version/hmakev4.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
