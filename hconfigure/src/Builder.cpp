@@ -380,8 +380,8 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(
-                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                                buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -478,8 +478,8 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(
-                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                                buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -908,9 +908,9 @@ void Builder::decrementFromDependents(RealBTarget &rb)
     }
 
     const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATE_NEEDED;
-    if (const BTarget *const target = rb.getBTarget();
-        rb.round == 0 && setToNeedsUpdate && rb.exitStatus == EXIT_SUCCESS && target->launchesProcess &&
-        target->buildFooterUpdated)
+    if (const BTarget *const target = rb.getBTarget(); rb.round == 0 && setToNeedsUpdate &&
+                                                       rb.exitStatus == EXIT_SUCCESS && target->launchesProcess &&
+                                                       target->buildFooterUpdated)
     {
         rb.completionTime =
             std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
