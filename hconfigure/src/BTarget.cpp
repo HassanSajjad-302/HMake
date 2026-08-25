@@ -34,17 +34,17 @@ void RealBTarget::sortGraph()
     // this append-only frontier keeps Kahn's traversal O(V + E).
     vector<RealBTarget *> noEdges;
     noEdges.reserve(graphEdges.size());
-    size_t noEdgesIndex = 0;
+    uint64_t noEdgesIndex = 0;
 
     sorted.clear();
     sorted.resize(graphEdges.size());
     cycleExists = false;
 
     uint64_t edgesCount = 0;
-    size_t remaining = graphEdges.size();
+    uint64_t remaining = graphEdges.size();
     for (RealBTarget *r : graphEdges)
     {
-        constexpr size_t maxPackedTopologicalIndex = (size_t{1} << 29) - 1;
+        constexpr uint64_t maxPackedTopologicalIndex = (uint64_t{1} << 29) - 1;
         if (r->dependents.size() > maxPackedTopologicalIndex)
         {
             printErrorMessage(FORMAT("Build target has too many dependents.\nTarget: {}\nDependents: {}\nLimit: {}",
@@ -218,7 +218,7 @@ bool RealBTarget::checkDepsChanged() const
     }
 
     const char *ptr = cachedDependencies.data();
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     const uint32_t cachedCount = readUint32(ptr, bytesRead);
     const uint64_t expectedSize = sizeof(uint32_t) + static_cast<uint64_t>(cachedCount) * sizeof(uint32_t);
     if (cachedDependencies.size() != expectedSize)
@@ -324,7 +324,7 @@ void BTarget::initializeBTarget(bool makeDirectory)
         {
             RealBTarget &rb = realBTargets[0];
             const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
-            uint32_t bytesRead = 8;
+            uint64_t bytesRead = 8;
             rb.completionTime = readUint64(ptr, bytesRead);
         }
     }
@@ -455,7 +455,7 @@ void BTarget::setUpdateStatus()
     uint64_t highestTime;
     if (launchesProcess)
     {
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         const char *ptr = bTargetCaches[cacheIndex].getBuildFooter().data();
         if (const uint64_t cumulativeHash = readUint64(ptr, bytesRead); cumulativeHash != rb.cumulativeHash)
         {
@@ -541,12 +541,12 @@ void BTarget::verifyBuildCache(string_view buildCache) const
                                      "Expected size: 16 bytes\nActual size: {} bytes",
                                      getPrintName(), buildCache.size()));
         }
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         verifyBTargetHeader(buildCache, bytesRead);
     }
 }
 
-void BTarget::verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) const
+void BTarget::verifyBTargetHeader(string_view buildCache, uint64_t &bytesRead) const
 {
     if (newlyAdded)
     {
@@ -643,7 +643,7 @@ bool BTarget::isHBuildInSameOrChildDirectory() const
             invocationDirectory[targetDirectory.size()] == slashc);
 }
 
-bool readBool(const char *ptr, uint32_t &bytesRead)
+bool readBool(const char *ptr, uint64_t &bytesRead)
 {
     bool result;
     memcpy(&result, ptr + bytesRead, sizeof(result));
@@ -651,7 +651,7 @@ bool readBool(const char *ptr, uint32_t &bytesRead)
     return result;
 }
 
-uint8_t readUint8(const char *ptr, uint32_t &bytesRead)
+uint8_t readUint8(const char *ptr, uint64_t &bytesRead)
 {
     uint8_t result;
     memcpy(&result, ptr + bytesRead, sizeof(result));
@@ -659,7 +659,7 @@ uint8_t readUint8(const char *ptr, uint32_t &bytesRead)
     return result;
 }
 
-uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
+uint32_t readUint32(const char *ptr, uint64_t &bytesRead)
 {
     uint32_t result;
     memcpy(&result, ptr + bytesRead, sizeof(result));
@@ -667,7 +667,7 @@ uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
     return result;
 }
 
-uint64_t readUint64(const char *ptr, uint32_t &bytesRead)
+uint64_t readUint64(const char *ptr, uint64_t &bytesRead)
 {
     uint64_t result;
     memcpy(&result, ptr + bytesRead, sizeof(result));
@@ -675,18 +675,18 @@ uint64_t readUint64(const char *ptr, uint32_t &bytesRead)
     return result;
 }
 
-string_view readStringView(const char *ptr, uint32_t &bytesRead)
+string_view readStringView(const char *ptr, uint64_t &bytesRead)
 {
-    uint32_t strSize = readUint32(ptr, bytesRead);
-    const uint32_t offset = bytesRead;
+    const uint32_t strSize = readUint32(ptr, bytesRead);
+    const uint64_t offset = bytesRead;
     bytesRead += strSize;
     return {ptr + offset, strSize};
 }
 
-Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
+Node *readHalfNode(const char *ptr, uint64_t &bytesRead)
 {
-    uint32_t strSize = readUint32(ptr, bytesRead);
-    return nodeIndices[strSize];
+    const uint32_t nodeIndex = readUint32(ptr, bytesRead);
+    return nodeIndices[nodeIndex];
 }
 
 void writeBool(string &buffer, const bool &value)
