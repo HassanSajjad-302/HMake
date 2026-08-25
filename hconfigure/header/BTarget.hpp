@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string,
-    std::string_view, gtl::btree_set;
+using std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string, std::string_view,
+    gtl::btree_set;
 
 class BTarget;
 
@@ -146,15 +146,15 @@ struct RBTDepTypeHash
 {
     using is_transparent = void;
 
-    size_t operator()(const RBTWithType &e) const
+    uint64_t operator()(const RBTWithType &e) const
     {
         // RealBTarget is alignas(128) so low 7 bits are always zero — shift them out for better distribution
-        return reinterpret_cast<size_t>(e.getPointer()) >> 7;
+        return reinterpret_cast<uint64_t>(e.getPointer()) >> 7;
     }
 
-    size_t operator()(RealBTarget *ptr) const
+    uint64_t operator()(RealBTarget *ptr) const
     {
-        return reinterpret_cast<size_t>(ptr) >> 7;
+        return reinterpret_cast<uint64_t>(ptr) >> 7;
     }
 };
 
@@ -371,7 +371,7 @@ class BTarget // BTarget
     string name;
 
     /// Unique runtime id assigned at construction (`++total`).
-    size_t id = 0;
+    uint64_t id = 0;
 
     /// Index into `bTargetCaches` / `nameToIndexMap` for this target's persisted cache slice.
     uint32_t cacheIndex = -1;
@@ -547,7 +547,7 @@ class BTarget // BTarget
     virtual void verifyConfigCache(string_view configCache) const
     {
     }
-    void verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) const;
+    void verifyBTargetHeader(string_view buildCache, uint64_t &bytesRead) const;
 
     template <unsigned round, BTargetType type = BTargetType::UNKNOWN, RelationType depType = RelationType::FULL>
     void addDep(BTarget *dep);
@@ -586,9 +586,10 @@ inline BTarget *RealBTarget::getBTarget() const
 /// Per-target slices of the on-disk caches managed by `initializeCache()` / `configureOrBuild()` in
 /// `BuildSystemFunctions.cpp`.
 ///
-/// On disk (under the configure directory as uncompressed memory-mappable binary files):
-/// - `config-cache.bin` — one entry per target: `cacheName`, sized `configCache` blob (written at configure-time).
-/// - `build-cache.bin` — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
+/// On disk (under the configure directory as uncompressed binary files):
+/// - Each file starts with a u64 hash of the remaining payload, used to avoid replacing an unchanged cache.
+/// - `config-cache.bin` payload — one entry per target: `cacheName`, sized `configCache` blob.
+/// - `build-cache.bin` payload — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
 ///   FULL/WAIT `cacheIndex` list), then sized per-target
 ///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `completionTime`).
 ///
@@ -653,12 +654,12 @@ enum class CppModType : uint8_t
     PRIMARY_IMPLEMENTATION = 4, ///< Module implementation unit for the primary module.
 };
 
-bool readBool(const char *ptr, uint32_t &bytesRead);
-uint8_t readUint8(const char *ptr, uint32_t &bytesRead);
-uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
-uint64_t readUint64(const char *ptr, uint32_t &bytesRead);
-string_view readStringView(const char *ptr, uint32_t &bytesRead);
-Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
+bool readBool(const char *ptr, uint64_t &bytesRead);
+uint8_t readUint8(const char *ptr, uint64_t &bytesRead);
+uint32_t readUint32(const char *ptr, uint64_t &bytesRead);
+uint64_t readUint64(const char *ptr, uint64_t &bytesRead);
+string_view readStringView(const char *ptr, uint64_t &bytesRead);
+Node *readHalfNode(const char *ptr, uint64_t &bytesRead);
 
 void writeBool(string &buffer, const bool &value);
 void writeUint8(string &buffer, const uint8_t &data);
