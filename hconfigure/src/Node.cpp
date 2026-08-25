@@ -2,18 +2,16 @@
 #include "Manager.hpp"
 #include "rapidhash/rapidhash.h"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <utility>
-
 #ifdef _WIN32
 #include "Windows.h"
 #else
 #include <cerrno>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #endif
 
-using std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
+using std::filesystem::file_type;
 
 string getStatusString(const path &p)
 {
@@ -215,8 +213,7 @@ void Node::performSystemCheck()
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
-    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
-    Node *node = &const_cast<Node &>(*it);
+    Node *node = getHalfNode(filePath_);
 
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
@@ -244,15 +241,15 @@ void Node::performContentHash()
                                  filePath, static_cast<int>(fileType)));
     }
 
+    if (hashCompleted)
+    {
+        return;
+    }
+
     if (fileSize == 0)
     {
         contentHash = 0;
         hashCompleted = true;
-        return;
-    }
-
-    if (hashCompleted)
-    {
         return;
     }
 #ifdef _WIN32
@@ -313,7 +310,7 @@ void Node::performContentHash()
 #endif
 }
 
-Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeNonNormalized(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
     return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
 }
@@ -330,7 +327,7 @@ string_view Node::getDirectoryStringView() const
 
 Node *Node::getHalfNode(const string_view filePath_)
 {
-    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
+    const auto it = nodeAllFiles.emplace(filePath_).first;
     return &const_cast<Node &>(*it);
 }
 
@@ -341,5 +338,6 @@ Node *Node::getHalfNodeNonNormalized(const string_view filePath_)
 
 Node *Node::getHalfNode(const uint32_t index)
 {
+    assert(index < nodeIndices.size());
     return nodeIndices[index];
 }

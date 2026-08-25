@@ -6,11 +6,13 @@
 
 #include "BuildSystemFunctions.hpp"
 #include "gtl/include/gtl/phmap.hpp"
+#include <cassert>
 
-using std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
+using std::filesystem::file_type;
 
 class Node;
 class AdaptiveManager;
+
 /// Heterogeneous equality for `NodeHashSet` lookups (`Node` and `string_view`).
 struct NodeEqual
 {
@@ -46,13 +48,14 @@ class Node
     /// Normalized path (and lower-cased on Windows) for file or directory.
     string filePath;
 
-    /// Last-write timestamp restored from `nodes.bin`, then replaced by `performSystemCheck()` with the current value.
+    /// Last-write timestamp restored from `nodes-cache.bin`, then replaced by `performSystemCheck()` with the current
+    /// value.
     uint64_t lastWriteTime = UINT64_MAX;
 
     /// File size in bytes, populated by `performSystemCheck()` for regular files.
     uint64_t fileSize = 0;
 
-    /// rapidhash restored from `nodes.bin` or populated by `performContentHash()` when `doHashFile` is set.
+    /// rapidhash restored from `nodes-cache.bin` or populated by `performContentHash()` when `doHashFile` is set.
     /// Missing files use `missingContentHash`, distinct from the hash of an empty file.
     uint64_t contentHash = 0;
 
@@ -111,7 +114,7 @@ class Node
     static Node *getNode(const std::filesystem::directory_entry &entry);
 
     /// Same as `getNode`, but accepts a non-normalized path and normalizes it internally.
-    static Node *getNodeNonNormalized(const string &filePath_, bool isFile, bool mayNotExist = false);
+    static Node *getNodeNonNormalized(string_view filePath_, bool isFile, bool mayNotExist = false);
 
     /// Retrieves/creates node without performing filesystem checks.
     static Node *getHalfNode(string_view filePath_);
@@ -121,6 +124,27 @@ class Node
 
     /// Returns node by stable id index.
     static Node *getHalfNode(uint32_t index);
+
+};
+
+/// Path argument accepted by user-facing build-specification APIs.
+///
+/// A Node pointer avoids another normalization/lookup. String-like inputs are
+/// non-owning and therefore must be resolved during the receiving function call.
+struct NodeOrStr
+{
+    Node *node_ = nullptr;
+    string_view str_;
+
+    NodeOrStr(Node *node) : node_(node) { assert(node != nullptr); }
+    NodeOrStr(const string &path) : str_(path) {}
+    NodeOrStr(string_view path) : str_(path) {}
+    NodeOrStr(const char *path) : str_(path) {}
+
+    Node *resolve(const bool isFile) const
+    {
+        return node_ != nullptr ? node_ : Node::getNodeNonNormalized(str_, isFile);
+    }
 };
 
 using NodeHashSet = node_hash_set<Node, NodeHash, NodeEqual>;
