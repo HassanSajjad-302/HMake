@@ -1074,12 +1074,6 @@ string addQuotes(const string_view pstr)
     return result;
 }
 
-string addEscapedQuotes(const string &pstr)
-{
-    const string q = R"(\")";
-    return q + pstr + q;
-}
-
 vector<string_view> split(string_view str, const char token)
 {
     vector<string_view> result;
