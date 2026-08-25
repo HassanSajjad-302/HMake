@@ -1064,7 +1064,14 @@ bool isPathInConfigureDirectory(const string_view filePath)
 
 string addQuotes(const string_view pstr)
 {
-    return "\"" + string(pstr) + "\"";
+    string result;
+    result.resize_and_overwrite(pstr.size() + 2, [&](<char *buf, size_t>) noexcept {
+        buf[0] = '\"';
+        memcpy(buf + 1, pstr.data(), pstr.size());
+        buf[pstr.size() + 1] = '\"';
+        return pstr.size() + 2;
+    });
+    return result;
 }
 
 string addEscapedQuotes(const string &pstr)
