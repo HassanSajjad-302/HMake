@@ -315,7 +315,7 @@ void BTarget::initializeBTarget(bool makeDirectory)
         if (it == nameToIndexMap.end())
         {
             printErrorMessage(FORMAT("Target is missing from the configuration cache.\nTarget: {}\nCache key: {}\n"
-                                     "Hint: run hhelper to regenerate the project cache.",
+                                     "Hint: run hbuild --reconfigure to regenerate the project cache.",
                                      name, cacheName));
         }
         cacheIndex = it->second;
@@ -428,7 +428,7 @@ bool BTarget::refreshUpdateStatus()
     // If we previously said UPDATE_NEEDED because of reasonForUpdate, but that
     // reason no longer needs an update, invalidate our status so it gets rechecked.
     const bool invalidated = rb.updateStatus == UpdateStatus::UPDATE_NEEDED && rb.reasonForUpdate &&
-                                 rb.reasonForUpdate->realBTargets[0].updateStatus == UpdateStatus::UPDATE_NOT_NEEDED;
+                             rb.reasonForUpdate->realBTargets[0].updateStatus == UpdateStatus::UPDATE_NOT_NEEDED;
     if (invalidated)
     {
         rb.updateStatus = UpdateStatus::UNCHECKED;
@@ -635,7 +635,12 @@ void BTarget::setSelectiveBuild()
 // configurations specifications
 bool BTarget::isHBuildInSameOrChildDirectory() const
 {
-    return childInParentPathNormalized(configureNode->filePath + slashc + name, currentNode->filePath);
+    const string targetDirectory = configureNode->filePath + slashc + name;
+    const string_view invocationDirectory = currentNode->filePath;
+    return invocationDirectory.size() >= targetDirectory.size() &&
+           compareStringsFromEnd(targetDirectory, {invocationDirectory.data(), targetDirectory.size()}) &&
+           (invocationDirectory.size() == targetDirectory.size() ||
+            invocationDirectory[targetDirectory.size()] == slashc);
 }
 
 bool readBool(const char *ptr, uint32_t &bytesRead)

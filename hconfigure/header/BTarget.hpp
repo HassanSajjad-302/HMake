@@ -586,9 +586,10 @@ inline BTarget *RealBTarget::getBTarget() const
 /// Per-target slices of the on-disk caches managed by `initializeCache()` / `configureOrBuild()` in
 /// `BuildSystemFunctions.cpp`.
 ///
-/// On disk (under the configure directory, optionally LZ4-compressed):
-/// - `config-cache` — one entry per target: `cacheName`, sized `configCache` blob (written at configure-time).
-/// - `build-cache` — parallel array: inline `depsCache` (round-0 FULL/WAIT `cacheIndex` list), then sized per-target
+/// On disk (under the configure directory as uncompressed memory-mappable binary files):
+/// - `config-cache.bin` — one entry per target: `cacheName`, sized `configCache` blob (written at configure-time).
+/// - `build-cache.bin` — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
+///   FULL/WAIT `cacheIndex` list), then sized per-target
 ///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `completionTime`).
 ///
 /// `readConfigCache()` / `readBuildCache()` fill `bTargetCaches` and `nameToIndexMap` before `buildSpecification()`.
