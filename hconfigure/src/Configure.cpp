@@ -110,11 +110,14 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
 void callConfigurationSpecification()
 {
-    for (Configuration *configPointer : allConfigurations)
+    // Specifications may append producer configurations. Only configurations present on entry receive the callback;
+    // their owners initialize and finalize dynamically created companions explicitly.
+    const size_t configurationCount = allConfigurations.size();
+    for (size_t index = 0; index < configurationCount; ++index)
     {
-        if (Configuration &config = *configPointer; config.evaluate(AlwaysConfigureThis::YES) ||
-                                                    config.isHBuildInSameOrChildDirectory() ||
-                                                    configureNode == currentNode)
+        if (Configuration &config = *allConfigurations[index]; config.evaluate(AlwaysConfigureThis::YES) ||
+                                                              config.isHBuildInSameOrChildDirectory() ||
+                                                              configureNode == currentNode)
         {
             config.initialize();
             (*configurationSpecificationFuncPtr)(config);

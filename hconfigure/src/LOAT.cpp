@@ -230,7 +230,13 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         linkWithTargets = config.linkCommand;
     }
 
-    linkWithTargets += outputFileNode->filePath + "\" ";
+    linkWithTargets += outputFileNode->filePath;
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        // Always build a fresh archive. The completed action atomically replaces the final output on POSIX.
+        linkWithTargets += ".tmp";
+    }
+    linkWithTargets += "\" ";
 
     const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
     if (linkTargetType != TargetType::LIBRARY_STATIC)
@@ -375,17 +381,60 @@ bool LOAT::isEventRegistered(Builder &builder)
         return false;
     }
 
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        // Archivers update existing archives instead of removing omitted members. Remove only a failed action's
+        // temporary output; the final archive remains valid until the new one has been created successfully.
+        std::error_code removeError;
+        std::filesystem::remove(outputFileNode->filePath + ".tmp", removeError);
+        if (removeError)
+        {
+            printErrorMessage(FORMAT("Could not remove a stale temporary static library.\n"
+                                     "Library: {}.tmp\nError: {}",
+                                     outputFileNode->filePath, removeError.message()));
+        }
+    }
+
     if (config.responseFileThreshold != 0 && linkWithTargets.size() > config.responseFileThreshold)
     {
         commandWithResponseFile(linkWithTargets, myBuildDir->filePath + slashc + outputFileNode->getFileName() + ".rsp",
                                 config.responseFileThreshold);
     }
-    run.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
+    run.startAsyncProcess(linkWithTargets.data(), builder, this, false);
     return true;
 }
 
 bool LOAT::isEventCompleted(Builder &builder, string_view)
 {
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        const string temporaryArchive = outputFileNode->filePath + ".tmp";
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+        {
+            std::error_code replaceError;
+            if constexpr (os == OS::NT)
+            {
+                // std::filesystem::rename does not replace an existing file on Windows.
+                std::filesystem::remove(outputFileNode->filePath, replaceError);
+            }
+            if (!replaceError)
+            {
+                std::filesystem::rename(temporaryArchive, outputFileNode->filePath, replaceError);
+            }
+            if (replaceError)
+            {
+                printErrorMessage(FORMAT("Could not install the newly created static library.\n"
+                                         "Temporary library: {}\nLibrary: {}\nError: {}",
+                                         temporaryArchive, outputFileNode->filePath, replaceError.message()));
+            }
+        }
+        else
+        {
+            std::error_code ignored;
+            std::filesystem::remove(temporaryArchive, ignored);
+        }
+    }
+
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
         buildFooterUpdated = true;

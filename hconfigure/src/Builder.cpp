@@ -7,6 +7,7 @@
 #include "RunCommand.hpp"
 
 #include <cerrno>
+#include <csignal>
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -268,6 +269,18 @@ void Builder::executeRoundZero()
                                  P2978::getErrorString()));
     }
 
+    // IPC replies deliberately surface a closed compiler input pipe as EPIPE instead of terminating HMake. Compiler
+    // children restore SIGPIPE to its default disposition before exec.
+    struct sigaction ignoredSigpipe{};
+    struct sigaction oldSigpipe{};
+    ignoredSigpipe.sa_handler = SIG_IGN;
+    sigemptyset(&ignoredSigpipe.sa_mask);
+    if (sigaction(SIGPIPE, &ignoredSigpipe, &oldSigpipe) == -1)
+    {
+        printErrorMessage(FORMAT("Could not install the build IPC SIGPIPE policy.\nSystem error: {}",
+                                 P2978::getErrorString()));
+    }
+
     const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (sfd == -1)
     {
@@ -338,9 +351,21 @@ void Builder::executeRoundZero()
                                              target->getPrintName(), maxRunningProcessAllowed));
                 }
                 --availableProcessSlots;
+
+#ifdef _WIN32
+                // startAsyncProcess arms the initial read. If the child had already closed its pipe, consume that EOF
+                // here instead of manufacturing an IOCP packet solely to wake this same scheduler thread.
+                if (target->run.pipeEof)
+                {
+                    dispatchCompletedRead(target, target->run.index, CompleteReadType::COMPLETE_PROCESS);
+                    decrementFromDependents(target->realBTargets[0]);
+                    ++availableProcessSlots;
+                }
+#endif
             }
             else
             {
+                target->run.releaseOutput();
                 decrementFromDependents(const_cast<RealBTarget &>(*next));
             }
         }
@@ -374,14 +399,14 @@ void Builder::executeRoundZero()
             if (eventIndex == -1)
             {
                 const string buildCache = getBuildCache();
-                writeNodesCacheIfNewNodesAdded();
+                writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(
-                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                                buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -392,18 +417,18 @@ void Builder::executeRoundZero()
                                          eventIndex, currentIndex));
             }
             CompletionKey &completionKey = eventData[eventIndex];
-            if constexpr (ndeb == NDEB::NO)
+            OVERLAPPED *const operation = completionEvents[completionEventIndex].lpOverlapped;
+            if (operation != &completionKey.readOverlapped)
             {
-                if (&(OVERLAPPED &)completionKey.overlappedBuffer !=
-                    completionEvents[completionEventIndex].lpOverlapped)
-                {
-                    // printErrorMessage("completion event does not match its completion key\n");
-                }
+                printErrorMessage(FORMAT("Windows completion operation does not match its completion key.\n"
+                                         "Completion key: {}",
+                                         eventIndex));
             }
 
             if (BTarget *target = completionKey.target; target)
             {
-                if (!callIsEventCompleted(target, eventIndex))
+                const bool targetActive = callIsEventCompleted(target, eventIndex);
+                if (!targetActive)
                 {
                     decrementFromDependents(target->realBTargets[0]);
                     if (availableProcessSlots >= maxRunningProcessAllowed)
@@ -472,14 +497,14 @@ void Builder::executeRoundZero()
                 }
 
                 const string buildCache = getBuildCache();
-                writeNodesCacheIfNewNodesAdded();
+                writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(
-                        configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                                buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -561,6 +586,11 @@ void Builder::executeRoundZero()
                                  "System error: {}",
                                  P2978::getErrorString()));
     }
+    if (sigaction(SIGPIPE, &oldSigpipe, nullptr) == -1)
+    {
+        printErrorMessage(FORMAT("Could not restore the process SIGPIPE policy.\nSystem error: {}",
+                                 P2978::getErrorString()));
+    }
     if (close(static_cast<int>(serverFd)) == -1)
     {
         printErrorMessage(FORMAT("Could not close the Linux build event loop.\nFile descriptor: {}\nSystem error: {}",
@@ -585,32 +615,27 @@ void Builder::executeRoundZero()
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 {
 #ifdef _WIN32
+    uint32_t index;
     if (unusedKeysIndices.empty())
     {
-        const uint32_t index = currentIndex;
-        ++currentIndex;
-
-        auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
-        memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
-        handle = fd;
-        target = target_;
-        target->run.output = &buffer;
-        // IOCP needs storage that survives until its asynchronous completion. Linux keeps only an fd-to-target map;
-        // RunCommand owns the associated read buffer there.
-        buffer.resize(4096);
-        return index;
+        if (currentIndex >= completionKeyCapacity)
+        {
+            printErrorMessage(FORMAT("Windows completion-key capacity was exhausted.\nCapacity: {}\n"
+                                     "Hint: reduce simultaneously dependency-paused processes.",
+                                     completionKeyCapacity));
+        }
+        index = currentIndex++;
+    }
+    else
+    {
+        index = static_cast<uint32_t>(unusedKeysIndices.back());
+        unusedKeysIndices.pop_back();
     }
 
-    const uint32_t index = unusedKeysIndices.back();
-    unusedKeysIndices.pop_back();
-
-    auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
-    memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
-    handle = fd;
-    target = target_;
-    target->run.output = &buffer;
-    buffer.clear();
-    buffer.resize(4096);
+    CompletionKey &key = eventData[index];
+    key.readOverlapped = {};
+    key.handle = fd;
+    key.target = target_;
     return index;
 #else
     if (fd >= eventData.size())
@@ -635,58 +660,77 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 
 bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 {
-    // Readability is not synonymous with process completion: IPC module builds can produce multiple messages. Keep
-    // dispatching until the target needs another read or explicitly completes; only completion releases dependents.
+    // Readability is not synonymous with process completion: accumulate ordinary output until a framed message or
+    // EOF is complete. After a message, isEventCompleted explicitly selects whether another read is armed.
     CompleteReadType completeReadType = bTarget->run.completeRead();
     if (completeReadType == CompleteReadType::INCOMPLETE)
     {
-        if (!bTarget->run.startRead())
-        {
-            return true;
-        }
-    }
-
-    while (true)
-    {
-        // A valid framed payload is nonempty. The empty value is reserved for COMPLETE_PROCESS after the child has
-        // been reaped; scheduler wakeups must use their own callback path rather than impersonating process EOF.
-        string message;
-        if (completeReadType == CompleteReadType::COMPLETE_MESSAGE)
-        {
-            message = bTarget->run.pruneOutput();
-        }
-        else
-        {
-            unregisterEventDataAtIndex(index);
-            bTarget->run.reapProcess(*this);
-            bTarget->realBTargets[0].exitStatus = bTarget->run.exitStatus;
-        }
-
-        if (bTarget->isEventCompleted(*this, message))
-        {
-            if (!bTarget->run.startRead())
-            {
-                return true;
-            }
-            // Windows may observe EOF synchronously while starting the next overlapped read.
-            completeReadType = CompleteReadType::COMPLETE_PROCESS;
-        }
-        else
-        {
+        bTarget->run.startRead();
 #ifdef _WIN32
-            unusedKeysIndices.emplace_back(index);
-#else
-            freeOutputStrings.push_back(bTarget->run.output);
-#endif
-            return false;
+        if (bTarget->run.pipeEof)
+        {
+            return dispatchCompletedRead(bTarget, index, CompleteReadType::COMPLETE_PROCESS);
         }
+#endif
+        return true;
     }
+
+    return dispatchCompletedRead(bTarget, index, completeReadType);
+}
+
+bool Builder::dispatchCompletedRead(BTarget *bTarget, const uint64_t index, CompleteReadType completeReadType)
+{
+    if (completeReadType == CompleteReadType::COMPLETE_PROCESS)
+    {
+        unregisterEventDataAtIndex(index);
+        bTarget->run.reapProcess(*this);
+        bTarget->realBTargets[0].exitStatus = bTarget->run.exitStatus;
+        bTarget->isEventCompleted(*this, {});
+        bTarget->run.releaseOutput();
+        return false;
+    }
+
+    const string message = bTarget->run.pruneOutput();
+
+    if (const bool keepRunning = bTarget->isEventCompleted(*this, message); !keepRunning)
+    {
+        bTarget->run.releaseOutput();
+        return false;
+    }
+
+#ifdef _WIN32
+    if (bTarget->run.pipeEof)
+    {
+        return dispatchCompletedRead(bTarget, index, CompleteReadType::COMPLETE_PROCESS);
+    }
+#endif
+
+    return true;
 }
 
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
-#ifndef _WIN32
-    // The child has been reaped before this point, so this descriptor can no longer produce useful scheduler events.
+#ifdef _WIN32
+    if (index >= currentIndex)
+    {
+        printErrorMessage(FORMAT("Could not unregister an invalid Windows completion key.\nCompletion key: {}\n"
+                                 "Allocated keys: {}",
+                                 index, currentIndex));
+    }
+    CompletionKey &key = eventData[index];
+    if (!key.target)
+    {
+        return;
+    }
+    key.target = nullptr;
+    key.handle = static_cast<uint64_t>(-1);
+    unusedKeysIndices.emplace_back(index);
+#else
+    if (index >= eventData.size() || !eventData[index])
+    {
+        return;
+    }
+    // Stop observing the descriptor before it is closed and its number can be reused by a later process.
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {
         printErrorMessage(FORMAT("Could not unregister target output from the build event loop.\nTarget: {}\n"
@@ -813,15 +857,20 @@ void Builder::checkNodes()
         return;
     }
 
-    // Missing files have the stable sentinel hash 0 and need no I/O; remove them in-place before partitioning the real
-    // hashing work.
+    // performSystemCheck() resolves unchanged regular files from the persisted hash. Missing files use their sentinel
+    // hash. Remove both in-place before partitioning the remaining hashing work.
     uint32_t validCount = static_cast<uint32_t>(hashNodes.size());
     for (uint32_t i = 0; i < validCount;)
     {
-        if (hashNodes[i]->fileType == file_type::not_found)
+        Node *node = hashNodes[i];
+        if (node->fileType == file_type::not_found)
         {
-            hashNodes[i]->contentHash = Node::missingContentHash;
-            hashNodes[i]->hashCompleted = true;
+            node->contentHash = Node::missingContentHash;
+            node->hashCompleted = true;
+        }
+
+        if (node->hashCompleted)
+        {
             std::swap(hashNodes[i], hashNodes[--validCount]);
             // i stays: the swapped-in element must be rechecked.
         }
@@ -903,9 +952,9 @@ void Builder::decrementFromDependents(RealBTarget &rb)
     }
 
     const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATE_NEEDED;
-    if (const BTarget *const target = rb.getBTarget();
-        rb.round == 0 && setToNeedsUpdate && rb.exitStatus == EXIT_SUCCESS && target->launchesProcess &&
-        target->buildFooterUpdated)
+    if (const BTarget *const target = rb.getBTarget(); rb.round == 0 && setToNeedsUpdate &&
+                                                       rb.exitStatus == EXIT_SUCCESS && target->launchesProcess &&
+                                                       target->buildFooterUpdated)
     {
         rb.completionTime =
             std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())

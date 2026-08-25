@@ -81,7 +81,9 @@ bool HeaderGen::isEventRegistered(Builder &builder)
         return false;
     }
 
-    run.startAsyncProcess(command.c_str(), builder, this, false);
+    // CreateProcessA may temporarily modify its command-line buffer; preserve the cached command used for hashing.
+    string mutableCommand = command;
+    run.startAsyncProcess(mutableCommand.data(), builder, this, false);
     return true;
 }
 

@@ -392,7 +392,6 @@ class BTarget // BTarget
 
     /// Lightweight derived-type reflection for code built without RTTI.
     bool isCppTarget : 1 = false;
-    bool isUeCppTarget : 1 = false;
 
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
@@ -473,16 +472,22 @@ class BTarget // BTarget
 
     /// Round-0 registration hook for async/event-driven work.
     /// \return true if the target registered/waits on an event; false if it completed immediately. Should return true
-    /// if run.startAsyncProcess is called.
+    /// if run.startAsyncProcess is called. A target may reuse the same `RunCommand` for sequential process steps, but
+    /// each later process is launched from a later `isEventRegistered()` call after the previous one has retired and
+    /// that method has explicitly called `run.reset()`.
     virtual bool isEventRegistered(Builder &builder);
 
     /// Called only for a complete delimiter-framed child message or after the child exits. On exit, the process has
     /// already been reaped and `realBTargets[0].exitStatus` has been set.
     /// \param message A complete child-process protocol payload. Valid protocol payloads are never empty; an empty
-    /// view is reserved exclusively for the reaped-process notification. In that case `run.output` contains any
-    /// remaining ordinary process output.
-    /// \return If this function returns false, Builder::decrementFromDependents is called. Otherwise, it is assumed
-    /// that the BTarget is waiting for further messages.
+    /// view is reserved exclusively for the reaped-process notification. In that case `*run.output` contains any
+    /// remaining ordinary process output for the duration of this `isEventCompleted()` call.
+    /// \return After a protocol message, returning false completes the target; `isEventCompleted()` must first call
+    /// `run.killModuleProcess()` itself if the child is still live. Returning true keeps the process active. Before
+    /// returning true, call `run.startRead()` to continue reading immediately, call `run.writeReadExpected()` when
+    /// replying and expecting another message, or do neither to leave the process intentionally paused. The return
+    /// value is ignored for an empty exit notification; launch any later sequential process step from a subsequent
+    /// `isEventRegistered()` call.
     virtual bool isEventCompleted(Builder &builder, string_view message);
 
     /// Evaluates an unchecked round-0 target, or re-evaluates a target whose recorded update reason completed with

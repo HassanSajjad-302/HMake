@@ -5,7 +5,7 @@ struct Process : BTarget
     explicit Process(const string &name_) : BTarget(name_, false, BTargetType::UNKNOWN)
     {
     }
-    static constexpr const char *cmd = "./a.out";
+    static inline char cmd[] = "./a.out";
 
     bool isEventRegistered(Builder &builder) override
     {
@@ -47,13 +47,15 @@ struct Process : BTarget
 
         if (!firstReceived)
         {
-            // Reply: send the module name the child asked for.
+            // Reply, then immediately arm the read for the child's next message.
             const string reply = "std\n";
-            if (write(run.writePipe, reply.data(), reply.size()) == -1)
-            {
-                printMessage("Warning: failed to write to child stdin\n");
-            }
+            run.writeReadExpected(reply);
             firstReceived = true;
+        }
+        else
+        {
+            // No reply is needed for the final message, but the exit notification still needs a read armed.
+            run.startRead();
         }
 
         return true; // keep listening; more messages or exit event may follow

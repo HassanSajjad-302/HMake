@@ -348,7 +348,7 @@ bool CppSrc::isEventRegistered(Builder &builder)
     {
         commandWithResponseFile(cppFullCompileCommand, objectNodes.front()->filePath + ".rsp", responseFileThreshold);
     }
-    run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
+    run.startAsyncProcess(cppFullCompileCommand.data(), builder, this, false);
     return true;
 }
 
@@ -682,16 +682,22 @@ void CppMod::populateAllDeps()
 
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
-    // todo
-    // write this buffer directly.
-
     mod.makeMemoryFileMapping();
     mod.populateAllDeps();
 
-    P2978::BTCModule btcModule;
-    btcModule.requested.filePath = mod.interfaceNode->filePath;
-    btcModule.requested.fileSize = mod.interfaceFileSize;
-    btcModule.isSystem = mod.target->isSystem;
+    STACK_PMR_STRING(toBeSend, 64 * 1024)
+
+    // BTCModule::requested
+    writeStringView(toBeSend, mod.interfaceNode->filePath);
+    toBeSend.push_back('\0');
+    writeUint32(toBeSend, mod.interfaceFileSize);
+    // BTCModule::isSystem
+    writeBool(toBeSend, mod.target->isSystem);
+
+    // BTCModule::modDeps. Patch the count after filtering dependencies already sent to this compiler.
+    const size_t dependencyCountOffset = toBeSend.size();
+    writeUint32(toBeSend, 0);
+    uint32_t dependencyCount = 0;
 
     for (const CppModWithDirect &transitive : mod.allCppModDeps)
     {
@@ -703,22 +709,23 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
 
         modDep->makeMemoryFileMapping();
 
-        P2978::ModuleDep dep;
-        dep.isHeaderUnit = modDep->type == CppModType::HEADER_UNIT;
-        dep.file.filePath = modDep->interfaceNode->filePath;
-        dep.file.fileSize = modDep->interfaceFileSize;
-        dep.isSystem = modDep->target->isSystem;
-        dep.logicalNames.emplace_back(modDep->logicalName);
-
-        btcModule.modDeps.emplace_back(std::move(dep));
+        ++dependencyCount;
+        // ModuleDep::isHeaderUnit
+        writeBool(toBeSend, modDep->type == CppModType::HEADER_UNIT);
+        // ModuleDep::file
+        writeStringView(toBeSend, modDep->interfaceNode->filePath);
+        toBeSend.push_back('\0');
+        writeUint32(toBeSend, modDep->interfaceFileSize);
+        // ModuleDep::isSystem
+        writeBool(toBeSend, modDep->target->isSystem);
+        // ModuleDep::logicalNames
+        writeUint32(toBeSend, 1);
+        writeStringView(toBeSend, modDep->logicalName);
     }
 
-    if (const auto &r2 = ipcManager->sendMessage(btcModule); !r2)
-    {
-        printErrorMessage(FORMAT("Could not send a module dependency to the compiler.\nTarget: {}\n"
-                                 "Compiling file: {}\nDependency module: {}\nIPC error: {}",
-                                 target->name, node->filePath, mod.node->filePath, r2.error()));
-    }
+    memcpy(toBeSend.data() + dependencyCountOffset, &dependencyCount, sizeof(dependencyCount));
+    toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
+    run.writeReadExpected(toBeSend);
 }
 
 // For debugging purposes
@@ -897,16 +904,10 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
             writeStringView(toBeSend, str);
         }
     }
-    *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
+    memcpy(toBeSend.data() + placeHolderIndex, &count, sizeof(count));
     toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
-    if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
-    {
-        printErrorMessage(FORMAT("Could not send a header-unit dependency to the compiler.\nTarget: {}\n"
-                                 "Compiling kind: {}\nCompiling file: {}\nHeader unit: {}\nIPC error: {}",
-                                 target->name, type == CppModType::HEADER_UNIT ? "header unit" : "module",
-                                 node->filePath, hu.node->filePath, r2.error()));
-    }
+    run.writeReadExpected(toBeSend);
 }
 
 CppMod *CppMod::findModule(const string_view moduleName) const
@@ -1024,14 +1025,13 @@ bool CppMod::isEventRegistered(Builder &builder)
     }
     if (!target->useIPC)
     {
-        run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
+        run.startAsyncProcess(cppFullCompileCommand.data(), builder, this, false);
         return true;
     }
 
     isAllDepsPopulated = true;
 
-    run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
-    ipcManager = new IPCManagerBS(run.writePipe);
+    run.startAsyncProcess(cppFullCompileCommand.data(), builder, this, true);
 
     return true;
 }
@@ -1069,7 +1069,6 @@ bool CppMod::resumeAfterDependency(Builder &builder)
         makeAndSendBTCModule(*completedDependency);
     }
 
-    // The existing event registration remains active; the compiler can now issue its next nonempty CTB message.
     return true;
 }
 
@@ -1197,6 +1196,14 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
                                  target->name, node->filePath, r.error()));
     }
 
+    if (requestType == P2978::CTB::LAST_MESSAGE)
+    {
+        // TODO: Map compiler-created BMI shared-memory files and acknowledge them with BTC::LAST_MESSAGE.
+        printErrorMessage(FORMAT("Compiler sent CTB::LAST_MESSAGE, but compiler-created BMI shared-memory files "
+                                 "are not yet supported.\nTarget: {}\nCompiling file: {}",
+                                 target->name, node->filePath));
+    }
+
     CppMod *found;
 
     if (requestType == P2978::CTB::NON_MODULE)
@@ -1282,7 +1289,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
                     // HeaderFile::isSystem
                     writeBool(toBeSend, target->isSystem);
                 }
-                *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
+                memcpy(toBeSend.data() + placeHolderIndex, &count, sizeof(count));
             }
             else
             {
@@ -1294,12 +1301,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             toBeSend.push_back('\n');
             toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
-            if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
-            {
-                printErrorMessage(FORMAT("Could not send a header dependency to the compiler.\nTarget: {}\n"
-                                         "Compiling file: {}\nHeader file: {}\nIPC error: {}",
-                                         target->name, node->filePath, f->data.node->filePath, r2.error()));
-            }
+            run.writeReadExpected(toBeSend);
 
             if (!addedInComposingHeader)
             {
@@ -1397,7 +1399,6 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         makeAndSendBTCNonModule(*found);
     }
 
-    // Requested module or header-unit has been sent. Let's get the next message.
     return true;
 }
 
@@ -1760,7 +1761,7 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
             }
         }
 
-        *reinterpret_cast<uint32_t *>(mockFileContents.data()) = count;
+        memcpy(mockFileContents.data(), &count, sizeof(count));
         std::ofstream(mockFilePath) << mockFileContents;
     }
 
@@ -2249,7 +2250,7 @@ void AdaptiveManager::prepareWorkingSet()
                 {
                     printErrorMessage(
                         FORMAT("Could not query Git for the adaptive-unity working set.\nSource root: {}\n{}",
-                               srcNode->filePath, command.output ? *command.output : string{}));
+                               srcNode->filePath, *command.output));
                 }
 
                 const string &output = *command.output;
@@ -2283,7 +2284,7 @@ void AdaptiveManager::prepareWorkingSet()
                 if (command.exitStatus != EXIT_SUCCESS)
                 {
                     printErrorMessage(FORMAT("Could not query Perforce for the adaptive-unity working set.\n{}",
-                                             command.output ? *command.output : string{}));
+                                             *command.output));
                 }
                 for (const string_view line : split(*command.output, '\n'))
                 {
@@ -2299,7 +2300,6 @@ void AdaptiveManager::prepareWorkingSet()
                     }
                 }
             }
-            delete command.output;
         }
     }
 
@@ -2350,36 +2350,38 @@ void AdaptiveManager::completeRoundOne()
     }
     roundOneCompleted = true;
 
+    CppTarget &owner = *target;
     const CppModType compileUnitType =
-        target->configuration->evaluate(IsCppMod::YES) ? CppModType::PRIMARY_IMPLEMENTATION : CppModType::CPP_SRC;
-    const auto createCompileUnit = [this, compileUnitType](const Node *node, const bool isAJumboBuild) -> CppSrc * {
+        owner.configuration->evaluate(IsCppMod::YES) ? CppModType::PRIMARY_IMPLEMENTATION : CppModType::CPP_SRC;
+    const auto createCompileUnit = [&](const Node *node, const bool isAJumboBuild) -> CppSrc * {
         CppSrc *compileUnit;
         if (compileUnitType == CppModType::CPP_SRC)
         {
-            compileUnit = new CppSrc(target, node, compileUnitType);
+            compileUnit = new CppSrc(&owner, node, compileUnitType);
         }
         else
         {
-            compileUnit = new CppMod(target, node, compileUnitType);
+            compileUnit = new CppMod(&owner, node, compileUnitType);
         }
         compileUnit->isAJumboBuild = isAJumboBuild;
         return compileUnit;
     };
+    const auto getGeneratedNode = [&](const uint32_t index) {
+        return Node::getHalfNode(owner.myBuildDir->filePath + slashc + std::to_string(index) + ".gen.cpp");
+    };
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (uint32_t index = 0; index < target->adaptiveSourceNodes.size(); ++index)
+        for (uint32_t index = 0; index < owner.adaptiveSourceNodes.size(); ++index)
         {
-            Node *sourceNode = target->adaptiveSourceNodes[index];
-            Node *generatedNode =
-                Node::getHalfNode(target->myBuildDir->filePath + slashc + std::to_string(index) + ".gen.cpp");
+            Node *sourceNode = owner.adaptiveSourceNodes[index];
 
             // Configure never executes round zero, so ordinary CppSrc/CppMod objects are sufficient cache owners.
             // The generated jumbo slot always needs an entry. The standalone slot may already be owned by a source
             // that was first registered normally and later moved into adaptive compilation.
-            createCompileUnit(generatedNode, true);
+            createCompileUnit(getGeneratedNode(index), true);
             const uint64_t sourceCacheName = static_cast<uint64_t>(sourceNode->myId) << 32 |
-                                             static_cast<uint64_t>(target->cacheIndex) << 3 |
+                                             static_cast<uint64_t>(owner.cacheIndex) << 3 |
                                              static_cast<uint64_t>(compileUnitType);
             const auto sourceCache = nameToIndexMap.find(sourceCacheName);
             if (sourceCache == nameToIndexMap.end() || bTargetCaches[sourceCache->second].bTarget == nullptr)
@@ -2390,96 +2392,103 @@ void AdaptiveManager::completeRoundOne()
         return;
     }
 
-    if (target->jumboFileSize == 0)
+    if (owner.jumboFileSize == 0)
     {
-        printErrorMessage(FORMAT("Adaptive-unity jumbo size must be greater than zero.\nTarget: {}", target->name));
+        printErrorMessage(FORMAT("Adaptive-unity jumbo size must be greater than zero.\nTarget: {}", owner.name));
     }
 
-    const auto schedule = [&](CppSrc *compileUnit) {
+    const auto scheduleCompileUnit = [&](CppSrc *compileUnit) {
         // File-level prerequisites are attached to this manager through getCppSrc()/getCppModule(). The selected
         // compile unit waits on the manager, and the owning CppTarget waits on the selected compile unit.
         compileUnit->realBTargets[0].addDep<BTargetType::UNKNOWN>(&realBTargets[0]);
         if (compileUnitType == CppModType::CPP_SRC)
         {
-            target->srcFileDeps.emplace_back(compileUnit);
-            target->realBTargets[0].addDep<BTargetType::CPP_SRC>(&compileUnit->realBTargets[0]);
+            owner.srcFileDeps.emplace_back(compileUnit);
+            owner.realBTargets[0].addDep<BTargetType::CPP_SRC>(&compileUnit->realBTargets[0]);
         }
         else
         {
-            target->modFileDeps.emplace_back(static_cast<CppMod *>(compileUnit));
-            target->realBTargets[0].addDep<BTargetType::CPP_MOD>(&compileUnit->realBTargets[0]);
+            owner.modFileDeps.emplace_back(static_cast<CppMod *>(compileUnit));
+            owner.realBTargets[0].addDep<BTargetType::CPP_MOD>(&compileUnit->realBTargets[0]);
         }
     };
 
-    const auto writeAndScheduleGenerated = [&](const Node *generatedNode, const string &contents) {
+    const auto writeGeneratedPartition = [&](const uint32_t firstSourceIndex, const string &contents) {
+        const Node *generatedNode = getGeneratedNode(firstSourceIndex);
         if (const string &generatedPath = generatedNode->filePath;
             !std::filesystem::exists(generatedPath) || fileToString(generatedPath) != contents)
         {
             create_directories(path(generatedPath).parent_path());
             std::ofstream(generatedPath, std::ios::binary) << contents;
         }
-        schedule(createCompileUnit(generatedNode, true));
+        scheduleCompileUnit(createCompileUnit(generatedNode, true));
     };
 
+    constexpr string_view generatedPrefix = "// Generated by HMake adaptive unity.\n";
     uint64_t partitionSize = 0;
-    uint32_t generatedIndex = 0;
-    bool partitionStarted = false;
-    string contents;
+    uint32_t firstSourceIndex = 0;
+    string generatedContents(generatedPrefix);
 
-    const auto flush = [&] {
-        if (partitionStarted && !contents.empty())
+    const auto finishPartition = [&](const bool forceBoundary) {
+        const bool hasGeneratedSources = generatedContents.size() != generatedPrefix.size();
+
+        // UBT keeps a partition containing only working-set (virtual) files open. Its size and first slot therefore
+        // carry into the next real source. An explicit HMake group boundary always resets the partition.
+        if (!forceBoundary && !hasGeneratedSources)
         {
-            string file = "// Generated by HMake adaptive unity.\n";
-            file += contents;
-            writeAndScheduleGenerated(
-                Node::getHalfNode(target->myBuildDir->filePath + slashc + std::to_string(generatedIndex) + ".gen.cpp"),
-                file);
+            return;
+        }
+        if (hasGeneratedSources)
+        {
+            writeGeneratedPartition(firstSourceIndex, generatedContents);
         }
         partitionSize = 0;
-        partitionStarted = false;
-        contents.clear();
+        generatedContents.resize(generatedPrefix.size());
     };
 
     uint32_t groupIndex = 0;
-    for (uint32_t index = 0; index < target->adaptiveSourceNodes.size(); ++index)
+    for (uint32_t index = 0; index < owner.adaptiveSourceNodes.size(); ++index)
     {
-        if (groupIndex < target->adaptiveGroupStarts.size() && index == target->adaptiveGroupStarts[groupIndex])
+        if (groupIndex < owner.adaptiveGroupStarts.size() && index == owner.adaptiveGroupStarts[groupIndex])
         {
-            flush();
+            finishPartition(true);
             ++groupIndex;
         }
-        Node *sourceNode = target->adaptiveSourceNodes[index];
+        Node *sourceNode = owner.adaptiveSourceNodes[index];
         const uint64_t sourceSize = std::max<uint64_t>(sourceNode->fileSize, 1);
-        if (partitionSize != 0 && partitionSize + sourceSize > target->jumboFileSize)
+
+        // UBT isolates an oversized source from a preceding real-file blob. A virtual-only collection deliberately
+        // remains attached, as in UnityFileBuilder::EndCurrentUnityFile().
+        if (sourceSize > owner.jumboFileSize)
         {
-            flush();
+            finishPartition(false);
         }
-        if (!partitionStarted)
+        if (partitionSize == 0)
         {
             // The slot follows the virtual partition, even if its first source is in the working set. This keeps the
             // generated cache key stable while files enter and leave standalone adaptive compilation.
-            generatedIndex = index;
-            partitionStarted = true;
+            firstSourceIndex = index;
         }
 
         if (workingSet.contains(sourceNode))
         {
-            schedule(createCompileUnit(sourceNode, false));
+            scheduleCompileUnit(createCompileUnit(sourceNode, false));
         }
         else
         {
-            contents += "#include \"";
-            contents += target->getAdaptiveIncludeName(sourceNode);
-            contents += "\"\n";
+            generatedContents += "#include \"";
+            generatedContents += owner.getAdaptiveIncludeName(sourceNode);
+            generatedContents += "\"\n";
         }
 
         partitionSize += sourceSize;
-        if (partitionSize >= target->jumboFileSize)
+        // Add first and split only after exceeding the threshold; equality stays in the current collection.
+        if (partitionSize > owner.jumboFileSize)
         {
-            flush();
+            finishPartition(false);
         }
     }
-    flush();
+    finishPartition(true);
 }
 
 string AdaptiveManager::getPrintName() const

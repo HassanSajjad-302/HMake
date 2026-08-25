@@ -35,55 +35,56 @@ ObjectFileProducer::ObjectFileProducer(string name_, const uint64_t cacheName_, 
 
 void ObjectFileProducer::populateReqAndUseReqObjectFileProducers()
 {
-    for (const auto localDependencies = reqObjectFileProducers; const auto &[producer, dependency] : localDependencies)
-    {
-        for (const auto &[exportedProducer, exported] : producer->useReqObjectFileProducers)
+    const auto populate = [this](OpDepInfoMap &dependencies, PloatDepInfoMap &ploatDependencies) {
+        // Direct declarations are available before round one. Follow those declarations to a fixed point instead of
+        // relying on dependency completion order: UE deliberately suppresses scheduler edges for semantic cycles.
+        STACK_PMR_VECTOR(ObjectFileProducer *, pending, dependencies.size() + 1)
+        for (const auto &entry : dependencies)
         {
-            const OpDepInfo propagated = dependency.intersect(exported);
-            if (propagated.isOpDependency() || propagated.isLinkDependency())
+            if (entry.first != this)
             {
-                mergeDependency(reqObjectFileProducers, exportedProducer, propagated);
+                pending.emplace_back(entry.first);
             }
         }
 
-        if (dependency.isLinkDependency())
+        for (size_t position = 0; position < pending.size(); ++position)
         {
-            for (const auto &[ploat, ploatDependency] : producer->useReqPloatDeps)
+            ObjectFileProducer *producer = pending[position];
+            const OpDepInfo dependency = dependencies.find(producer)->second;
+
+            for (const auto &[exportedProducer, exported] : producer->useReqObjectFileProducers)
             {
-                mergePloatDependency(
-                    reqPloatDeps, ploat,
-                    PloatDepInfo{dependency.isAcyclicDependency() && ploatDependency.isAcyclicDependency()});
+                // Returning to the root contributes no new dependency. Its outgoing declarations were seeded above,
+                // and omitting the self-entry also prevents aliasing this map while iterating an exported map.
+                if (exportedProducer == this)
+                {
+                    continue;
+                }
+
+                const OpDepInfo propagated = dependency.intersect(exported);
+                if ((propagated.isOpDependency() || propagated.isLinkDependency()) &&
+                    mergeDependency(dependencies, exportedProducer, propagated))
+                {
+                    // A producer is revisited only when one of its three monotonic facets changes, so cycles converge
+                    // after a small bounded number of iterations.
+                    pending.emplace_back(exportedProducer);
+                }
+            }
+
+            if (dependency.isLinkDependency())
+            {
+                for (const auto &[ploat, ploatDependency] : producer->useReqPloatDeps)
+                {
+                    mergePloatDependency(
+                        ploatDependencies, ploat,
+                        PloatDepInfo{dependency.isAcyclicDependency() && ploatDependency.isAcyclicDependency()});
+                }
             }
         }
-    }
+    };
 
-    for (const auto localDependencies = useReqObjectFileProducers;
-         const auto &[producer, dependency] : localDependencies)
-    {
-        for (const auto &[exportedProducer, exported] : producer->useReqObjectFileProducers)
-        {
-            const OpDepInfo propagated = dependency.intersect(exported);
-            if (propagated.isOpDependency() || propagated.isLinkDependency())
-            {
-                mergeDependency(useReqObjectFileProducers, exportedProducer, propagated);
-            }
-        }
-
-        if (dependency.isLinkDependency())
-        {
-            for (const auto &[ploat, ploatDependency] : producer->useReqPloatDeps)
-            {
-                mergePloatDependency(
-                    useReqPloatDeps, ploat,
-                    PloatDepInfo{dependency.isAcyclicDependency() && ploatDependency.isAcyclicDependency()});
-            }
-        }
-    }
-
-    // TODO(UE cycles): Remove these erasures after UE's legacy circular module dependencies are eliminated.
-    // A semantic cycle can feed this producer back through a dependency's exported closure.
-    reqObjectFileProducers.erase(this);
-    useReqObjectFileProducers.erase(this);
+    populate(reqObjectFileProducers, reqPloatDeps);
+    populate(useReqObjectFileProducers, useReqPloatDeps);
 }
 
 void ObjectFileProducer::completeRoundOne()
@@ -97,13 +98,23 @@ void ObjectFileProducer::completeRoundOne()
             object->doStatFile = true;
         }
 
-        // Round one runs after the complete target graph has been reconstructed. Add nonblocking compile-usage
-        // propagation now, but only when at least one path to the producer is known to be acyclic.
+        // Round one runs after the complete target graph has been reconstructed. Acyclic compile-usage paths can use
+        // ordinary nonblocking edges. Cycle-suppressed paths cannot enter the scheduler graph, so propagate their
+        // selection directly through the already-flattened producer closure.
         FOR_REQ_OBJECT_FILE_PRODUCERS(this, producer, dependency)
         {
-            if (dependency.isOpDependency() && dependency.isAcyclicDependency())
+            if (!dependency.isOpDependency())
+            {
+                continue;
+            }
+
+            if (dependency.isAcyclicDependency())
             {
                 realBTargets[0].addDep<BTargetType::UNKNOWN, RelationType::SELECTIVE>(&producer->realBTargets[0]);
+            }
+            else if (selectiveBuild)
+            {
+                producer->selectiveBuild = true;
             }
         }
     }

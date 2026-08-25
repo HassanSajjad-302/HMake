@@ -16,10 +16,9 @@ class LibDirNode
 class InclNode : public LibDirNode
 {
   public:
-    // TODO
-    // remove following. These are not needed as isStandard and ignoreHeaderDeps are now properties of CppTarget and
-    // further granularity is unnecessary. Used with includeDirs to specify whether to ignore include-files from these
-    // dirs from being stored in target-cache file
+    // Include classification is path-specific: a target can inherit ordinary and system directories from different
+    // producers. Preserve it through transitive propagation and the configuration cache so command generation can
+    // choose -I versus -isystem correctly.
     bool isStandard = false;
     InclNode(Node *node_, const bool isStandard_)
         : LibDirNode(node_), isStandard(isStandard_)

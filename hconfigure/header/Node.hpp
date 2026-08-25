@@ -46,13 +46,13 @@ class Node
     /// Normalized path (and lower-cased on Windows) for file or directory.
     string filePath;
 
-    /// Cached last-write timestamp, assigned by `performSystemCheck()`.
+    /// Last-write timestamp restored from `nodes.bin`, then replaced by `performSystemCheck()` with the current value.
     uint64_t lastWriteTime = UINT64_MAX;
 
     /// File size in bytes, populated by `performSystemCheck()` for regular files.
     uint64_t fileSize = 0;
 
-    /// rapidhash of file contents, populated by `performContentHash()` when `doHashFile` is set.
+    /// rapidhash restored from `nodes.bin` or populated by `performContentHash()` when `doHashFile` is set.
     /// Missing files use `missingContentHash`, distinct from the hash of an empty file.
     uint64_t contentHash = 0;
 
@@ -75,10 +75,11 @@ class Node
     /// `lastWriteTime`.
     bool doStatFile : 1 = false;
 
-    /// When true, `Builder::checkNodes()` will call `performContentHash()` to refresh `contentHash`.
+    /// When true, `Builder::checkNodes()` resolves `contentHash`, reusing the persisted value when the timestamp
+    /// observed by `performSystemCheck()` is unchanged.
     bool doHashFile : 1 = false;
 
-    /// True after `performContentHash()` has run at least once for this node.
+    /// True once `contentHash` has been resolved from the cache, the missing-file sentinel, or file contents.
     bool hashCompleted : 1 = false;
 
     explicit Node(string_view filePath_);

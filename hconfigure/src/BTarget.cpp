@@ -580,7 +580,9 @@ void BTarget::verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) c
 // its selectiveBuild to be true.
 void BTarget::setSelectiveBuild()
 {
-    selectiveBuild = cmdTargets.contains(name);
+    // A cycle-suppressed ObjectFileProducer relation may have selected this target before its own round-one turn.
+    // Selection is monotonic for one Builder invocation, so retain that propagated state.
+    selectiveBuild = selectiveBuild || cmdTargets.contains(name);
     if (!buildExplicit && !selectiveBuild)
     {
         if (const uint64_t currentMinusConfigureSize = currentMinusConfigure.size())

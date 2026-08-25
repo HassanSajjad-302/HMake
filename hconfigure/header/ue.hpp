@@ -116,6 +116,18 @@ enum class UeFileKind : uint8_t
 };
 
 /**
+ * Compiler-semantics profile selected by scanner metadata.
+ *
+ * Default uses the ordinary UE configuration. RttiExcept names the few modules that require RTTI and exceptions;
+ * those are archived by a separate producer configuration and linked into the Default build.
+ */
+enum class UeConfProfile : uint8_t
+{
+    Default,
+    RttiExcept,
+};
+
+/**
  * State used while lazily expanding the module dependency graph.
  *
  * This serves the same broad purpose as UBT's "find or create module" cache:
@@ -161,8 +173,6 @@ class UeCppTarget : public CppTarget
     UeCppTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 
-    void completeRoundOne() override;
-
     // UBT: ModuleRules.ConditionalAddModuleDirectory(). Ordinary module roots are
     // automatic; this is only for an exceptional additional source directory.
     // Returns false without registering anything when the directory does not exist.
@@ -172,17 +182,25 @@ class UeCppTarget : public CppTarget
     // including the existing Inc/<ShortName>/UHT directory consumed here.
     UeCppTarget &setShortName(string_view value);
 
-    // TODO(UE cycles): Remove these compatibility APIs after UE's legacy circular module graph is eliminated.
-    // Temporary compatibility escape hatch for UE's legacy circular module graph.
+    // TODO(UE cycles): Remove these APIs after UE's circular module graph is eliminated.
+    // A cyclic relation preserves semantic requirements without adding its scheduler back-edge.
     // These preserve compile requirements without adding scheduler edges. New code
     // should use ordinary DSC dependencies; the long-term goal is to remove the UE
-    // cycles and these two functions with them.
+    // cycles and these four functions with them.
+    //
+    // UBT: a cyclic PublicDependencyModuleNames/PrivateDependencyModuleNames entry. The dependency contributes a
+    // linker input, so reaching it this way also requests its implementation.
     UeCppTarget &addPrivateCycleDependency(string_view dependency);
     UeCppTarget &addPublicCycleDependency(string_view dependency);
 
+    // UBT: a cyclic PublicIncludePathModuleNames/PrivateIncludePathModuleNames entry. These grant include-path
+    // visibility only, so the dependency's sources stay unrequested exactly as with the *OpDeps functions.
+    UeCppTarget &addPrivateCycleOpDependency(string_view dependency);
+    UeCppTarget &addPublicCycleOpDependency(string_view dependency);
+
   private:
     // UBT: ModuleRules.GetAllModuleDirectories(). HMake derives these directories
-    // from the selected base/platform *.module.hmake.hpp files instead of asking
+    // from the selected base/platform *.hmake.hpp files instead of asking
     // the user to register the conventional source root.
     vector<Node *> moduleDirectories;
 
@@ -194,26 +212,42 @@ class UeCppTarget : public CppTarget
     // again as independent *.gen.cpp translation units.
     std::unordered_set<string> inlinedGeneratedCppNames;
 
+    // Include-only module relations still prepare the module's public interface, but source discovery is deferred
+    // until a link relation reaches the implementation. This reachability is independent of AddCppSource: a
+    // source-less target must still propagate implementation reachability to the modules it links against.
+    vector<Node *> generatedCodeDirectories;
+    bool moduleDirectoriesReady = false;
+    bool moduleIncludesPrepared = false;
+    bool implementationRequested = false;
+    bool sourceInputsPrepared = false;
+
+    // Link dependencies declared by this module, in declaration order. A module reached through include-only
+    // relations declares its own dependencies without requesting their implementations; if a later link relation
+    // promotes this module, the same promotion has to travel down this list.
+    vector<UeCppTarget *> linkDependencies;
+
     // UE source discovery creates one ISPC object producer per module when .ispc inputs are present. This stays in
     // the UE frontend; the generic CppTarget has no ISPC-specific state.
     IspcTarget *ispcTarget = nullptr;
     bool ispcOutputDirectoryAdded = false;
 
-    // TODO(UE cycles): Remove both guards with the cycle-recursive round-one/selective-build workaround.
-    bool roundOneCalled = false;
-    bool selectiveBuildSet = false;
+    void prepareModuleIncludes();
+    void prepareModuleSources();
+    UeCppTarget &addCycleDependency(DepType depType, bool link, string_view dependency);
 
-    void propagateSelectiveBuild();
-    void prepareModuleInputs(bool compileSources);
-    void findInputFiles(Node *moduleDirectory);
+    // Marks this module's link closure as required. implementationRequested doubles as the recursion guard, so UE's
+    // circular module relations terminate even when this target has AddCppSource::NO.
+    void requestImplementation();
+    void findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources);
     void addIspcSource(Node *source);
     void addDefaultIncludePaths(Node *moduleDirectory);
 
-    // Adds the UHT include directory and registers only standalone *.gen.cpp files. Files named by
-    // UE_INLINE_GENERATED_CPP_BY_NAME remain part of their handwritten translation unit, matching UBT metadata.
-    UeCppTarget &addGeneratedCode(Node *directory, bool compileSources);
+    // Registers only standalone *.gen.cpp files. The directory has already been added to the module's public include
+    // interface. Files named by UE_INLINE_GENERATED_CPP_BY_NAME remain in their handwritten translation unit.
+    UeCppTarget &addGeneratedCode(Node *directory);
 
     friend class UeConfiguration;
+    template <typename, typename> friend struct DSCExtension;
 };
 
 /**
@@ -350,16 +384,20 @@ template <typename Derived> struct DSCExtension<UeCppTarget, Derived>
 using UeSpecifyFunction = void (*)(UeConfiguration &);
 
 /**
- * Minimal information scanner.py must emit for one included *.hmake.hpp file.
+ * Typed information scanner.py emits for one included *.hmake.hpp file.
  *
  * C++ cannot recover a function symbol from an #include path at runtime, so the
  * generated translation unit pairs the path with the included file's specify()
- * function. registerGeneratedUeSpecifyFuncs() derives all remaining metadata from
- * the filename.
+ * function and the metadata parsed from its leading comment block.
  */
 struct UeIncludedFile
 {
     string_view path;
+    string_view logicalName;
+    UeFileKind kind = UeFileKind::Module;
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
+    std::optional<UePlatformGroup> platformGroup;
+    std::optional<UePlatform> platform;
     UeSpecifyFunction func = nullptr;
 };
 
@@ -398,6 +436,7 @@ struct UeSpecifyFunctionSet
 {
     string logicalName;
     UeFileKind kind = UeFileKind::Module;
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
     std::optional<UeSpecifyFunctionBase> base;
     vector<UePlatformGroupSpecifyFunc> platformGroups;
     vector<UePlatformSpecifyFunc> platforms;
@@ -467,6 +506,10 @@ class UeConfiguration : public Configuration
     // does not run UHT. UBT normally records these paths while setting up UHT.
     Node *generatedIncludeRoot = nullptr;
 
+    // Compiler-semantics profile this configuration provides. A module registered under a different profile is built
+    // by the matching producer configuration and consumed here as a static archive.
+    UeConfProfile ueConfProfile = UeConfProfile::Default;
+
     explicit UeConfiguration(const string &name);
 
     // Adds a graph root, analogous to the target descriptors passed to UBT.
@@ -480,6 +523,13 @@ class UeConfiguration : public Configuration
     UeConfiguration &setIspcCompiler(Node *value);
     UeConfiguration &setBuildCommands(UeBuildCommands value);
     UeConfiguration &setBuildCommands(std::span<const UeBuildCommandEntry> entries);
+
+    // Creates the RttiExcept companion configuration before graph expansion. It differs from its consumer only in the
+    // compiler semantics its profile names and lazily archives matching modules as the consumer reaches them. The
+    // producer receives no configurationSpecification() call.
+    UeConfiguration &createProducerConfigurations();
+    // Finalizes dynamically created producers after target expansion. The framework finalizes this consumer itself.
+    void finalizeProducerConfigurations() const;
     void initialize() override;
 
     /// Assigns UE-specific or ordinary HMake properties from left to right.
@@ -492,9 +542,9 @@ class UeConfiguration : public Configuration
     // decentralized module file uses this instead of receiving its target directly.
     DSC<UeCppTarget> &currentTarget() const;
 
-    // Lazily creates/configures a named module. Closest UBT operation:
-    // UEBuildTarget.FindOrCreateModuleByName().
-    DSC<UeCppTarget> &getOrAddTarget(string_view logicalName);
+    // Lazily creates/configures a named module. requestImplementation is false for include-path-only relations; an
+    // already configured module can later be promoted when a link relation reaches it.
+    DSC<UeCppTarget> &getOrAddTarget(string_view logicalName, bool requestImplementation = true);
 
     // Top-level graph roots supplied with requestTarget(). The generated project entry point expands these before
     // handing control to the ordinary configuration lifecycle.
@@ -525,10 +575,24 @@ class UeConfiguration : public Configuration
     // UeConfiguration.
     flat_hash_map<string, PLOAT *> prebuiltLibraries;
 
-    DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind);
+    // Configurations created by createProducerConfigurations(), keyed by the profile each one provides. Empty in a
+    // producer configuration, because profiles do not nest.
+    flat_hash_map<UeConfProfile, UeConfiguration *> producerConfigurations;
+
+    DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind,
+                                         UeConfProfile moduleUeConfProfile);
     PLOAT &getOrAddPrebuiltLibrary(Node *libraryFile, TargetType libraryType);
     void initializeApiMacro(DSC<UeCppTarget> &target, bool defines) const;
 
+    // Resolves the configuration that archives modules registered under the given profile. Errors when this
+    // configuration has no producer for it.
+    UeConfiguration &getProducerConfiguration(UeConfProfile producerUeConfProfile) const;
+
+    // Creates the consumer-side stand-in for a module archived by a producer configuration. The returned PLOAT
+    // resolves to the producer's archive file and carries only a scheduler edge to it.
+    PLOAT &addProducerArchive(const string &logicalName, UeConfProfile producerUeConfProfile);
+
+    friend class UeCppTarget;
     template <typename, typename> friend struct DSCExtension;
 };
 
@@ -630,9 +694,15 @@ Derived &DSCExtension<UeCppTarget, Derived>::addNamedDependency(const DepType de
         printErrorMessage("DSC<UeCppTarget> has no owning UeConfiguration.");
     }
 
-    DSC<UeCppTarget> &dependencyTarget = configuration->getOrAddTarget(dependency);
+    // A link relation reaches the dependency's implementation only when this module's implementation is itself
+    // reachable. AddCppSource is deliberately absent from this decision: source-less producer dependencies still
+    // forward reachability through their link relations.
+    UeCppTarget &consumer = derived().getSourceTarget();
+    DSC<UeCppTarget> &dependencyTarget =
+        configuration->getOrAddTarget(dependency, link && consumer.implementationRequested);
     if (link)
     {
+        consumer.linkDependencies.emplace_back(&dependencyTarget.getSourceTarget());
         derived().linkDeps(depType, dependencyTarget);
     }
     if (objectProducer)

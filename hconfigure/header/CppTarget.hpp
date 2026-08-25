@@ -124,6 +124,7 @@ class CppTarget : public ObjectFileProducer
     /// UE discover sources after their decentralized specification function has returned.
     JumboBuild jumboBuild = JumboBuild::NO;
     uint64_t jumboFileSize = 384 * 1024;
+    AddCppSource addCppSource = AddCppSource::YES;
 
     /// Optional round-zero barrier. Ordinary non-adaptive compile units wait on it, while adaptive units wait
     /// transitively through `adaptiveManager`.
@@ -1378,6 +1379,10 @@ CppTarget &CppTarget::assign(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
     {
         jumboBuild = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
+    {
+        addCppSource = property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

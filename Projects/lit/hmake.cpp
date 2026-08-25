@@ -234,13 +234,18 @@ class LitProcess : public BTarget
 
     bool isEventRegistered(Builder &builder) override
     {
-        const string command = exeName + "-useIPC";
+        string command = exeName + "-useIPC";
         run.startAsyncProcess(command.data(), builder, this, true);
         return true;
     }
 
     bool isEventCompleted(Builder &builder, const string_view message) override
     {
+        if (message.empty())
+        {
+            return false;
+        }
+
         LitResponse litResponse;
 
         uint32_t bytesRead = 0;
@@ -263,6 +268,9 @@ class LitProcess : public BTarget
         {
             // builder.updateBTargets.emplace()
         }
+
+        run.startRead();
+        return true;
     }
 };
 

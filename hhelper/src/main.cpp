@@ -3,15 +3,27 @@
 #include "Cache.hpp"
 #include "JConsts.hpp"
 #include "Node.hpp"
-#include "RunCommand.hpp"
 #include "ToolsCache.hpp"
+#include <atomic>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <mutex>
 #include <thread>
+#include <utility>
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
+
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
@@ -46,6 +58,96 @@ static string formatSeconds(Seconds s)
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.3fs", s.count());
     return buf;
+}
+
+struct ShellCommandResult
+{
+    int exitStatus;
+    string output;
+};
+
+static string quoteShellPath(const path &filePath)
+{
+#ifdef _WIN32
+    return '"' + filePath.string() + '"';
+#else
+    string quoted = "'";
+    for (const char character : filePath.string())
+    {
+        if (character == '\'')
+        {
+            quoted += "'\\''";
+        }
+        else
+        {
+            quoted += character;
+        }
+    }
+    quoted += '\'';
+    return quoted;
+#endif
+}
+
+static string readShellOutputFile(const path &filePath)
+{
+    ifstream stream(filePath, std::ios::binary);
+    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+}
+
+static int normalizeSystemExitStatus(const int status)
+{
+    if (status == -1)
+    {
+        return EXIT_FAILURE;
+    }
+#ifdef _WIN32
+    return status;
+#else
+    if (WIFEXITED(status))
+    {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status))
+    {
+        return 128 + WTERMSIG(status);
+    }
+    return EXIT_FAILURE;
+#endif
+}
+
+static ShellCommandResult runShellCommand(const char *command)
+{
+    static std::atomic_uint64_t invocation{};
+#ifdef _WIN32
+    const int processId = _getpid();
+#else
+    const int processId = getpid();
+#endif
+    const auto timestamp = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    const string filePrefix =
+        FORMAT("hhelper_{}_{}_{}", processId, timestamp, invocation.fetch_add(1, std::memory_order_relaxed));
+    const path temporaryDirectory = std::filesystem::temp_directory_path();
+    const path stdoutPath = temporaryDirectory / (filePrefix + "_stdout.txt");
+    const path stderrPath = temporaryDirectory / (filePrefix + "_stderr.txt");
+
+    const string redirectedCommand =
+        FORMAT("({}) > {} 2> {}", command, quoteShellPath(stdoutPath), quoteShellPath(stderrPath));
+    const int exitStatus = normalizeSystemExitStatus(std::system(redirectedCommand.c_str()));
+
+    string output = readShellOutputFile(stdoutPath);
+    const string errorOutput = readShellOutputFile(stderrPath);
+    if (!output.empty() && !errorOutput.empty())
+    {
+        output += "\n--- STDERR ---\n";
+    }
+    output += errorOutput;
+
+    std::error_code errorCode;
+    std::filesystem::remove(stdoutPath, errorCode);
+    errorCode.clear();
+    std::filesystem::remove(stderrPath, errorCode);
+
+    return {exitStatus, std::move(output)};
 }
 
 #define THROW false
@@ -241,7 +343,10 @@ int main(int argc, char **argv)
                                      configureExePath));
             exit(EXIT_FAILURE);
         }
-        return std::system(configureExePath.c_str());
+        const string configureCommand = quoteShellPath(configureExePath);
+        const ShellCommandResult configureRun = runShellCommand(configureCommand.c_str());
+        printMessage(configureRun.output);
+        return configureRun.exitStatus;
     }
 
     ifstream ifs("cache.json");
@@ -325,8 +430,7 @@ int main(int argc, char **argv)
         replaceAll(command, confDirString, current_path().string());
 
         const auto compileStart = Clock::now();
-        RunCommand compileRun;
-        compileRun.runProcess(command.c_str());
+        ShellCommandResult compileRun = runShellCommand(command.c_str());
         const Seconds compileDuration = Clock::now() - compileStart;
 
         if (configureExe)
@@ -347,10 +451,10 @@ int main(int argc, char **argv)
             std::lock_guard _(printMutex);
             if (compileRun.exitStatus == EXIT_SUCCESS)
             {
-                if (!compileRun.output->empty() && *compileRun.output != "hmake.cpp\r\n")
+                if (!compileRun.output.empty() && compileRun.output != "hmake.cpp\r\n")
                 {
                     printMessage(command);
-                    printMessage(*compileRun.output);
+                    printMessage(compileRun.output);
                 }
                 else
                 {
@@ -361,7 +465,7 @@ int main(int argc, char **argv)
             {
                 printMessage("Errors in Building " + label + " Executable\n");
                 printMessage(command + "\n");
-                printMessage(*compileRun.output + "\n");
+                printMessage(compileRun.output + "\n");
                 exit(compileRun.exitStatus);
             }
         }
@@ -371,21 +475,21 @@ int main(int argc, char **argv)
             printMessage("Running configure executable\n");
 
             const auto runStart = Clock::now();
-            RunCommand configureRun;
-            configureRun.runProcess(configureExePath.c_str());
+            const string configureCommand = quoteShellPath(configureExePath);
+            ShellCommandResult configureRun = runShellCommand(configureCommand.c_str());
             runConfigureTime = Clock::now() - runStart;
 
             std::lock_guard _(printMutex);
             configureRunExitStatus = configureRun.exitStatus;
             if (configureRun.exitStatus == EXIT_SUCCESS)
             {
-                printMessage(*configureRun.output);
+                printMessage(configureRun.output);
             }
             else
             {
                 printErrorMessage(FORMAT("Generated configure executable failed.\nExecutable: {}\nExit code: {}\n"
                                          "Process output:\n{}",
-                                         configureExePath, configureRun.exitStatus, *configureRun.output));
+                                         configureExePath, configureRun.exitStatus, configureRun.output));
             }
         }
     };

@@ -85,7 +85,7 @@ inline Node *configureNode;
 /// Directory context currently used while reading a decentralized specification.
 inline Node *currentNode;
 
-inline uint32_t nodesSizeBefore = 0;
+inline uint32_t cachedNodesCount = 0;
 
 /**
  * Compile-time build-system phase. `BOTH` aliases the active phase so shared code can use
@@ -477,7 +477,9 @@ void commandWithResponseFile(string &command, const string &responseFile, uint64
 string readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
-void writeNodesCacheIfNewNodesAdded();
+/// Writes node paths and resolved filesystem snapshots to `nodes.bin`.
+/// Each record is uint16 path size, path, `lastWriteTime`, `contentHash`.
+void writeNodesCache();
 string getConfigCache();
 string getBuildCache();
 string getThreadId();

@@ -11,19 +11,23 @@
 #include <list>
 #include <stack>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 using std::vector, std::list, std::stack;
 
 /// Windows-only event payload kept in `eventData`.
-/// The read buffer is reused across completions.
+#ifdef _WIN32
 struct CompletionKey
 {
-    /// Storage for an `OVERLAPPED` object.
-    alignas(8) char overlappedBuffer[32];
-    /// Reusable 4 KiB read buffer.
-    string buffer;
-    uint64_t handle;
-    BTarget *target;
+    OVERLAPPED readOverlapped{};
+    uint64_t handle = static_cast<uint64_t>(-1);
+    BTarget *target = nullptr;
 };
+
+inline constexpr uint32_t completionKeyCapacity = 32 * 1024;
+#endif
 
 /// Maps OS events back to the target whose process produced them.
 #ifdef _WIN32
@@ -34,8 +38,6 @@ GLOBAL_VARIABLE(vector<BTarget *>, eventData)
 
 #ifdef _WIN32
 GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
-#else
-GLOBAL_VARIABLE(vector<string *>, freeOutputStrings)
 #endif
 
 /// Next unused slot in `eventData` (Windows only).
@@ -92,6 +94,8 @@ class Builder
     uint32_t updatedCount = 0;
 
   private:
+    bool dispatchCompletedRead(BTarget *bTarget, uint64_t index, CompleteReadType completeReadType);
+
     /// Internal counters used by node-check code path.
     unsigned short launchedCount = 0;
     unsigned short checkingCount = 0;
@@ -109,7 +113,8 @@ class Builder
     /// Builds all targets using the asynchronous scheduler.
     void executeRoundZero();
 
-    /// Stats and hashes files in parallel. The final pass includes files discovered while building.
+    /// Stats and hashes files in parallel. Regular-file hashing is skipped when `lastWriteTime` matches the cache.
+    /// The final pass includes files discovered while building.
     static void checkNodes();
 
     /// Runs ready round-1 targets.

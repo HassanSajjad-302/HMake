@@ -188,19 +188,21 @@ CppTarget::CppTarget(Node *myBuildDir_, const bool buildExplicit, const string &
 void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
 {
     writeUint32(buffer, include.size());
-    for (auto &inclNode : include)
+    for (const InclNode &inclNode : include)
     {
         writeNode(buffer, inclNode.node);
+        writeBool(buffer, inclNode.isStandard);
     }
 }
 
-void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include, bool isStandard)
+void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include)
 {
     const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize);
     for (uint32_t i = 0; i < reserveSize; ++i)
     {
-        include.emplace_back(readHalfNode(ptr, bytesRead), isStandard);
+        Node *node = readHalfNode(ptr, bytesRead);
+        include.emplace_back(node, readBool(ptr, bytesRead));
     }
 }
 
@@ -232,6 +234,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     useIPC = configuration->evaluate(UseIPC::YES);
     jumboBuild = configuration->jumboBuild;
     jumboFileSize = configuration->jumboFileSize;
+    addCppSource = configuration->addCppSource;
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -391,9 +394,17 @@ void CppTarget::populateTransitiveProperties()
         {
             for (const InclNode &inclNode : cppTarget->useReqIncls)
             {
-                // Configure-time check.
-                actuallyAddInclude(false, inclNode.node, true, false);
-                reqIncls.emplace_back(inclNode);
+                const auto existing =
+                    std::ranges::find(reqIncls, inclNode.node, [](const InclNode &entry) { return entry.node; });
+                if (existing == reqIncls.end())
+                {
+                    reqIncls.emplace_back(inclNode);
+                }
+                else
+                {
+                    // If either declaration treats the path as project code, retain -I so warnings are not hidden.
+                    existing->isStandard &= inclNode.isStandard;
+                }
             }
         }
         reqCompilerFlags += cppTarget->useReqCompilerFlags;
@@ -406,6 +417,11 @@ void CppTarget::populateTransitiveProperties()
 
 void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::YES))
     {
         printErrorMessage(FORMAT("A regular source was added to a module-enabled target.\nTarget: {}\nSource file: {}\n"
@@ -483,6 +499,11 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
 
 void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportName)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::NO))
     {
         printErrorMessage(FORMAT("A module file was added to a target with modules disabled.\nTarget: {}\n"
@@ -1781,8 +1802,8 @@ void CppTarget::readConfigCacheAtBuildTime()
 
     if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
-        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls, isSystem);
-        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls, isSystem);
+        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls);
+        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls);
     }
 
     if (configuration->evaluate(IsCppMod::YES))
@@ -1851,6 +1872,11 @@ CppTarget &CppTarget::interfaceCompilerFlags(const string &compilerFlags)
 void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr,
                                      const bool recursive)
 {
+    if (addCppSource == AddCppSource::NO)
+    {
+        return;
+    }
+
     if (configuration->evaluate(IsCppMod::NO))
     {
         assignToCppSrcs = true;
@@ -2382,6 +2408,7 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         for (uint32_t i = 0; i < cachedReqInclsSize; ++i)
         {
             const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+            const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
             if (i < reqIncls.size() && reqIncls[i].node != cachedNode)
             {
                 printErrorMessage(
@@ -2389,6 +2416,14 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
                            "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
                            getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
                            cachedNode ? cachedNode->filePath : "<null>"));
+            }
+            if (i < reqIncls.size() && reqIncls[i].isStandard != cachedIsStandard)
+            {
+                printErrorMessage(
+                    FORMAT("Configuration cache verification failed: private include classification mismatch.\n"
+                           "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
+                           "Cached system classification: {}",
+                           getPrintName(), i, reqIncls[i].isStandard, cachedIsStandard));
             }
         }
 
@@ -2403,6 +2438,7 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
         for (uint32_t i = 0; i < cachedUseReqInclsSize; ++i)
         {
             const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+            const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
             if (i < useReqIncls.size() && useReqIncls[i].node != cachedNode)
             {
                 printErrorMessage(
@@ -2410,6 +2446,14 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
                            "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
                            getPrintName(), i, useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
                            cachedNode ? cachedNode->filePath : "<null>"));
+            }
+            if (i < useReqIncls.size() && useReqIncls[i].isStandard != cachedIsStandard)
+            {
+                printErrorMessage(
+                    FORMAT("Configuration cache verification failed: interface include classification mismatch.\n"
+                           "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
+                           "Cached system classification: {}",
+                           getPrintName(), i, useReqIncls[i].isStandard, cachedIsStandard));
             }
         }
     }

@@ -125,6 +125,13 @@ enum class WorkingSetProvider : uint8_t
 /// Process-wide because every configuration in one invocation observes the same repository working set.
 inline WorkingSetProvider adaptiveBuildWorkingSetProvider = WorkingSetProvider::NONE;
 
+/// Controls whether targets discover and compile source files. Include paths, headers, and header units remain active.
+enum class AddCppSource : bool
+{
+    NO,
+    YES,
+};
+
 enum class TreatHUAsHeaderFile : bool
 {
     NO,
@@ -277,6 +284,7 @@ class Configuration : public BTarget
     JumboBuild jumboBuild = JumboBuild::NO;
     /// Approximate source-byte budget for each generated jumbo translation unit.
     uint64_t jumboFileSize = 384 * 1024;
+    AddCppSource addCppSource = AddCppSource::YES;
     TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
     UseIPC useIPC = UseIPC::YES;
@@ -441,6 +449,9 @@ class Configuration : public BTarget
     /// Finalizes target state that depends on the complete configuration specification.
     void postConfigurationSpecification() const;
 
+    /// Copies user-configurable policy while leaving identity, targets, and materialized runtime state untouched.
+    void copySettingsFrom(const Configuration &other);
+
     /// Resolves tool commands and creates the default standard C++ target.
     virtual void initialize();
 
@@ -516,6 +527,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
     {
         return jumboBuild == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
+    {
+        return addCppSource == property;
     }
     else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
     {

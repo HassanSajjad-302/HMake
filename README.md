@@ -441,7 +441,9 @@ So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
 
 `isEventRegistered` should return `true` if it launched a subprocess via `run.startAsyncProcess`, and `false` if it
 completed synchronously. When a subprocess writes an IPC message to stdout, or exits, HMake calls `isEventCompleted`. An
-empty `message` parameter means the process exited; `run.output` contains its full output.
+empty `message` parameter means the process exited; `*run.output` contains its full output.
+When a callback returns `true`, it must select how processing continues: call `run.startRead()` to wait for more output,
+call `run.writeReadExpected()` to reply and then wait for more output, or call neither to leave the child paused.
 
 IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
 is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.
@@ -725,7 +727,7 @@ struct Process : BTarget
     explicit Process(const string &name_) : BTarget(name_, false, BTargetType::UNKNOWN)
     {
     }
-    static constexpr const char *cmd = "./a.out";
+    static inline char cmd[] = "./a.out";
 
     bool isEventRegistered(Builder &builder) override
     {
@@ -767,13 +769,15 @@ struct Process : BTarget
 
         if (!firstReceived)
         {
-            // Reply: send the module name the child asked for.
+            // Reply, then immediately arm the read for the child's next message.
             const string reply = "std\n";
-            if (write(run.writePipe, reply.data(), reply.size()) == -1)
-            {
-                printMessage("Warning: failed to write to child stdin\n");
-            }
+            run.writeReadExpected(reply);
             firstReceived = true;
+        }
+        else
+        {
+            // No reply is needed for the final message, but the exit notification still needs a read armed.
+            run.startRead();
         }
 
         return true; // keep listening; more messages or exit event may follow
@@ -809,7 +813,7 @@ MAIN_FUNCTION
 //
 //   <payload bytes>  <uint32 payload-length (LE)>  <32-byte delimiter>
 //
-// HMake strips message from the child's normal stdout which is run.output in
+// HMake strips message from the child's normal stdout which is *run.output in
 // the build-system
 // ---------------------------------------------------------------------------
 
@@ -905,7 +909,7 @@ Yey
 ```
 
 The child process and build-system communicate over two channels simultaneously: ordinary stdout for human-readable
-output (captured in `run.output` and printed after exit), and the P2978 IPC protocol for structured messages that the
+output (captured in `*run.output` and printed after exit), and the P2978 IPC protocol for structured messages that the
 build-system intercepts and routes to `isEventCompleted`. This is the same mechanism used internally by `CppMod` to
 implement C++20 module and header-unit support.
 

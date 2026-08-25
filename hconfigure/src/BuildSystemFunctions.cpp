@@ -52,19 +52,34 @@ void initializeCache()
         nodesCacheGlobal = readBufferFromCompressedFile(str);
 
         // Nodes loaded from cache are inserted into the hash set and nodeIndices. performSystemCheck() is deferred and
-        // later run in parallel.
+        // later run in parallel. Each record is uint16 path size, path, lastWriteTime, contentHash.
 
-        const uint64_t bufferSize = nodesCacheGlobal.size();
-        uint64_t bufferRead = 0;
-        while (bufferRead != bufferSize)
+        constexpr size_t metadataSize = 2 * sizeof(uint64_t);
+        const size_t bufferSize = nodesCacheGlobal.size();
+        size_t bufferRead = 0;
+        uint32_t cachedNodeIndex = 0;
+        while (bufferRead < bufferSize)
         {
+            if (bufferSize - bufferRead < sizeof(uint16_t))
+            {
+                printErrorMessage(FORMAT("Malformed nodes cache: truncated path length.\nPath: {}", str));
+            }
             uint16_t nodeFilePathSize;
             memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
             bufferRead += sizeof(uint16_t);
-            Node::getHalfNode(string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
+            if (bufferSize - bufferRead < static_cast<size_t>(nodeFilePathSize) + metadataSize)
+            {
+                printErrorMessage(FORMAT("Malformed nodes cache: truncated node record.\nPath: {}", str));
+            }
+            Node *node = Node::getHalfNode(string_view(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
+            memcpy(&node->lastWriteTime, nodesCacheGlobal.data() + bufferRead, sizeof(uint64_t));
+            bufferRead += sizeof(uint64_t);
+            memcpy(&node->contentHash, nodesCacheGlobal.data() + bufferRead, sizeof(uint64_t));
+            bufferRead += sizeof(uint64_t);
+            ++cachedNodeIndex;
         }
-        nodesSizeBefore = Node::idCount;
+        cachedNodesCount = cachedNodeIndex;
     }
 
     currentNode = Node::getHalfNode(current_path().string());
@@ -189,7 +204,7 @@ bool configureOrBuild()
             cache.registerCacheVariables();
             const string configCache = getConfigCache();
             const string buildCache = getBuildCache();
-            writeNodesCacheIfNewNodesAdded();
+            writeNodesCache();
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
                                         configCache);
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
@@ -199,7 +214,7 @@ bool configureOrBuild()
     else
     {
         const string buildCache = getBuildCache();
-        writeNodesCacheIfNewNodesAdded();
+        writeNodesCache();
         if (!buildCache.empty())
         {
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
@@ -228,15 +243,9 @@ void constructGlobals()
 
 #ifdef _WIN32
     std::construct_at(&unusedKeysIndices);
-    unusedKeysIndices.reserve(32 * 1024);
-    eventData = new CompletionKey[32 * 1024];
+    unusedKeysIndices.reserve(completionKeyCapacity);
+    eventData = new CompletionKey[completionKeyCapacity];
 #else
-    std::construct_at(&freeOutputStrings);
-    freeOutputStrings.reserve(4 * 1024);
-    for (size_t i = 0; i < 4 * 1024; ++i)
-    {
-        freeOutputStrings.emplace_back(new string());
-    }
     std::construct_at(&eventData);
     eventData.resize(32 * 1024, nullptr);
 #endif
@@ -259,11 +268,6 @@ void destructGlobals()
     std::destroy_at(&unusedKeysIndices);
 #else
     std::destroy_at(&eventData);
-    for (string *ptr : freeOutputStrings)
-    {
-        delete ptr;
-    }
-    std::destroy_at(&freeOutputStrings);
 #endif
 
     std::destroy_at(&cache);
@@ -542,8 +546,7 @@ void commandWithResponseFileImpl(String &command, const string &responseFile, co
     }
 
     const size_t arguments = commandView.find_first_not_of(" \t\r\n", end);
-    const string_view responseContents =
-        arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
+    const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
     writeResponseFile(responseFile, responseContents);
 
     command.clear();
@@ -652,30 +655,59 @@ void readBuildCache()
     }
 }
 
-void writeNodesCacheIfNewNodesAdded()
+void writeNodesCache()
 {
-    if (const uint64_t newNodesSize = Node::idCount; newNodesSize != nodesSizeBefore)
+    const uint32_t newNodesSize = Node::idCount;
+    bool nodesCacheChanged = newNodesSize != cachedNodesCount;
+
+    size_t pos = 0;
+    for (uint32_t i = 0; i < cachedNodesCount; ++i)
     {
-        // In this optimization, we calculate the new increment first and then extend size by that and then add the
-        // entries.
-        /*uint32_t newNodesStrSize = 0;
-        newNodesStrSize += (newNodesSize - nodesSizeBefore) * 2;
-        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
+        const Node *node = nodeIndices[i];
+        uint16_t strSize;
+        memcpy(&strSize, nodesCacheGlobal.data() + pos, sizeof(uint16_t));
+        pos += sizeof(uint16_t) + strSize;
+
+        if (node->hashCompleted)
         {
-            newNodesStrSize += nodeIndices[i]->filePath.size();
+            uint64_t persistedLastWriteTime;
+            memcpy(&persistedLastWriteTime, nodesCacheGlobal.data() + pos, sizeof(persistedLastWriteTime));
+            if (node->lastWriteTime != persistedLastWriteTime)
+            {
+                const uint64_t metadata[] = {node->lastWriteTime, node->contentHash};
+                memcpy(nodesCacheGlobal.data() + pos, metadata, sizeof(metadata));
+                nodesCacheChanged = true;
+            }
         }
-        nodesCacheGlobal.resize(nodesCacheGlobal.size() + newNodesStrSize);*/
-        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
-        {
-            const string &str = nodeIndices[i]->filePath;
-            uint16_t strSize = str.size();
-            const auto ptr = reinterpret_cast<const char *>(&strSize);
-            nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);
-            nodesCacheGlobal.insert(nodesCacheGlobal.end(), str.begin(), str.end());
-        }
-        nodesSizeBefore = newNodesSize;
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
+        pos += 2 * sizeof(uint64_t);
     }
+
+    for (uint32_t i = cachedNodesCount; i < newNodesSize; ++i)
+    {
+        const Node *node = nodeIndices[i];
+        const uint16_t pathSize = static_cast<uint16_t>(node->filePath.size());
+        nodesCacheGlobal.append(reinterpret_cast<const char *>(&pathSize), sizeof(pathSize));
+        nodesCacheGlobal.append(node->filePath);
+        uint64_t metadata[2];
+        if (node->hashCompleted)
+        {
+            metadata[0] = node->lastWriteTime;
+            metadata[1] = node->contentHash;
+        }
+        else
+        {
+            metadata[0] = UINT64_MAX;
+            metadata[1] = 0;
+        }
+        nodesCacheGlobal.append(reinterpret_cast<const char *>(metadata), sizeof(metadata));
+    }
+
+    if (!nodesCacheChanged)
+    {
+        return;
+    }
+    cachedNodesCount = newNodesSize;
+    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
 }
 
 string getConfigCache()

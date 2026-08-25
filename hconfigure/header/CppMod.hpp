@@ -172,10 +172,6 @@ class CppMod : public CppSrc
     /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
     Node *interfaceNode;
 
-    /// CppMod::updateBTarget will initialize this and then will call receiveMessage to learn about any dependencies the
-    /// compiler require.
-    P2978::IPCManagerBS *ipcManager;
-
     /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
 

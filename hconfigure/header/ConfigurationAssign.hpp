@@ -107,6 +107,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         jumboBuild = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
+    {
+        addCppSource = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
     {
         treatHuAsHeaderFile = property;
@@ -299,13 +303,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         if (stdCppTarget && stdCppTarget->objectFileProducer)
         {
             stdCppTarget->getSourceTarget().reqCompilerFlags += property;
-        }
-    }
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        if (stdCppTarget && stdCppTarget->objectFileProducer)
-        {
-            stdCppTarget->getSourceTarget().reqCompileDefinitions.emplace(property);
         }
     }
 
