@@ -997,7 +997,7 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
     }
     for (int64_t j = lhs.size() - 1; j >= 0; --j)
     {
-        if (lhs[j] != rhs[j])
+        if (lhs[index] != rhs[index])
         {
             return false;
         }
