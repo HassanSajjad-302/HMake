@@ -1011,7 +1011,7 @@ void lowerCaseOnWindows(char *ptr, const uint64_t size)
     {
         for (uint64_t i = 0; i < size; ++i)
         {
-            ptr[i] = tolower(ptr[i]);
+            ptr[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(ptr[i])));
         }
     }
 }
