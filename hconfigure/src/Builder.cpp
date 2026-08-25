@@ -375,6 +375,7 @@ void Builder::executeRoundZero()
             if (eventIndex == -1)
             {
                 const string buildCache = getBuildCache();
+                Builder::checkNodes();
                 writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
@@ -457,6 +458,7 @@ void Builder::executeRoundZero()
                 }
 
                 const string buildCache = getBuildCache();
+                Builder::checkNodes();
                 writeNodesCache();
                 // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
