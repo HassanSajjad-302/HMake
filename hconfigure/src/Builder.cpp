@@ -137,11 +137,11 @@ void Builder::executeRoundZero()
     RealBTarget::sortGraph();
     // RealBTarget::printSortedGraph();
 
-    if (const size_t topologicalTargetCount = RealBTarget::sorted.size())
+    if (const uint64_t topologicalTargetCount = RealBTarget::sorted.size())
     {
         // Visit consumers before producers: selective work pulls its required dependencies into the build, while a
         // changed relationship updates the dependency contract persisted for the consumer.
-        for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
+        for (uint64_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
         {
             RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
 
@@ -202,7 +202,7 @@ void Builder::executeRoundZero()
     // Most targets consume one queue slot. Dynamic module promotions may add tombstoned replacement slots later,
     // for which PointerArrayList retains geometric growth.
     readyBTargets.reserve(RealBTarget::sorted.size());
-    for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
+    for (uint64_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
     {
         RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
         if (!target.dependenciesSize)
@@ -439,7 +439,7 @@ void Builder::executeRoundZero()
             if (eventFd == sfd)
             {
                 signalfd_siginfo signalInfo{};
-                const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
+                const int64_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
                 if (bytesRead == -1)
                 {
                     if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -469,7 +469,7 @@ void Builder::executeRoundZero()
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
-            if (eventFd < 0 || static_cast<size_t>(eventFd) >= eventData.size())
+            if (eventFd < 0 || static_cast<uint64_t>(eventFd) >= eventData.size())
             {
                 printErrorMessage(FORMAT("Linux build event has an invalid file descriptor.\n"
                                          "File descriptor: {}\nEvent table size: {}",
@@ -561,7 +561,7 @@ void Builder::executeRoundZero()
             FORMAT("Could not close the Windows build event loop.\nSystem error: {}", P2978::getErrorString()));
     }
 #endif
-    serverFd = static_cast<uint64_t>(-1);
+    serverFd = -1;
 }
 
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
@@ -592,7 +592,7 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 #else
     if (fd >= eventData.size())
     {
-        eventData.resize(std::max<size_t>(fd + 1, eventData.size() * 2), nullptr);
+        eventData.resize(std::max<uint64_t>(fd + 1, eventData.size() * 2), nullptr);
     }
     eventData[fd] = target_;
     epoll_event ev{};
@@ -674,7 +674,7 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
         return;
     }
     key.target = nullptr;
-    key.handle = static_cast<uint64_t>(-1);
+    key.handle = -1;
     unusedKeysIndices.emplace_back(index);
 #else
     if (index >= eventData.size() || !eventData[index])
@@ -717,12 +717,12 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
 
     if (n > v.size())
     {
-        for (size_t i = 0; i < v.size(); ++i)
+        for (uint64_t i = 0; i < v.size(); ++i)
         {
             result.emplace_back(v.data() + i, 1);
         }
 
-        for (size_t i = v.size(); i < n; ++i)
+        for (uint64_t i = v.size(); i < n; ++i)
         {
             result.emplace_back();
         }
@@ -730,13 +730,13 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
         return;
     }
 
-    const size_t chunk_size = v.size() / n;
-    const size_t remainder = v.size() % n;
-    size_t start_pos = 0;
+    const uint64_t chunk_size = v.size() / n;
+    const uint64_t remainder = v.size() % n;
+    uint64_t start_pos = 0;
 
     for (uint16_t i = 0; i < n; ++i)
     {
-        size_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
+        uint64_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
 
         result.emplace_back(v.data() + start_pos, current_chunk_size);
         start_pos += current_chunk_size;
