@@ -569,35 +569,6 @@ void commandWithResponseFile(string &command, const string &responseFile, const 
     commandWithResponseFileImpl(command, responseFile, threshold);
 }
 
-string readBufferFromCompressedFile(const string &fileName)
-{
-#ifndef USE_FILE_COMPRESSION
-    return fileToString(fileName);
-#else
-    string compressedBuffer = fileToString(fileName);
-    string fileBuffer;
-    fileBuffer.resize(*reinterpret_cast<uint64_t *>(compressedBuffer.data()));
-
-    const int decompressSize =
-        LZ4_decompress_safe(&compressedBuffer[8], fileBuffer.data(), compressedBuffer.size() - 8, fileBuffer.size());
-
-    if (decompressSize < 0)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
-    }
-
-    if (fileBuffer.size() != decompressSize)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
-    }
-
-    return fileBuffer;
-
-#endif
-}
-
 string getThreadId()
 {
     const auto myId = std::this_thread::get_id();
