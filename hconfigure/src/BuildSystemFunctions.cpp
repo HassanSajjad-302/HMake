@@ -337,66 +337,52 @@ string_view removeDashCppFromNameSV(string_view name)
     return {name.data(), name.size() - 4}; // Removing -cpp from the name
 }
 
-// RapidJSON helper: platform-specific output stream wrapper.
-struct RHPOStream
+namespace
 {
-    FILE *fp = nullptr;
-    RHPOStream(string_view fileName);
-    ~RHPOStream();
-    typedef char Ch;
-    void Put(Ch c) const;
-    void Flush();
-};
-
-RHPOStream::RHPOStream(const string_view fileName)
+template <typename String> void readFileIntoString(const string &fileName, String &buffer)
 {
-    fp = fopen(fileName.data(), "wb");
-}
-
-RHPOStream::~RHPOStream()
-{
-    int result = fclose(fp);
-    if (result != 0)
-    {
-        printErrorMessage(FORMAT("Could not close a cache file.\nSystem error: {}", P2978::getErrorString()));
-    }
-}
-
-void RHPOStream::Put(const Ch c) const
-{
-    fputc(c, fp);
-}
-
-void RHPOStream::Flush()
-{
-    if (int result = fflush(fp); result != 0)
-    {
-        printErrorMessage(FORMAT("Could not flush a cache file.\nSystem error: {}", P2978::getErrorString()));
-    }
-}
-
-string fileToString(const string &fileName)
-{
-    string fileBuffer;
-    FILE *fp;
-#ifdef WIN32
-    fopen_s(&fp, fileName.data(), "rb");
+    FILE *file = nullptr;
+#ifdef _WIN32
+    const int openError = fopen_s(&file, fileName.c_str(), "rb");
 #else
-    fp = fopen(fileName.c_str(), "r");
+    file = fopen(fileName.c_str(), "rb");
+    const int openError = file == nullptr ? errno : 0;
 #endif
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    fileBuffer.resize_and_overwrite(filesize, [&](char *buf, const size_t n) { return fread(buf, 1, n, fp); });
-    fclose(fp);
-    return fileBuffer;
-}
-
-void fileToString(const string &fileName, std::pmr::string &buffer)
-{
-    FILE *fp;
-#ifdef WIN32
-    fopen_s(&fp, fileName.data(), "rb");
+    if (openError != 0 || file == nullptr)
+    {
+        printErrorMessage(FORMAT("Could not open a file for reading.\nPath: {}\nSystem error: {}", fileName,
+                                 std::error_code(openError, std::generic_category()).message()));
+    }
+#ifdef _WIN32
+    const int seekEndResult = _fseeki64(file, 0, SEEK_END);
+#else
+    const int seekEndResult = fseeko(file, 0, SEEK_END);
+#endif
+    if (seekEndResult != 0)
+    {
+        const string error = std::error_code(errno, std::generic_category()).message();
+        fclose(file);
+        printErrorMessage(FORMAT("Could not seek to the end of a file.\nPath: {}\nSystem error: {}", fileName, error));
+    }
+#ifdef _WIN32
+    const auto length = _ftelli64(file);
+#else
+    const auto length = ftello(file);
+#endif
+    if (length < 0)
+    {
+        const string error = std::error_code(errno, std::generic_category()).message();
+        fclose(file);
+        printErrorMessage(FORMAT("Could not determine a file's size.\nPath: {}\nSystem error: {}", fileName, error));
+    }
+    if (static_cast<uintmax_t>(length) > std::numeric_limits<size_t>::max())
+    {
+        fclose(file);
+        printErrorMessage(FORMAT("A file is too large to read into memory.\nPath: {}\nFile size: {}", fileName,
+                                 static_cast<uintmax_t>(length)));
+    }
+#ifdef _WIN32
+    const int seekStartResult = _fseeki64(file, 0, SEEK_SET);
 #else
     fp = fopen(fileName.c_str(), "r");
 #endif
