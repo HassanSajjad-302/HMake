@@ -1,11 +1,11 @@
 
 #include "Builder.hpp"
 #include "Cache.hpp"
-#include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
 #include "RunCommand.hpp"
 
+#include <cassert>
 #include <cerrno>
 #include <csignal>
 #include <mutex>
@@ -127,16 +127,7 @@ void Builder::executeRoundOne()
     }
 
     execute();
-    if (updatedCount != readyBTargetsSizeGoal)
-    {
-        // Unreachable for a closed, immutable, acyclic graph whose FULL/WAIT edge counts are symmetric. Retain the
-        // check as a cheap guard against future custom targets mutating raw scheduler state during round one.
-        printErrorMessage(FORMAT("Internal round-one scheduler invariant failed.\nCompleted targets: {}\n"
-                                 "Expected targets: {}\n"
-                                 "Hint: a target, blocking edge, dependency count, or queue entry changed during "
-                                 "round-one execution.",
-                                 updatedCount, readyBTargetsSizeGoal));
-    }
+    assert(updatedCount == readyBTargetsSizeGoal);
 }
 
 void Builder::executeRoundZero()
@@ -186,14 +177,7 @@ void Builder::executeRoundZero()
                             ++observedBlockingDependencies;
                         }
                     }
-                    if (observedBlockingDependencies != target.dependenciesSize)
-                    {
-                        printErrorMessage(FORMAT("Internal dependency-count invariant failed.\nTarget: {}\n"
-                                                 "Recorded blocking count: {}\nObserved blocking dependencies: {}",
-                                                 target.getBTarget()->getPrintName(),
-                                                 static_cast<uint32_t>(target.dependenciesSize),
-                                                 observedBlockingDependencies));
-                    }
+                    assert(observedBlockingDependencies == target.dependenciesSize);
                     targetCache.depsCache = updatedDependencies;
                 }
                 else
@@ -235,13 +219,10 @@ void Builder::executeRoundZero()
 
     // One limit caps active child processes; the other limits aggregate compiler pressure. A fully idle scheduler may
     // still start one process, so conservative throttling cannot prevent the graph from making initial progress.
-    const uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
+    const uint16_t maxRunningProcessAllowed = projectCache.defaultJobs;
     availableProcessSlots = maxRunningProcessAllowed;
 
-    if (!availableProcessSlots)
-    {
-        printErrorMessage("Invalid process limit.\nConfigured parallel-process count: 0\nHint: set it to at least 1.");
-    }
+    assert(availableProcessSlots != 0);
     const uint32_t hardwareThreads = std::max(1u, std::thread::hardware_concurrency());
     maxSimultaneousProcessDesired = hardwareThreads * 8;
 
@@ -344,12 +325,7 @@ void Builder::executeRoundZero()
 
             if (target->isEventRegistered(*this))
             {
-                if (!availableProcessSlots)
-                {
-                    printErrorMessage(FORMAT("Internal process-slot underflow before target launch.\nTarget: {}\n"
-                                             "Configured slots: {}",
-                                             target->getPrintName(), maxRunningProcessAllowed));
-                }
+                assert(availableProcessSlots != 0);
                 --availableProcessSlots;
 
 #ifdef _WIN32
@@ -405,8 +381,7 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                                buildCache);
+                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -431,13 +406,7 @@ void Builder::executeRoundZero()
                 if (!targetActive)
                 {
                     decrementFromDependents(target->realBTargets[0]);
-                    if (availableProcessSlots >= maxRunningProcessAllowed)
-                    {
-                        printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
-                                                 "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
-                                                 target->getPrintName(), availableProcessSlots,
-                                                 maxRunningProcessAllowed));
-                    }
+                    assert(availableProcessSlots < maxRunningProcessAllowed);
                     ++availableProcessSlots;
                 }
             }
@@ -459,17 +428,8 @@ void Builder::executeRoundZero()
         if constexpr (ndeb == NDEB::NO)
         {
             // +1 accounts for possible signalfd readiness event.
-            if (readyEventCount != -1 && readyEventCount > maxRunningProcessAllowed - availableProcessSlots + 1)
-            {
-                for (const BTarget *ptr : eventData)
-                {
-                    if (ptr)
-                    {
-                        printMessage(ptr->getPrintName() + '\n');
-                    }
-                }
-                HMAKE_HMAKE_INTERNAL_ERROR
-            }
+            assert(readyEventCount == -1 ||
+                   readyEventCount <= maxRunningProcessAllowed - availableProcessSlots + 1);
         }
 
         for (int readyEventIndex = 0; readyEventIndex < readyEventCount; readyEventIndex++)
@@ -503,8 +463,7 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                                buildCache);
+                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -522,12 +481,7 @@ void Builder::executeRoundZero()
             if (!callIsEventCompleted(bt, eventFd))
             {
                 decrementFromDependents(bt->realBTargets[0]);
-                if (availableProcessSlots >= maxRunningProcessAllowed)
-                {
-                    printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
-                                             "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
-                                             bt->getPrintName(), availableProcessSlots, maxRunningProcessAllowed));
-                }
+                assert(availableProcessSlots < maxRunningProcessAllowed);
                 ++availableProcessSlots;
             }
         }
@@ -536,11 +490,7 @@ void Builder::executeRoundZero()
 
     if (updatedCount != readyBTargetsSizeGoal)
     {
-        // At this point the list must be empty
-        if (readyBTargets.hasElement())
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
+        assert(!readyBTargets.hasElement());
         /*for (uint32_t i = 0; i < readyBTargetsSizeGoal; ++i)
         {
             printMessage(readyBTargets.array[i].value->bTarget->getPrintName() + '\n');
@@ -652,7 +602,6 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         printErrorMessage(FORMAT("Could not register target output with the build event loop.\nTarget: {}\n"
                                  "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_ADD)\nSystem error: {}",
                                  target_->getPrintName(), fd, P2978::getErrorString()));
-        HMAKE_HMAKE_INTERNAL_ERROR
     }
     return fd;
 #endif
@@ -736,7 +685,6 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
         printErrorMessage(FORMAT("Could not unregister target output from the build event loop.\nTarget: {}\n"
                                  "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_DEL)\nSystem error: {}",
                                  eventData[index]->getPrintName(), index, P2978::getErrorString()));
-        HMAKE_HMAKE_INTERNAL_ERROR
     }
     eventData[index] = nullptr;
 #endif
@@ -797,8 +745,9 @@ void Builder::checkNodes()
 {
     vector<Node *> statNodes;
     vector<Node *> hashNodes;
-    statNodes.reserve(Node::idCount);
-    hashNodes.reserve(Node::idCount);
+    constexpr uint32_t initialNodeCheckCapacity = 1024;
+    statNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
+    hashNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
 
     // statCompleted/hashCompleted distinguish the initial snapshot from later calls. The same pass therefore also
     // picks up headers and other nodes discovered while the build is running.
@@ -938,11 +887,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
 {
     // This is the graph's commit point: propagate rebuild/failure state and one predecessor completion to each FULL
     // consumer. A consumer becomes runnable exactly when its final prerequisite commits here.
-    if (rb.isCompleted)
-    {
-        printErrorMessage(FORMAT("Build target completed more than once.\nTarget: {}\nRound: {}",
-                                 rb.getBTarget()->getPrintName(), static_cast<uint32_t>(rb.round)));
-    }
+    assert(!rb.isCompleted);
     ++updatedCount;
 
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
@@ -976,13 +921,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
             {
                 dependent->exitStatus = EXIT_FAILURE;
             }
-            if (!dependent->dependenciesSize)
-            {
-                printErrorMessage(FORMAT("Build dependency count underflow.\nCompleted dependency: {}\n"
-                                         "Dependent target: {}\nRound: {}",
-                                         rb.getBTarget()->getPrintName(), dependent->getBTarget()->getPrintName(),
-                                         static_cast<uint32_t>(dependent->round)));
-            }
+            assert(dependent->dependenciesSize != 0);
             --dependent->dependenciesSize;
             if (!dependent->dependenciesSize)
             {

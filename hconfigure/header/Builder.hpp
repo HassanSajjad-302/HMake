@@ -12,6 +12,9 @@
 #include <stack>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
 #endif
 
@@ -41,7 +44,9 @@ GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
 #endif
 
 /// Next unused slot in `eventData` (Windows only).
+#ifdef _WIN32
 inline uint32_t currentIndex = 0;
+#endif
 
 /// Builder runs two passes:
 ///
