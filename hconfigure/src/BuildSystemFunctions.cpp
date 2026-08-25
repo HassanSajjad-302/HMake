@@ -1023,30 +1023,9 @@ string getNormalizedPath(path filePath)
         filePath = path(normalizationBasePath) / filePath;
     }
     filePath = filePath.lexically_normal();
-
-    if constexpr (os == OS::NT)
-    {
-        // TODO: avoid mutating the path buffer through const_cast.
-        for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
-        {
-            *it = std::tolower(*it);
-        }
-    }
-    return filePath.string();
-}
-
-bool childInParentPathNormalized(const string_view parent, const string_view child)
-{
-    if (child.size() < parent.size())
-    {
-        return false;
-    }
-    if (child.size() > parent.size() && child[parent.size()] != slashc)
-    {
-        return false;
-    }
-
-    return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
+    string result = filePath.string();
+    lowerCaseOnWindows(result.data(), result.size());
+    return result;
 }
 
 bool isPathInConfigureDirectory(const string_view filePath)
