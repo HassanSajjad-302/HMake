@@ -400,11 +400,45 @@ void fileToString(const string &fileName, std::pmr::string &buffer)
 #else
     fp = fopen(fileName.c_str(), "r");
 #endif
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    buffer.resize_and_overwrite(filesize, [&](char *buf, const size_t n) { return fread(buf, 1, n, fp); });
-    fclose(fp);
+    if (seekStartResult != 0)
+    {
+        const string error = std::error_code(errno, std::generic_category()).message();
+        fclose(file);
+        printErrorMessage(
+            FORMAT("Could not seek to the start of a file.\nPath: {}\nSystem error: {}", fileName, error));
+    }
+    const size_t fileSize = static_cast<size_t>(length);
+    size_t bytesRead = 0;
+    buffer.resize_and_overwrite(fileSize, [&](char *bytes, const size_t bufferSize) {
+        assert(bufferSize == fileSize);
+        bytesRead = fileSize == 0 ? 0 : fread(bytes, 1, fileSize, file);
+        return bytesRead;
+    });
+    if (bytesRead != fileSize)
+    {
+        const string error = errno == 0 ? std::make_error_code(std::errc::io_error).message()
+                                        : std::error_code(errno, std::generic_category()).message();
+        fclose(file);
+        printErrorMessage(FORMAT("Could not read a complete file.\nPath: {}\nSystem error: {}", fileName, error));
+    }
+    if (fclose(file) != 0)
+    {
+        printErrorMessage(FORMAT("Could not close a file after reading.\nPath: {}\nSystem error: {}", fileName,
+                                 std::error_code(errno, std::generic_category()).message()));
+    }
+}
+} // namespace
+
+string fileToString(const string &fileName)
+{
+    string buffer;
+    readFileIntoString(fileName, buffer);
+    return buffer;
+}
+
+void fileToString(const string &fileName, std::pmr::string &buffer)
+{
+    readFileIntoString(fileName, buffer);
 }
 
 namespace
