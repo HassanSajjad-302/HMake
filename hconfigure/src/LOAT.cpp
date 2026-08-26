@@ -173,7 +173,7 @@ void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
     }
 
     std::ranges::sort(producers);
-    for (size_t index = 1; index < producers.size(); ++index)
+    for (uint64_t index = 1; index < producers.size(); ++index)
     {
         if (producers[index - 1] == producers[index])
         {
@@ -207,7 +207,7 @@ void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
     }
 
     std::ranges::sort(objectNodes, {}, &Node::myId);
-    for (size_t index = 1; index < objectNodes.size(); ++index)
+    for (uint64_t index = 1; index < objectNodes.size(); ++index)
     {
         if (objectNodes[index - 1]->myId == objectNodes[index]->myId)
         {
