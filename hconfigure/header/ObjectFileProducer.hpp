@@ -143,7 +143,7 @@ class ObjectFileProducer : public BTarget
     span<const uint32_t> cachedReqObjectFileProducers;
 
     /// Number of bytes consumed by the ObjectFileProducer prefix in this target's config-cache entry.
-    uint32_t configCacheRead = 0;
+    uint64_t configCacheRead = 0;
 
     ObjectFileProducer(string name_, BTargetType bTargetType, bool buildExplicit, bool makeDirectory);
     ObjectFileProducer(string name_, uint64_t cacheName_, BTargetType bTargetType, bool buildExplicit,
@@ -175,7 +175,7 @@ class ObjectFileProducer : public BTarget
     void verifyConfigCache(string_view configCache) const override;
 
   protected:
-    void verifyObjectFileProducerConfigCache(string_view configCache, uint32_t &bytesRead) const;
+    void verifyObjectFileProducerConfigCache(string_view configCache, uint64_t &bytesRead) const;
 
   private:
     void readObjectFileProducerConfigCache();

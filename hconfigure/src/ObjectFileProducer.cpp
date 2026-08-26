@@ -47,7 +47,7 @@ void ObjectFileProducer::populateReqAndUseReqObjectFileProducers()
             }
         }
 
-        for (size_t position = 0; position < pending.size(); ++position)
+        for (uint64_t position = 0; position < pending.size(); ++position)
         {
             ObjectFileProducer *producer = pending[position];
             const OpDepInfo dependency = dependencies.find(producer)->second;
@@ -179,11 +179,11 @@ void ObjectFileProducer::writeConfigCacheAtConfigTime(string &buffer)
 
 void ObjectFileProducer::verifyConfigCache(const string_view configCache) const
 {
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     verifyObjectFileProducerConfigCache(configCache, bytesRead);
 }
 
-void ObjectFileProducer::verifyObjectFileProducerConfigCache(const string_view configCache, uint32_t &bytesRead) const
+void ObjectFileProducer::verifyObjectFileProducerConfigCache(const string_view configCache, uint64_t &bytesRead) const
 {
     const uint32_t cachedDependencyCount = readUint32(configCache.data(), bytesRead);
     if (cachedDependencyCount != reqObjectFileProducers.size())
