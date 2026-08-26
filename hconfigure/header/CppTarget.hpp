@@ -13,35 +13,6 @@
 
 using std::same_as;
 
-/// Path argument accepted by the user-facing `CppTarget` APIs.
-///
-/// Callers may pass a string-like path or an existing `Node*`. Existing nodes avoid another normalization and lookup.
-struct NodeOrStr
-{
-    /// Pre-resolved node when the caller already has a `Node*` (skips path normalization lookup).
-    Node *node_ = nullptr;
-    /// Path string used when `hasNode_` is false.
-    string_view str_;
-    /// If true, use `node_`; otherwise resolve `str_` via `Node::getNodeNonNormalized()`.
-    bool hasNode_ = false;
-
-    NodeOrStr(Node *node) : node_(node), hasNode_(true) {}
-    NodeOrStr(const string &path) : str_(path) {}
-    NodeOrStr(string_view path) : str_(path) {}
-    NodeOrStr(const char *path) : str_(path) {}
-
-    /// Resolve to a Node*, performing the lookup only when a string was supplied.
-    /// \p isFile matches the second argument of Node::getNodeNonNormalized.
-    Node *resolve(bool isFile) const
-    {
-        if (hasNode_)
-        {
-            return node_;
-        }
-        return Node::getNodeNonNormalized(string(str_), isFile);
-    }
-};
-
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
 /// The API is designed so that user can compile their c++ code with or without header-units. These are classified as
