@@ -20,7 +20,7 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
         const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
         {
-            uint32_t bytesRead = 0;
+            uint64_t bytesRead = 0;
             // reading config-cache
             myBuildDir = readHalfNode(configCache.data(), bytesRead);
             sourceNode = readHalfNode(configCache.data(), bytesRead);

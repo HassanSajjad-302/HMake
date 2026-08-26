@@ -47,7 +47,7 @@ struct LlvmHeaderGen : BTarget
         }
         else
         {
-            uint32_t bytesRead = 0;
+            uint64_t bytesRead = 0;
             sourceNode = readHalfNode(bTargetCaches[cacheIndex].getBuildCache().data(), bytesRead);
         }
     }
