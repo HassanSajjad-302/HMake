@@ -16,6 +16,7 @@ using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr,
 
 class CppTarget;
 class CppSrc;
+struct Compiler;
 struct HfOrCppMod;
 
 struct CompareCppSrc
@@ -66,12 +67,11 @@ class CppSrc : public ObjectFile
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
     string getPrintName() const override;
     void getCompileCommand(std::pmr::string &compileCommand) const;
-    /// MSVC prints header-files with the compilation output. This function parses them out from that output.
-    void parseHeadersFromMSVCTextOutput(string &output, bool isClang);
-    /// Parses header dependencies from a GCC-compatible `.d` file.
-    void parseHeadersFromGccDepsOutput();
-    /// Dispatches to the dependency parser for the selected compiler.
-    void parseHeaderDeps(string &output);
+    /// Parses compiler dependencies and removes MSVC showIncludes records from output.
+    /// MSVC uses showIncludes when dependencyFile is empty and /sourceDependencies otherwise; GCC-family compilers
+    /// use Make dependency syntax. Returned paths are absolute, normalized Nodes.
+    static flat_hash_set<Node *> parseHeaderDeps(string &output, const Compiler &compiler, int exitStatus,
+                                                 const path &dependencyFile, const path &workingDirectory);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
@@ -116,15 +116,15 @@ struct CppModWithDirectHash
 {
     using is_transparent = void;
 
-    size_t operator()(const CppModWithDirect &e) const
+    uint64_t operator()(const CppModWithDirect &e) const
     {
         // alignof(CppMod) >= 8, so low 3 bits are always zero — shift for better distribution
-        return reinterpret_cast<size_t>(e.getPointer()) >> 3;
+        return reinterpret_cast<uint64_t>(e.getPointer()) >> 3;
     }
 
-    size_t operator()(const CppMod *ptr) const
+    uint64_t operator()(const CppMod *ptr) const
     {
-        return reinterpret_cast<size_t>(ptr) >> 3;
+        return reinterpret_cast<uint64_t>(ptr) >> 3;
     }
 };
 
