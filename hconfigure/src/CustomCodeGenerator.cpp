@@ -82,7 +82,8 @@ bool HeaderGen::isEventRegistered(Builder &builder)
     }
 
     // CreateProcessA may temporarily modify its command-line buffer; preserve the cached command used for hashing.
-    string mutableCommand = command;
+    STACK_PMR_STRING(mutableCommand, 64 * 1024)
+    mutableCommand.assign(command);
     run.startAsyncProcess(mutableCommand.data(), builder, this, false);
     return true;
 }
@@ -98,7 +99,7 @@ bool HeaderGen::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    string outputStr;
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(ColorIndex::cyan);
