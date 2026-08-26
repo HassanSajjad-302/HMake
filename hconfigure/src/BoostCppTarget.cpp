@@ -78,7 +78,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         }
 
         string_view configCache = bTargetCaches[cacheIndex].configCache;
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         uint32_t count = readUint32(configCache.data(), bytesRead);
         for (uint64_t i = 0; i < count; ++i)
         {
