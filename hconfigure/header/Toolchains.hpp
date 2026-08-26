@@ -50,7 +50,6 @@ struct Toolchains
     bool userFileLoaded = false;
     bool sourceFileLoaded = false;
 
-    void addBuiltin(const string &name, Toolchain toolchain);
     void loadFile(const path &filePath);
 };
 

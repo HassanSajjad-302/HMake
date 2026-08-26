@@ -5,8 +5,8 @@
 #endif
 
 #if !defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) || !defined(HMAKE_DEFAULT_COMPILER) || !defined(HMAKE_DEFAULT_LINKER) ||    \
-    !defined(HMAKE_DEFAULT_ARCHIVER) || !defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) ||                                   \
-    !defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) || !defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) ||                           \
+    !defined(HMAKE_DEFAULT_ARCHIVER) || !defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) ||                                    \
+    !defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) || !defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) ||                            \
     !defined(HMAKE_DEFAULT_TARGET) || !defined(HMAKE_DEFAULT_INCLUDE_DIRS) || !defined(HMAKE_DEFAULT_LIBRARY_DIRS)
 #error "The HMake built-in toolchain requires all HMAKE_DEFAULT_* definitions."
 #endif
@@ -136,9 +136,8 @@ std::vector<string> readStringArray(const rapidjson::Value &value, const path &f
 
 string lowercase(string value)
 {
-    std::ranges::transform(value, value.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
+    std::ranges::transform(value, value.begin(),
+                           [](const unsigned char character) { return static_cast<char>(std::tolower(character)); });
     return value;
 }
 
@@ -195,8 +194,8 @@ void parseTargetTriple(Toolchain &toolchain, const path &sourceFile)
         toolchain.targetArch = Arch::X86;
         toolchain.targetAddressModel = AddressModel::A_64;
     }
-    else if (architecture == "x86" || architecture == "i386" || architecture == "i486" ||
-             architecture == "i586" || architecture == "i686")
+    else if (architecture == "x86" || architecture == "i386" || architecture == "i486" || architecture == "i586" ||
+             architecture == "i686")
     {
         toolchain.targetArch = Arch::X86;
         toolchain.targetAddressModel = AddressModel::A_32;
@@ -326,8 +325,7 @@ void addJsonString(rapidjson::Value &object, const string_view name, const strin
     object.AddMember(jsonName, jsonValue, allocator);
 }
 
-rapidjson::Value makeJsonStringArray(const std::vector<string> &values,
-                                     rapidjson::Document::AllocatorType &allocator)
+rapidjson::Value makeJsonStringArray(const std::vector<string> &values, rapidjson::Document::AllocatorType &allocator)
 {
     rapidjson::Value result(rapidjson::kArrayType);
     result.Reserve(static_cast<rapidjson::SizeType>(values.size()), allocator);
@@ -366,20 +364,16 @@ Toolchains::Toolchains()
     builtIn.archiver.bTPath = HMAKE_DEFAULT_ARCHIVER;
     builtIn.includeDirs = HMAKE_DEFAULT_INCLUDE_DIRS;
     builtIn.libraryDirs = HMAKE_DEFAULT_LIBRARY_DIRS;
-    addBuiltin(HMAKE_DEFAULT_TOOLCHAIN_NAME, std::move(builtIn));
-}
 
-void Toolchains::addBuiltin(const string &name, Toolchain toolchain)
-{
+    const string name = HMAKE_DEFAULT_TOOLCHAIN_NAME;
     const path sourceFile = "<builtin>";
     assert(!name.empty());
     assert(!entries.contains(name));
-    toolchain.name = name;
-    assert(!toolchain.compiler.bTPath.empty() && !toolchain.linker.bTPath.empty() &&
-           !toolchain.archiver.bTPath.empty() && !toolchain.family.empty() && !toolchain.style.empty() &&
-           !toolchain.version.empty() && !toolchain.target.empty());
-    initializeBuildTools(toolchain, sourceFile);
-    entries.emplace(name, std::move(toolchain));
+    builtIn.name = name;
+    assert(!builtIn.compiler.bTPath.empty() && !builtIn.linker.bTPath.empty() && !builtIn.archiver.bTPath.empty() &&
+           !builtIn.family.empty() && !builtIn.style.empty() && !builtIn.version.empty() && !builtIn.target.empty());
+    initializeBuildTools(builtIn, sourceFile);
+    entries.emplace(name, std::move(builtIn));
     registryOrder.emplace_back(name);
 }
 
@@ -402,8 +396,7 @@ void Toolchains::loadFile(const path &filePath)
     }
     if (status.type() != std::filesystem::file_type::regular)
     {
-        printErrorMessage(
-            FORMAT("A toolchain-registry path is not a regular file.\nPath: {}", filePath.string()));
+        printErrorMessage(FORMAT("A toolchain-registry path is not a regular file.\nPath: {}", filePath.string()));
     }
 
     const string content = fileToString(filePath.string());
@@ -535,9 +528,9 @@ void Toolchains::loadFile(const path &filePath)
             }
         }
 
-        if (toolchain.compiler.bTPath.empty() || toolchain.linker.bTPath.empty() ||
-            toolchain.archiver.bTPath.empty() || toolchain.family.empty() || toolchain.style.empty() ||
-            toolchain.version.empty() || toolchain.target.empty())
+        if (toolchain.compiler.bTPath.empty() || toolchain.linker.bTPath.empty() || toolchain.archiver.bTPath.empty() ||
+            toolchain.family.empty() || toolchain.style.empty() || toolchain.version.empty() ||
+            toolchain.target.empty())
         {
             toolchainError(filePath, name, "Required string fields must not be empty after inheritance.");
         }
