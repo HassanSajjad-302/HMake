@@ -86,11 +86,12 @@ class Node
     bool hashCompleted : 1 = false;
 
     explicit Node(string_view filePath_);
-    /// Returns basename (characters after final path separator).
-    string getFileName() const;
-    /// Returns basename without extension.
-    string getFileStem() const;
-    string getExtension() const;
+    /// Returns a non-owning view of the basename (characters after the final path separator).
+    [[nodiscard]] string_view getFileName() const noexcept;
+    /// Returns a non-owning view of the basename without its extension.
+    [[nodiscard]] string_view getFileStem() const noexcept;
+    /// Returns a non-owning view of the final extension, including its leading dot.
+    [[nodiscard]] string_view getFileExtension() const noexcept;
     /// Returns a non-owning view of filePath before its final host path separator.
     /// The returned view never ends with slashc.
     string_view getDirectoryStringView() const;
