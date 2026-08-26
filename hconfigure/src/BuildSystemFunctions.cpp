@@ -641,6 +641,28 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     writeNodes(reconfigureNodes);
 }
 
+uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
+{
+    uint64_t bytesRead = 0;
+    buildExeCommandHash = readUint64(cacheBytes.data(), bytesRead);
+    configureExeCommandHash = readUint64(cacheBytes.data(), bytesRead);
+    selectedToolchainCommandCache = readUint64(cacheBytes.data(), bytesRead);
+    projectCacheContentCache = readUint64(cacheBytes.data(), bytesRead);
+    recompileNodes.clear();
+    reconfigureNodes.clear();
+    const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
+        const uint32_t count = readUint32(cacheBytes.data(), bytesRead);
+        nodes.reserve(count);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            nodes.emplace(nodeIndices[readUint32(cacheBytes.data(), bytesRead)]);
+        }
+    };
+    readNodes(recompileNodes);
+    readNodes(reconfigureNodes);
+    return bytesRead;
+}
+
 void readConfigCache()
 {
     string_view configCache = configCacheGlobal;
@@ -672,23 +694,7 @@ void readBuildCache()
     string_view buildCache = buildCacheGlobal;
     buildCache.remove_prefix(sizeof(buildCacheContentHash));
     const uint64_t bufferSize = buildCache.size();
-    uint64_t bytesRead = 0;
-    buildExeCommandHash = readUint64(buildCache.data(), bytesRead);
-    configureExeCommandHash = readUint64(buildCache.data(), bytesRead);
-    selectedToolchainCommandCache = readUint64(buildCache.data(), bytesRead);
-    projectCacheContentCache = readUint64(buildCache.data(), bytesRead);
-    recompileNodes.clear();
-    reconfigureNodes.clear();
-    const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
-        const uint32_t count = readUint32(buildCache.data(), bytesRead);
-        nodes.reserve(count);
-        for (uint32_t index = 0; index < count; ++index)
-        {
-            nodes.emplace(nodeIndices[readUint32(buildCache.data(), bytesRead)]);
-        }
-    };
-    readNodes(recompileNodes);
-    readNodes(reconfigureNodes);
+    uint64_t bytesRead = readBuildCacheInvalidationPrefix(buildCache);
 
     for (BTargetCache &fileCacheTarget : bTargetCaches)
     {
