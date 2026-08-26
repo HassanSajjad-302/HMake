@@ -22,8 +22,10 @@
 #include <string>
 #include <vector>
 
-using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
+using std::string, std::filesystem::path, std::unique_ptr, std::make_unique, std::vector,
     std::deque, gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
+
+class Node;
 
 /// Convenience wrapper used throughout the codebase for compile-time-checked `std::format` calls.
 #define FORMAT(formatStr, ...) std::format(formatStr, __VA_ARGS__)
@@ -46,8 +48,7 @@ enum class NDEB
     YES,
 };
 
-// Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
-// when nlohmann/json is removed.
+// Shared host-native path separator used by cache keys and generated paths.
 #ifdef _WIN32
 inline constexpr char slashc = '\\';
 inline constexpr OS os = OS::NT;
@@ -67,9 +68,26 @@ inline bool isConsole = true;
 
 /// Target names explicitly requested on the `hbuild` command line.
 inline flat_hash_set<string> cmdTargets;
-inline string configCacheGlobal{};
-inline string buildCacheGlobal{};
-inline string nodesCacheGlobal{};
+/// Nonzero only when the generated build executable received hbuild's per-invocation `-j` override.
+inline uint16_t buildJobsOverride = 0;
+
+inline constexpr string_view nodesCacheFileName = "nodes-cache.bin";
+inline constexpr string_view configCacheFileName = "config-cache.bin";
+inline constexpr string_view buildCacheFileName = "build-cache.bin";
+
+/// Hash of the payload following `build-cache.bin`'s leading u64, shared with hbuild's take-off path.
+extern uint64_t buildCacheContentHash;
+
+/// Take-off command/content caches stored at the start of the `build-cache.bin` payload, after its content hash.
+/// Generated configure/build executables preserve these values when rewriting ordinary target rows.
+extern uint64_t buildExecutableCommandCache;
+extern uint64_t configureExecutableCommandCache;
+extern uint64_t selectedToolchainCommandCache;
+extern uint64_t projectCacheContentCache;
+
+/// Files whose content changes require rebuilding the generated executables or rerunning configuration.
+extern flat_hash_set<Node *> recompileNodes;
+extern flat_hash_set<Node *> reconfigureNodes;
 
 /// Node representing the project source directory.
 inline class Node *srcNode;
@@ -84,8 +102,6 @@ inline Node *configureNode;
 
 /// Directory context currently used while reading a decentralized specification.
 inline Node *currentNode;
-
-inline uint32_t cachedNodesCount = 0;
 
 /**
  * Compile-time build-system phase. `BOTH` aliases the active phase so shared code can use
@@ -130,10 +146,9 @@ template <typename T> inline flat_hash_set<T *> targetPointers;
 inline class Builder *builderPtr;
 
 inline string currentMinusConfigure;
-/// Loads tool/cache-variable state and interns cached nodes for the active configure directory.
+/// Loads tool/cache-variable state and maps target caches after the entry point has restored cached nodes.
 void initializeCache();
-inline const string dashCpp = "-cpp";
-inline const string dashLink = "-link";
+inline constexpr char dashCpp[] = "-cpp";
 
 // Enum with sequential indices for array lookup
 enum class ColorIndex : uint16_t
@@ -433,11 +448,12 @@ inline const char *getColorCode(ColorIndex c)
     return ColorCodes[static_cast<uint32_t>(c)];
 }
 
-// LZ4 decompression allocates `(compressed size * bufferMultiplier) + 1` bytes.
-// Compression validates that the original-to-compressed size ratio fits within this bound.
-void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer);
+/// Writes a cache buffer atomically. A non-null hash adds a u64 payload-hash prefix and skips an unchanged write.
+void writeCacheFile(const string &fileName, string_view fileBuffer, uint64_t *cachedContentHash = nullptr);
+/// Replaces destination with a fully written and closed temporary sibling on the same filesystem.
+void replaceFileAtomically(const string &temporaryFile, const string &destinationFile);
 
-/// Compares equal-length byte strings. Despite the name, this is an equality test performed back to front.
+/// Compares equal-length byte strings from the end, which is favorable for normalized paths sharing long roots.
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
 
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
@@ -448,9 +464,6 @@ void lowerCaseOnWindows(char *ptr, uint64_t size);
  * and lowercases it on Windows. It does not access the filesystem or resolve symlinks.
  */
 string getNormalizedPath(path filePath);
-
-/// Returns true when two normalized paths are equal or `child` is below `parent` at a path-component boundary.
-bool childInParentPathNormalized(string_view parent, string_view child);
 
 /// Returns true when an already-normalized path is inside the active configure/build directory. Compiler dependency
 /// scanners omit such generated files because their producing BTarget, rather than their content hash, controls
@@ -473,17 +486,13 @@ void fileToString(const string &fileName, std::pmr::string &buffer);
 void commandWithResponseFile(std::pmr::string &command, const string &responseFile, uint64_t threshold);
 void commandWithResponseFile(string &command, const string &responseFile, uint64_t threshold);
 
-/// Reads and decompresses an HMake cache file (or reads it directly when compression is disabled).
-string readBufferFromCompressedFile(const string &fileName);
-void readConfigCache();
-void readBuildCache();
-/// Writes node paths and resolved filesystem snapshots to `nodes.bin`.
-/// Each record is uint16 path size, path, `lastWriteTime`, `contentHash`.
+/// Reads `[u64 payload-hash][u16 path-size][path][u64 mtime][u64 content-hash]...` from `nodes-cache.bin`.
+void loadNodesCache(const path &fileName);
+
+/// Atomically writes the same hash-prefixed repeated-record representation to `nodes-cache.bin`.
 void writeNodesCache();
-string getConfigCache();
 string getBuildCache();
 string getThreadId();
-string getFileNameJsonOrOut(const string &name);
 
 /// Writes exactly `message` to stdout and flushes; no newline is appended.
 void printMessage(const string &message);
@@ -493,14 +502,11 @@ void printMessage(const std::pmr::string &message);
 [[noreturn]] void printErrorMessage(const string &message);
 /// Prints a standardized error without exiting. Use when assembling a multi-error diagnostic.
 void printErrorMessageNoReturn(const string &message);
-void printErrorMessageColor(const string &message, uint32_t color);
 
 #define HMAKE_HMAKE_INTERNAL_ERROR                                                                                     \
     printErrorMessage(FORMAT("Internal HMake invariant failed.\nSource file: {}\nSource line: {}", __FILE__, __LINE__));
 
 string getLastNameAfterSlash(string_view name);
-string_view getLastNameAfterSlashV(string_view name);
-string getNameBeforeLastSlash(string_view name);
 string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
@@ -517,8 +523,6 @@ void destructGlobals();
 
 /// Wraps text in ordinary double quotes.
 string addQuotes(string_view pstr);
-/// Wraps text in escaped double quotes suitable for embedding in another command string.
-string addEscapedQuotes(const string &pstr);
 
 /** Splits into non-owning views, preserving empty fields. The input storage must outlive the result. */
 vector<string_view> split(string_view str, char token);

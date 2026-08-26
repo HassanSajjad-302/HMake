@@ -4,16 +4,19 @@
 #include "Cache.hpp"
 #include "CppTarget.hpp"
 #include "ToolsCache.hpp"
-#include "lz4/lib/lz4.h"
+#include <cassert>
+#include <cctype>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
-#include <fstream>
+#include <limits>
 #include <print>
-#include <stacktrace>
+#include <sstream>
+#include <system_error>
 #include <thread>
-#include <utility>
 
-using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
+using std::filesystem::current_path;
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -32,54 +35,44 @@ void setIsConsol()
 #endif
 }
 
-string getFileNameJsonOrOut(const string &name)
+uint64_t buildCacheContentHash = -1;
+uint64_t buildExecutableCommandCache = 0;
+uint64_t configureExecutableCommandCache = 0;
+uint64_t selectedToolchainCommandCache = 0;
+uint64_t projectCacheContentCache = 0;
+flat_hash_set<Node *> recompileNodes;
+flat_hash_set<Node *> reconfigureNodes;
+
+namespace
 {
-#ifdef USE_FILE_COMPRESSION
-    return name + ".bin.lz4";
-#else
-    return name + ".bin";
-#endif
+/// Owning storage for the complete hash-prefixed config/build cache files. Views in `BTargetCache` borrow from these
+/// strings, so neither is modified after cache parsing.
+string configCacheGlobal;
+string buildCacheGlobal;
+uint64_t nodesCacheContentHash = -1;
+uint64_t configCacheContentHash = -1;
+
+void readConfigCache();
+void readBuildCache();
+string getConfigCache();
+
+string cachePath(const string_view fileName)
+{
+    string result = configureNode->filePath;
+    result.push_back(slashc);
+    result.append(fileName);
+    return result;
 }
+
+} // namespace
 
 void initializeCache()
 {
-    cache.initializeCacheVariableFromCacheFile();
-    toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
-
-    if (const auto p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
+    projectCache.initializeFromCacheFile();
+    toolchains.initialize(srcNode->filePath);
+    if (projectCache.toolchainName.empty())
     {
-        const string str = p.string();
-        nodesCacheGlobal = readBufferFromCompressedFile(str);
-
-        // Nodes loaded from cache are inserted into the hash set and nodeIndices. performSystemCheck() is deferred and
-        // later run in parallel. Each record is uint16 path size, path, lastWriteTime, contentHash.
-
-        constexpr size_t metadataSize = 2 * sizeof(uint64_t);
-        const size_t bufferSize = nodesCacheGlobal.size();
-        size_t bufferRead = 0;
-        uint32_t cachedNodeIndex = 0;
-        while (bufferRead < bufferSize)
-        {
-            if (bufferSize - bufferRead < sizeof(uint16_t))
-            {
-                printErrorMessage(FORMAT("Malformed nodes cache: truncated path length.\nPath: {}", str));
-            }
-            uint16_t nodeFilePathSize;
-            memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
-            bufferRead += sizeof(uint16_t);
-            if (bufferSize - bufferRead < static_cast<size_t>(nodeFilePathSize) + metadataSize)
-            {
-                printErrorMessage(FORMAT("Malformed nodes cache: truncated node record.\nPath: {}", str));
-            }
-            Node *node = Node::getHalfNode(string_view(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
-            bufferRead += nodeFilePathSize;
-            memcpy(&node->lastWriteTime, nodesCacheGlobal.data() + bufferRead, sizeof(uint64_t));
-            bufferRead += sizeof(uint64_t);
-            memcpy(&node->contentHash, nodesCacheGlobal.data() + bufferRead, sizeof(uint64_t));
-            bufferRead += sizeof(uint64_t);
-            ++cachedNodeIndex;
-        }
-        cachedNodesCount = cachedNodeIndex;
+        projectCache.toolchainName = toolchains.defaultName();
     }
 
     currentNode = Node::getHalfNode(current_path().string());
@@ -97,10 +90,15 @@ void initializeCache()
                                             currentNode->filePath.end());
     }
 
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
+    if (const path p = cachePath(configCacheFileName); exists(p))
     {
-        const string str = p.string();
-        configCacheGlobal = readBufferFromCompressedFile(str);
+        configCacheGlobal = fileToString(p.string());
+        if (configCacheGlobal.size() < sizeof(configCacheContentHash))
+        {
+            printErrorMessage(FORMAT("Malformed config cache: missing payload hash.\nPath: {}\nCache size: {}",
+                                     p.string(), configCacheGlobal.size()));
+        }
+        memcpy(&configCacheContentHash, configCacheGlobal.data(), sizeof(configCacheContentHash));
     }
     else
     {
@@ -113,10 +111,15 @@ void initializeCache()
 
     readConfigCache();
 
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
+    if (const path p = cachePath(buildCacheFileName); exists(p))
     {
-        const string str = p.string();
-        buildCacheGlobal = readBufferFromCompressedFile(str);
+        buildCacheGlobal = fileToString(p.string());
+        if (buildCacheGlobal.size() < sizeof(buildCacheContentHash))
+        {
+            printErrorMessage(FORMAT("Malformed build cache: missing payload hash.\nPath: {}\nCache size: {}",
+                                     p.string(), buildCacheGlobal.size()));
+        }
+        memcpy(&buildCacheContentHash, buildCacheGlobal.data(), sizeof(buildCacheContentHash));
         readBuildCache();
     }
     else
@@ -196,19 +199,18 @@ bool configureOrBuild()
     {
         return builderPtr->errorHappenedInRoundMode;
     }
+    Builder::checkNodes();
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (!builderPtr->errorHappenedInRoundMode)
         {
-            cache.registerCacheVariables();
+            projectCache.writeToCacheFile();
             const string configCache = getConfigCache();
             const string buildCache = getBuildCache();
             writeNodesCache();
-            writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
-                                        configCache);
-            writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                        buildCache);
+            writeCacheFile(cachePath(configCacheFileName), configCache, &configCacheContentHash);
+            writeCacheFile(cachePath(buildCacheFileName), buildCache, &buildCacheContentHash);
         }
     }
     else
@@ -217,8 +219,7 @@ bool configureOrBuild()
         writeNodesCache();
         if (!buildCache.empty())
         {
-            writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                        buildCache);
+            writeCacheFile(cachePath(buildCacheFileName), buildCache, &buildCacheContentHash);
         }
     }
 
@@ -228,6 +229,23 @@ bool configureOrBuild()
 void constructGlobals()
 {
     // We intentionally skip zero-initializing these large arrays. This improves zero-target build time by roughly 4-5%.
+
+    configCacheGlobal = {};
+    buildCacheGlobal = {};
+    recompileNodes.clear();
+    reconfigureNodes.clear();
+    nodesCacheContentHash = -1;
+    configCacheContentHash = -1;
+    buildCacheContentHash = -1;
+    buildExecutableCommandCache = 0;
+    configureExecutableCommandCache = 0;
+    selectedToolchainCommandCache = 0;
+    projectCacheContentCache = 0;
+    buildJobsOverride = 0;
+#ifdef _WIN32
+    currentIndex = 0;
+#endif
+    Node::idCount = 0;
 
     // ~1 MB per round; released after the round finishes.
     for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
@@ -239,7 +257,7 @@ void constructGlobals()
     nodeIndices.reserve(128 * 1024);
     std::construct_at(&nodeAllFiles, 10000);
 
-    std::construct_at(&cache);
+    std::construct_at(&projectCache);
 
 #ifdef _WIN32
     std::construct_at(&unusedKeysIndices);
@@ -253,6 +271,11 @@ void constructGlobals()
 
 void destructGlobals()
 {
+    configCacheGlobal = {};
+    buildCacheGlobal = {};
+    recompileNodes.clear();
+    reconfigureNodes.clear();
+
     delete builderPtr;
     builderPtr = nullptr;
 
@@ -270,7 +293,7 @@ void destructGlobals()
     std::destroy_at(&eventData);
 #endif
 
-    std::destroy_at(&cache);
+    std::destroy_at(&projectCache);
     std::destroy_at(&nodeAllFiles);
     std::destroy_at(&nodeIndices);
 }
@@ -287,24 +310,6 @@ string getLastNameAfterSlash(string_view name)
     if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
         return {name.begin() + i + 1, name.end()};
-    }
-    return string(name);
-}
-
-string_view getLastNameAfterSlashV(string_view name)
-{
-    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
-    {
-        return {name.begin() + i + 1, name.end()};
-    }
-    return name;
-}
-
-string getNameBeforeLastSlash(string_view name)
-{
-    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
-    {
-        return {name.begin(), name.begin() + i};
     }
     return string(name);
 }
@@ -365,9 +370,9 @@ template <typename String> void readFileIntoString(const string &fileName, Strin
         printErrorMessage(FORMAT("Could not seek to the end of a file.\nPath: {}\nSystem error: {}", fileName, error));
     }
 #ifdef _WIN32
-    const auto length = _ftelli64(file);
+    const int64_t length = _ftelli64(file);
 #else
-    const auto length = ftello(file);
+    const int64_t length = ftello(file);
 #endif
     if (length < 0)
     {
@@ -375,16 +380,10 @@ template <typename String> void readFileIntoString(const string &fileName, Strin
         fclose(file);
         printErrorMessage(FORMAT("Could not determine a file's size.\nPath: {}\nSystem error: {}", fileName, error));
     }
-    if (static_cast<uintmax_t>(length) > std::numeric_limits<size_t>::max())
-    {
-        fclose(file);
-        printErrorMessage(FORMAT("A file is too large to read into memory.\nPath: {}\nFile size: {}", fileName,
-                                 static_cast<uintmax_t>(length)));
-    }
 #ifdef _WIN32
     const int seekStartResult = _fseeki64(file, 0, SEEK_SET);
 #else
-    fp = fopen(fileName.c_str(), "r");
+    const int seekStartResult = fseeko(file, 0, SEEK_SET);
 #endif
     if (seekStartResult != 0)
     {
@@ -393,9 +392,9 @@ template <typename String> void readFileIntoString(const string &fileName, Strin
         printErrorMessage(
             FORMAT("Could not seek to the start of a file.\nPath: {}\nSystem error: {}", fileName, error));
     }
-    const size_t fileSize = static_cast<size_t>(length);
-    size_t bytesRead = 0;
-    buffer.resize_and_overwrite(fileSize, [&](char *bytes, const size_t bufferSize) {
+    const uint64_t fileSize = static_cast<uint64_t>(length);
+    uint64_t bytesRead = 0;
+    buffer.resize_and_overwrite(fileSize, [&](char *bytes, const uint64_t bufferSize) {
         assert(bufferSize == fileSize);
         bytesRead = fileSize == 0 ? 0 : fread(bytes, 1, fileSize, file);
         return bytesRead;
@@ -468,7 +467,7 @@ void writeResponseFile(const string &fileName, const string_view contents)
         printErrorMessage(FORMAT("Could not create response file.\nResponse file: {}", fileName));
     }
 
-    const size_t written = contents.empty() ? 0 : fwrite(contents.data(), 1, contents.size(), output);
+    const uint64_t written = contents.empty() ? 0 : fwrite(contents.data(), 1, contents.size(), output);
     const int closeResult = fclose(output);
     if (written != contents.size() || closeResult != 0)
     {
@@ -504,7 +503,7 @@ void commandWithResponseFileImpl(String &command, const string &responseFile, co
     }
 
     command.clear();
-    for (size_t index = 1; index < expanded.we_wordc; ++index)
+    for (uint64_t index = 1; index < expanded.we_wordc; ++index)
     {
         appendResponseArgument(command, expanded.we_wordv[index]);
     }
@@ -536,14 +535,14 @@ void commandWithResponseFileImpl(String &command, const string &responseFile, co
     // CreateProcess receives the original Windows command line directly. Preserve its existing argument spelling in
     // the response file; only separate argv[0], respecting an ordinary quoted executable path.
     const string_view commandView(command.data(), command.size());
-    const size_t begin = commandView.find_first_not_of(" \t\r\n");
+    const uint64_t begin = commandView.find_first_not_of(" \t\r\n");
     if (begin == string_view::npos)
     {
         printErrorMessage("Cannot create a response file for an empty command.");
     }
 
     STACK_PMR_STRING(executable, 16 * 1024)
-    size_t end = begin;
+    uint64_t end = begin;
     if (commandView[begin] == '"')
     {
         end = commandView.find('"', begin + 1);
@@ -565,7 +564,7 @@ void commandWithResponseFileImpl(String &command, const string &responseFile, co
         executable.assign(commandView.substr(begin, end - begin));
     }
 
-    const size_t arguments = commandView.find_first_not_of(" \t\r\n", end);
+    const uint64_t arguments = commandView.find_first_not_of(" \t\r\n", end);
     const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
     writeResponseFile(responseFile, responseContents);
 
@@ -597,110 +596,290 @@ string getThreadId()
     return ss.str() + '\n';
 }
 
+void loadNodesCache(const path &fileName)
+{
+    assert(Node::idCount == 0 && nodeIndices.empty());
+
+    const string cacheStorage = fileToString(fileName.string());
+    string_view cache = cacheStorage;
+    if (cache.size() < sizeof(nodesCacheContentHash))
+    {
+        printErrorMessage(FORMAT("Malformed node cache: missing payload hash.\nPath: {}\nCache size: {}",
+                                 fileName.string(), cache.size()));
+    }
+    memcpy(&nodesCacheContentHash, cache.data(), sizeof(nodesCacheContentHash));
+    cache.remove_prefix(sizeof(nodesCacheContentHash));
+    const char *bytes = cache.data();
+    uint64_t offset = 0;
+    uint32_t nodeCount = 0;
+    constexpr uint32_t maximumNodeCount = 128 * 1024;
+    while (offset != cache.size())
+    {
+        if (cache.size() - offset < sizeof(uint16_t))
+        {
+            printErrorMessage(FORMAT("Malformed node cache: truncated path size.\nPath: {}\nNode id: {}\n"
+                                     "Offset: {}\nCache size: {}",
+                                     fileName.string(), nodeCount, offset, cache.size()));
+        }
+        uint16_t pathSize;
+        memcpy(&pathSize, bytes + offset, sizeof(pathSize));
+        offset += sizeof(pathSize);
+        constexpr uint64_t snapshotSize = 2 * sizeof(uint64_t);
+        if (pathSize == 0 || pathSize > cache.size() - offset || snapshotSize > cache.size() - offset - pathSize)
+        {
+            printErrorMessage(FORMAT("Malformed node cache: truncated node record.\nPath: {}\nNode id: {}\n"
+                                     "Path size: {}\nOffset: {}\nCache size: {}",
+                                     fileName.string(), nodeCount, pathSize, offset, cache.size()));
+        }
+        if (nodeCount == maximumNodeCount)
+        {
+            printErrorMessage(FORMAT("Malformed node cache: node count exceeds the supported limit.\nPath: {}\n"
+                                     "Limit: {}",
+                                     fileName.string(), maximumNodeCount));
+        }
+
+        const string_view nodePath(bytes + offset, pathSize);
+        if (nodePath.find('\0') != string_view::npos)
+        {
+            printErrorMessage(FORMAT("Malformed node cache: a node path contains a null byte.\nPath: {}\nNode id: {}",
+                                     fileName.string(), nodeCount));
+        }
+        Node *node = Node::getHalfNode(nodePath);
+        if (node->myId != nodeCount)
+        {
+            printErrorMessage(FORMAT("Malformed node cache: duplicate node identity breaks stable ids.\nPath: {}\n"
+                                     "Record id: {}\nExisting id: {}\nNode path: {}",
+                                     fileName.string(), nodeCount, node->myId, nodePath));
+        }
+        offset += pathSize;
+        uint64_t lastWriteTime;
+        uint64_t contentHash;
+        memcpy(&lastWriteTime, bytes + offset, sizeof(lastWriteTime));
+        offset += sizeof(lastWriteTime);
+        memcpy(&contentHash, bytes + offset, sizeof(contentHash));
+        offset += sizeof(contentHash);
+        node->lastWriteTime = lastWriteTime;
+        node->contentHash = contentHash;
+        ++nodeCount;
+    }
+}
+
+namespace
+{
+uint32_t readCheckedUint32(const string_view bytes, uint64_t &offset, const string_view field)
+{
+    if (offset > bytes.size() || bytes.size() - offset < sizeof(uint32_t))
+    {
+        printErrorMessage(
+            FORMAT("Malformed build cache: truncated {}.\nOffset: {}\nCache size: {}", field, offset, bytes.size()));
+    }
+    uint32_t value;
+    memcpy(&value, bytes.data() + offset, sizeof(value));
+    offset += sizeof(value);
+    return value;
+}
+
+uint64_t readCheckedUint64(const string_view bytes, uint64_t &offset, const string_view field)
+{
+    if (offset > bytes.size() || bytes.size() - offset < sizeof(uint64_t))
+    {
+        printErrorMessage(
+            FORMAT("Malformed cache: truncated {}.\nOffset: {}\nCache size: {}", field, offset, bytes.size()));
+    }
+    uint64_t value;
+    memcpy(&value, bytes.data() + offset, sizeof(value));
+    offset += sizeof(value);
+    return value;
+}
+
+string_view readCheckedStringView(const string_view bytes, uint64_t &offset, const string_view field)
+{
+    const uint32_t size = readCheckedUint32(bytes, offset, FORMAT("{} size", field));
+    if (offset > bytes.size() || size > bytes.size() - offset)
+    {
+        printErrorMessage(FORMAT("Malformed cache: truncated {}.\nPayload size: {}\nOffset: {}\nCache size: {}", field,
+                                 size, offset, bytes.size()));
+    }
+    const string_view result(bytes.data() + offset, size);
+    offset += size;
+    return result;
+}
+
+void readInvalidationArray(const string_view bytes, uint64_t &offset, flat_hash_set<Node *> &nodes,
+                           const string_view arrayName)
+{
+    const uint32_t count = readCheckedUint32(bytes, offset, FORMAT("{} count", arrayName));
+    if (offset > bytes.size() || count > (bytes.size() - offset) / sizeof(uint32_t))
+    {
+        printErrorMessage(FORMAT("Malformed build cache: truncated {} node-id array.\nCount: {}\nOffset: {}\n"
+                                 "Cache size: {}",
+                                 arrayName, count, offset, bytes.size()));
+    }
+    if (count > nodeIndices.size())
+    {
+        printErrorMessage(FORMAT("Malformed build cache: {} node-id count exceeds the node cache.\n"
+                                 "Count: {}\nNode-cache count: {}",
+                                 arrayName, count, nodeIndices.size()));
+    }
+    nodes.reserve(count);
+    for (uint32_t index = 0; index < count; ++index)
+    {
+        const uint32_t nodeId = readCheckedUint32(bytes, offset, FORMAT("{} node id", arrayName));
+        if (nodeId >= nodeIndices.size())
+        {
+            printErrorMessage(FORMAT("Malformed build cache: {} node id is out of range.\nArray index: {}\n"
+                                     "Node id: {}\nNode-cache count: {}",
+                                     arrayName, index, nodeId, nodeIndices.size()));
+        }
+        Node *node = nodeIndices[nodeId];
+        nodes.emplace(node);
+    }
+}
+
+void writeInvalidationArray(string &bytes, const flat_hash_set<Node *> &nodes)
+{
+    assert(nodes.size() <= std::numeric_limits<uint32_t>::max());
+    writeUint32(bytes, static_cast<uint32_t>(nodes.size()));
+    for (const Node *node : nodes)
+    {
+        assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
+        writeUint32(bytes, node->myId);
+    }
+}
+
+uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
+{
+    recompileNodes.clear();
+    reconfigureNodes.clear();
+    uint64_t offset = 0;
+    buildExecutableCommandCache = readCheckedUint64(cacheBytes, offset, "build executable command cache");
+    configureExecutableCommandCache = readCheckedUint64(cacheBytes, offset, "configure executable command cache");
+    selectedToolchainCommandCache = readCheckedUint64(cacheBytes, offset, "selected toolchain command cache");
+    projectCacheContentCache = readCheckedUint64(cacheBytes, offset, "project cache content cache");
+    readInvalidationArray(cacheBytes, offset, recompileNodes, "recompile");
+    readInvalidationArray(cacheBytes, offset, reconfigureNodes, "reconfigure");
+    return offset;
+}
+
+void writeBuildCacheInvalidationPrefix(string &cacheBytes)
+{
+    projectCacheContentCache = projectCache.contentCache();
+    writeUint64(cacheBytes, buildExecutableCommandCache);
+    writeUint64(cacheBytes, configureExecutableCommandCache);
+    writeUint64(cacheBytes, selectedToolchainCommandCache);
+    writeUint64(cacheBytes, projectCacheContentCache);
+    writeInvalidationArray(cacheBytes, recompileNodes);
+    writeInvalidationArray(cacheBytes, reconfigureNodes);
+}
+
 void readConfigCache()
 {
-    const uint32_t bufferSize = configCacheGlobal.size();
-    uint32_t bufferRead = 0;
+    string_view configCache = configCacheGlobal;
+    if (!configCache.empty())
+    {
+        configCache.remove_prefix(sizeof(configCacheContentHash));
+    }
+    const uint64_t bufferSize = configCache.size();
+    uint64_t bufferRead = 0;
 
     uint32_t count = 0;
-    const char *ptr = configCacheGlobal.data();
     while (bufferRead != bufferSize)
     {
         BTargetCache bTargetCache;
 
-        bTargetCache.name = readUint64(ptr, bufferRead);
-        bTargetCache.configCache = readStringView(ptr, bufferRead);
+        bTargetCache.name = readCheckedUint64(configCache, bufferRead, "target cache name");
+        bTargetCache.configCache = readCheckedStringView(configCache, bufferRead, "target config payload");
 
         bTargetCaches.emplace_back(bTargetCache);
-        nameToIndexMap.emplace(bTargetCache.name, count);
+        if (!nameToIndexMap.emplace(bTargetCache.name, count).second)
+        {
+            printErrorMessage(FORMAT("Malformed config cache: duplicate target cache name.\nCache name: {}\n"
+                                     "Entry index: {}",
+                                     bTargetCache.name, count));
+        }
 
         ++count;
-    }
-
-    if (bufferRead != bufferSize)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
     }
 }
 
 void readBuildCache()
 {
-    const uint32_t bufferSize = buildCacheGlobal.size();
-    uint32_t bytesRead = 0;
+    string_view buildCache = buildCacheGlobal;
+    buildCache.remove_prefix(sizeof(buildCacheContentHash));
+    const uint64_t bufferSize = buildCache.size();
+    uint64_t bytesRead = readBuildCacheInvalidationPrefix(buildCache);
 
-    const char *ptr = buildCacheGlobal.data();
     for (BTargetCache &fileCacheTarget : bTargetCaches)
     {
-        // reading the deps-cache-inline
-        const uint32_t offset = bytesRead;
-        const uint32_t depsSize = readUint32(ptr, bytesRead);
-        bytesRead += 4 * depsSize;
+        // Keep the ordinary target-row serialization unchanged after the new global prefix.
+        const uint64_t offset = bytesRead;
+        const uint32_t depsSize = readCheckedUint32(buildCache, bytesRead, "target dependency count");
+        if (bytesRead > bufferSize || depsSize > (bufferSize - bytesRead) / sizeof(uint32_t))
+        {
+            printErrorMessage(FORMAT("Malformed build cache: truncated target dependency ids.\n"
+                                     "Dependency count: {}\nOffset: {}\nCache size: {}",
+                                     depsSize, bytesRead, bufferSize));
+        }
+        bytesRead += sizeof(uint32_t) * depsSize;
 
-        fileCacheTarget.depsCache = {ptr + offset, bytesRead - offset};
-        fileCacheTarget.setBuildCache(readStringView(ptr, bytesRead));
+        fileCacheTarget.depsCache = {buildCache.data() + offset, bytesRead - offset};
+        fileCacheTarget.setBuildCache(readCheckedStringView(buildCache, bytesRead, "target build payload"));
     }
 
     if (bytesRead != bufferSize)
     {
-        HMAKE_HMAKE_INTERNAL_ERROR
+        printErrorMessage(FORMAT("Malformed build cache: target row count does not match the config cache.\n"
+                                 "Consumed bytes: {}\nCache size: {}\nConfig target count: {}",
+                                 bytesRead, bufferSize, bTargetCaches.size()));
     }
 }
+} // namespace
 
 void writeNodesCache()
 {
-    const uint32_t newNodesSize = Node::idCount;
-    bool nodesCacheChanged = newNodesSize != cachedNodesCount;
+    const uint32_t nodeCount = Node::idCount;
+    assert(nodeIndices.size() == nodeCount);
 
-    size_t pos = 0;
-    for (uint32_t i = 0; i < cachedNodesCount; ++i)
+    uint64_t fileSize = 0;
+    for (uint32_t id = 0; id < nodeCount; ++id)
     {
-        const Node *node = nodeIndices[i];
-        uint16_t strSize;
-        memcpy(&strSize, nodesCacheGlobal.data() + pos, sizeof(uint16_t));
-        pos += sizeof(uint16_t) + strSize;
-
-        if (node->hashCompleted)
+        const Node &node = *nodeIndices[id];
+        assert(node.myId == id);
+        if (node.filePath.empty() || node.filePath.size() > std::numeric_limits<uint16_t>::max())
         {
-            uint64_t persistedLastWriteTime;
-            memcpy(&persistedLastWriteTime, nodesCacheGlobal.data() + pos, sizeof(persistedLastWriteTime));
-            if (node->lastWriteTime != persistedLastWriteTime)
-            {
-                const uint64_t metadata[] = {node->lastWriteTime, node->contentHash};
-                memcpy(nodesCacheGlobal.data() + pos, metadata, sizeof(metadata));
-                nodesCacheChanged = true;
-            }
+            printErrorMessage(FORMAT("Cannot serialize a node path with this length.\nNode id: {}\nPath length: {}", id,
+                                     node.filePath.size()));
         }
-        pos += 2 * sizeof(uint64_t);
+        constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 2 * sizeof(uint64_t);
+        fileSize += fixedRecordSize + node.filePath.size();
     }
 
-    for (uint32_t i = cachedNodesCount; i < newNodesSize; ++i)
-    {
-        const Node *node = nodeIndices[i];
-        const uint16_t pathSize = static_cast<uint16_t>(node->filePath.size());
-        nodesCacheGlobal.append(reinterpret_cast<const char *>(&pathSize), sizeof(pathSize));
-        nodesCacheGlobal.append(node->filePath);
-        uint64_t metadata[2];
-        if (node->hashCompleted)
+    const string destination = cachePath(nodesCacheFileName);
+    string fileBuffer;
+    fileBuffer.resize_and_overwrite(fileSize, [nodeCount](char *bytes, const uint64_t bufferSize) {
+        uint64_t offset = 0;
+        for (uint32_t id = 0; id < nodeCount; ++id)
         {
-            metadata[0] = node->lastWriteTime;
-            metadata[1] = node->contentHash;
+            const Node &node = *nodeIndices[id];
+            const uint16_t pathSize = static_cast<uint16_t>(node.filePath.size());
+            memcpy(bytes + offset, &pathSize, sizeof(pathSize));
+            offset += sizeof(pathSize);
+            memcpy(bytes + offset, node.filePath.data(), pathSize);
+            offset += pathSize;
+            memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
+            offset += sizeof(node.lastWriteTime);
+            memcpy(bytes + offset, &node.contentHash, sizeof(node.contentHash));
+            offset += sizeof(node.contentHash);
         }
-        else
-        {
-            metadata[0] = UINT64_MAX;
-            metadata[1] = 0;
-        }
-        nodesCacheGlobal.append(reinterpret_cast<const char *>(metadata), sizeof(metadata));
-    }
+        assert(offset == bufferSize);
+        return offset;
+    });
 
-    if (!nodesCacheChanged)
-    {
-        return;
-    }
-    cachedNodesCount = newNodesSize;
-    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
+    writeCacheFile(destination, fileBuffer, &nodesCacheContentHash);
 }
 
+namespace
+{
 string getConfigCache()
 {
     string configCache;
@@ -708,7 +887,7 @@ string getConfigCache()
     {
         writeUint64(configCache, fileCacheTarget.name);
 
-        const uint32_t currentSize = configCache.size();
+        const uint64_t currentSize = configCache.size();
         // Reserve 4 bytes for the serialized size prefix.
         writeUint32(configCache, 0);
         if (fileCacheTarget.bTarget)
@@ -717,17 +896,22 @@ string getConfigCache()
         }
 
         // writing size to the placeholder above.
-        const uint32_t size = configCache.size() - (currentSize + 4);
-        memcpy(configCache.data() + currentSize, &size, sizeof(size));
+        const uint64_t payloadSize = configCache.size() - (currentSize + sizeof(uint32_t));
+        assert(payloadSize <= std::numeric_limits<uint32_t>::max());
+        const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
+        memcpy(configCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
     }
     return configCache;
 }
+} // namespace
 
 string getBuildCache()
 {
     string buildCache;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        // With empty sets and no target rows, the prefix is four u64 caches followed by two zero u32 counts.
+        writeBuildCacheInvalidationPrefix(buildCache);
         for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
             if (fileCacheTarget.depsCache.empty())
@@ -739,7 +923,7 @@ string getBuildCache()
                 buildCache.append(fileCacheTarget.depsCache.data(), fileCacheTarget.depsCache.size());
             }
 
-            const uint32_t currentSize = buildCache.size();
+            const uint64_t currentSize = buildCache.size();
             // Reserve 4 bytes for the serialized size prefix.
             writeUint32(buildCache, 0);
             if (BTarget *bt = fileCacheTarget.bTarget; bt && fileCacheTarget.bTarget->newlyAdded)
@@ -758,14 +942,17 @@ string getBuildCache()
             }
 
             // writing size to the placeholder above.
-            const uint32_t size = buildCache.size() - (currentSize + 4);
-            memcpy(buildCache.data() + currentSize, &size, sizeof(size));
+            const uint64_t payloadSize = buildCache.size() - (currentSize + sizeof(uint32_t));
+            assert(payloadSize <= std::numeric_limits<uint32_t>::max());
+            const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
+            memcpy(buildCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
 
             if (ndeb == NDEB::NO)
             {
                 if (BTarget *bt = fileCacheTarget.bTarget; bt && fileCacheTarget.bTarget->newlyAdded)
                 {
-                    fileCacheTarget.bTarget->verifyBuildCache(string_view{buildCache.data() + currentSize + 4, size});
+                    fileCacheTarget.bTarget->verifyBuildCache(
+                        string_view{buildCache.data() + currentSize + sizeof(uint32_t), serializedSize});
                 }
             }
         }
@@ -790,6 +977,7 @@ string getBuildCache()
     }
 
     Builder::checkNodes();
+    writeBuildCacheInvalidationPrefix(buildCache);
     for (const BTargetCache &fileCacheTarget : bTargetCaches)
     {
         if (fileCacheTarget.depsCache.empty())
@@ -801,7 +989,7 @@ string getBuildCache()
             buildCache.append(fileCacheTarget.depsCache.data(), fileCacheTarget.depsCache.size());
         }
 
-        const uint32_t currentSize = buildCache.size();
+        const uint64_t currentSize = buildCache.size();
         // Reserve 4 bytes for the serialized size prefix.
         writeUint32(buildCache, 0);
 
@@ -824,14 +1012,16 @@ string getBuildCache()
         }
 
         // writing size to the placeholder above.
-        const uint32_t size = buildCache.size() - (currentSize + 4);
-        memcpy(buildCache.data() + currentSize, &size, sizeof(size));
+        const uint64_t payloadSize = buildCache.size() - (currentSize + sizeof(uint32_t));
+        assert(payloadSize <= std::numeric_limits<uint32_t>::max());
+        const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
+        memcpy(buildCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
 
         if (ndeb == NDEB::NO)
         {
             if (const BTarget *bt = fileCacheTarget.bTarget; bt && (bt->buildFooterUpdated || bt->buildCacheUpdated))
             {
-                const string_view written{buildCache.data() + currentSize + 4, size};
+                const string_view written{buildCache.data() + currentSize + sizeof(uint32_t), serializedSize};
                 fileCacheTarget.bTarget->verifyBuildCache(written);
             }
         }
@@ -839,145 +1029,90 @@ string getBuildCache()
     return buildCache;
 }
 
-#ifndef _WIN32
-#define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
-#endif
-
-// cache files are written atomically.
-static void writeFileAtomically(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
+void replaceFileAtomically(const string &temporaryFile, const string &destinationFile)
 {
-    const string str = fileName + ".tmp";
-    if constexpr (bsMode == BSMode::BUILD)
+#ifdef _WIN32
+    if (ReplaceFileA(destinationFile.c_str(), temporaryFile.c_str(), nullptr, 0, nullptr, nullptr))
     {
-#ifdef WIN32
-        // Open the existing file for writing, replacing its content
-        const HANDLE hFile = CreateFile(str.c_str(),
-                                        GENERIC_WRITE,         // Open for writing
-                                        0,                     // Do not share
-                                        NULL,                  // Default security
-                                        CREATE_ALWAYS,         // Always create a new file (replace if exists)
-                                        FILE_ATTRIBUTE_NORMAL, // Normal file
-                                        NULL                   // No template
-        );
-
-        // Check if the file handle is valid
-        if (hFile == INVALID_HANDLE_VALUE)
-        {
-            printErrorMessage(FORMAT("Could not open the temporary output file.\nPath: {}\nSystem error: {}", str,
-                                     P2978::getErrorString()));
-        }
-
-        // Content to write to the file
-        DWORD bytesWritten;
-
-        // Write to the file
-        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
-        {
-            printErrorMessage(FORMAT("Could not write the temporary output file.\nPath: {}\nRequested bytes: {}\n"
-                                     "System error: {}",
-                                     str, bufferSize, P2978::getErrorString()));
-            CloseHandle(hFile);
-        }
-
-        if (!FlushFileBuffers(hFile))
-        {
-            printErrorMessage(FORMAT("Could not flush the temporary output file.\nPath: {}\nSystem error: {}", str,
-                                     P2978::getErrorString()));
-        }
-
-        if (bytesWritten != bufferSize)
-        {
-            printErrorMessage(
-                FORMAT("Temporary output file was only partially written.\nPath: {}\nRequested bytes: {}\n"
-                       "Written bytes: {}",
-                       str, bufferSize, bytesWritten));
-        }
-
-        // Close the file handle
-        CloseHandle(hFile);
-
+        return;
+    }
+    const DWORD replacementError = GetLastError();
+    if (replacementError != ERROR_FILE_NOT_FOUND && replacementError != ERROR_PATH_NOT_FOUND)
+    {
+        SetLastError(replacementError);
+        printErrorMessage(FORMAT("Could not replace a cache file atomically.\nTemporary path: {}\n"
+                                 "Destination path: {}\nSystem error: {}",
+                                 temporaryFile, destinationFile, P2978::getErrorString()));
+    }
+    if (!MoveFileExA(temporaryFile.c_str(), destinationFile.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    {
+        printErrorMessage(FORMAT("Could not install a new cache file.\nTemporary path: {}\n"
+                                 "Destination path: {}\nSystem error: {}",
+                                 temporaryFile, destinationFile, P2978::getErrorString()));
+    }
 #else
-        // This code path is not used on Windows.
-        if (binary)
-        {
-            std::ofstream f(str, std::ios::binary);
-            f.write(buffer, bufferSize);
-        }
-        else
-        {
-            std::ofstream(str) << buffer;
-        }
-#endif
-    }
-
-    else
+    if (rename(temporaryFile.c_str(), destinationFile.c_str()) != 0)
     {
-        if (binary)
-        {
-            std::ofstream f(fileName, std::ios::binary);
-            f.write(buffer, bufferSize);
-        }
-        else
-        {
-            std::ofstream(fileName) << buffer;
-        }
+        printErrorMessage(FORMAT("Could not replace a cache file atomically.\nTemporary path: {}\n"
+                                 "Destination path: {}\nSystem error: {}",
+                                 temporaryFile, destinationFile, P2978::getErrorString()));
     }
-
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-#ifdef WIN32
-        // Use ReplaceFile API which is designed for atomic replacement
-        if (!ReplaceFileA(fileName.c_str(), // File to be replaced
-                          str.c_str(),      // Replacement file
-                          NULL,             // No backup
-                          0,                // No flags
-                          NULL,             // Reserved
-                          NULL))            // Reserved
-        {
-            // If ReplaceFile fails (e.g., target doesn't exist), fall back to MoveFileEx
-            if (!MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-            {
-                printErrorMessage(FORMAT("Could not replace the destination file atomically.\nTemporary path: {}\n"
-                                         "Destination path: {}\nSystem error: {}",
-                                         str, fileName, P2978::getErrorString()));
-            }
-        }
-#else
-
-        if (rename(str.c_str(), fileName.c_str()) != 0)
-        {
-            printMessage(
-                FORMAT("Renaming File from {} to {} Not Successful. Error {}\n", str.c_str(), fileName.c_str(), errno));
-        }
-
 #endif
-    }
 }
 
-void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer)
+void writeCacheFile(const string &fileName, const string_view fileBuffer, uint64_t *const cachedContentHash)
 {
-#ifndef USE_FILE_COMPRESSION
-    writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
-#else
-    const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());
-
-    string compressed;
-    compressed.resize(maxCompressedSize + 8);
-
-    const int compressedSize =
-        LZ4_compress_default(fileBuffer.data(), compressed.data() + 8, fileBuffer.size(), maxCompressedSize);
-
-    // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
-    if (!compressedSize)
+    uint64_t contentHash = 0;
+    if (cachedContentHash != nullptr)
     {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
+        contentHash = hash_value(fileBuffer);
+        if (contentHash == *cachedContentHash)
+        {
+            return;
+        }
     }
-    const uint64_t fileSize = fileBuffer.size();
-    memcpy(compressed.data(), &fileSize, sizeof(fileSize));
 
-    writeFileAtomically(fileName, compressed.c_str(), compressedSize + 8, true);
+    const string temporaryFile = fileName + ".tmp";
+    FILE *output = nullptr;
+#ifdef _WIN32
+    const int openError = fopen_s(&output, temporaryFile.c_str(), "wb");
+#else
+    output = fopen(temporaryFile.c_str(), "wb");
+    const int openError = output == nullptr ? errno : 0;
 #endif
+    if (openError != 0 || output == nullptr)
+    {
+        printErrorMessage(FORMAT("Could not open a temporary cache file for writing.\nPath: {}\nSystem error: {}",
+                                 temporaryFile, std::error_code(openError, std::generic_category()).message()));
+    }
+
+    errno = 0;
+    uint64_t hashBytesWritten = 0;
+    if (cachedContentHash != nullptr)
+    {
+        hashBytesWritten = fwrite(&contentHash, 1, sizeof(contentHash), output);
+    }
+    const uint64_t expectedHashBytes = cachedContentHash == nullptr ? 0 : sizeof(contentHash);
+    uint64_t payloadBytesWritten = 0;
+    if (hashBytesWritten == expectedHashBytes && !fileBuffer.empty())
+    {
+        payloadBytesWritten = fwrite(fileBuffer.data(), 1, fileBuffer.size(), output);
+    }
+    const int closeResult = fclose(output);
+    if (hashBytesWritten != expectedHashBytes || payloadBytesWritten != fileBuffer.size() || closeResult != 0)
+    {
+        const string error = errno == 0 ? std::make_error_code(std::errc::io_error).message()
+                                        : std::error_code(errno, std::generic_category()).message();
+        printErrorMessage(
+            FORMAT("Could not write a complete cache file.\nPath: {}\nSystem error: {}", temporaryFile, error));
+    }
+
+    replaceFileAtomically(temporaryFile, fileName);
+    if (cachedContentHash != nullptr)
+    {
+        *cachedContentHash = contentHash;
+    }
 }
 
 bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
@@ -986,7 +1121,7 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
     {
         return false;
     }
-    for (int64_t j = lhs.size() - 1; j >= 0; --j)
+    for (uint64_t index = lhs.size(); index-- != 0;)
     {
         if (lhs[index] != rhs[index])
         {
@@ -1022,7 +1157,7 @@ string getNormalizedPath(path filePath)
 bool isPathInConfigureDirectory(const string_view filePath)
 {
     const string_view configurePath = configureNode->filePath;
-    const size_t configurePathSize = configurePath.size();
+    const uint64_t configurePathSize = configurePath.size();
 
     // Reject almost every source-tree header with two O(1) checks before comparing the path prefix.
     if (filePath.size() <= configurePathSize || filePath[configurePathSize] != slashc)
@@ -1035,7 +1170,7 @@ bool isPathInConfigureDirectory(const string_view filePath)
 string addQuotes(const string_view pstr)
 {
     string result;
-    result.resize_and_overwrite(pstr.size() + 2, [&](char *buf, size_t) noexcept {
+    result.resize_and_overwrite(pstr.size() + 2, [&](char *buf, uint64_t) noexcept {
         buf[0] = '\"';
         memcpy(buf + 1, pstr.data(), pstr.size());
         buf[pstr.size() + 1] = '\"';
@@ -1047,8 +1182,8 @@ string addQuotes(const string_view pstr)
 vector<string_view> split(string_view str, const char token)
 {
     vector<string_view> result;
-    size_t start = 0;
-    size_t end = str.find(token);
+    uint64_t start = 0;
+    uint64_t end = str.find(token);
 
     while (end != string::npos)
     {
