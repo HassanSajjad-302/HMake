@@ -10,7 +10,6 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <limits>
 #include <print>
 #include <sstream>
 #include <system_error>
@@ -36,8 +35,8 @@ void setIsConsol()
 }
 
 uint64_t buildCacheContentHash = -1;
-uint64_t buildExecutableCommandCache = 0;
-uint64_t configureExecutableCommandCache = 0;
+uint64_t buildExeCommandHash = 0;
+uint64_t configureExeCommandHash = 0;
 uint64_t selectedToolchainCommandCache = 0;
 uint64_t projectCacheContentCache = 0;
 flat_hash_set<Node *> recompileNodes;
@@ -237,8 +236,8 @@ void constructGlobals()
     nodesCacheContentHash = -1;
     configCacheContentHash = -1;
     buildCacheContentHash = -1;
-    buildExecutableCommandCache = 0;
-    configureExecutableCommandCache = 0;
+    buildExeCommandHash = 0;
+    configureExeCommandHash = 0;
     selectedToolchainCommandCache = 0;
     projectCacheContentCache = 0;
     buildJobsOverride = 0;
@@ -596,180 +595,50 @@ string getThreadId()
     return ss.str() + '\n';
 }
 
+// Cache payloads are trusted HMake-owned data installed by the atomic writers below. These hot-path readers therefore
+// decode the fixed layout directly instead of repeating field-by-field validation. Final cursor assertions in the
+// config/build readers detect implementation/layout drift in debug builds; they are not corruption-recovery code.
 void loadNodesCache(const path &fileName)
 {
-    assert(Node::idCount == 0 && nodeIndices.empty());
-
     const string cacheStorage = fileToString(fileName.string());
     string_view cache = cacheStorage;
-    if (cache.size() < sizeof(nodesCacheContentHash))
-    {
-        printErrorMessage(FORMAT("Malformed node cache: missing payload hash.\nPath: {}\nCache size: {}",
-                                 fileName.string(), cache.size()));
-    }
     memcpy(&nodesCacheContentHash, cache.data(), sizeof(nodesCacheContentHash));
     cache.remove_prefix(sizeof(nodesCacheContentHash));
     const char *bytes = cache.data();
     uint64_t offset = 0;
-    uint32_t nodeCount = 0;
-    constexpr uint32_t maximumNodeCount = 128 * 1024;
-    while (offset != cache.size())
+    while (offset < cache.size())
     {
-        if (cache.size() - offset < sizeof(uint16_t))
-        {
-            printErrorMessage(FORMAT("Malformed node cache: truncated path size.\nPath: {}\nNode id: {}\n"
-                                     "Offset: {}\nCache size: {}",
-                                     fileName.string(), nodeCount, offset, cache.size()));
-        }
         uint16_t pathSize;
         memcpy(&pathSize, bytes + offset, sizeof(pathSize));
         offset += sizeof(pathSize);
-        constexpr uint64_t snapshotSize = 2 * sizeof(uint64_t);
-        if (pathSize == 0 || pathSize > cache.size() - offset || snapshotSize > cache.size() - offset - pathSize)
-        {
-            printErrorMessage(FORMAT("Malformed node cache: truncated node record.\nPath: {}\nNode id: {}\n"
-                                     "Path size: {}\nOffset: {}\nCache size: {}",
-                                     fileName.string(), nodeCount, pathSize, offset, cache.size()));
-        }
-        if (nodeCount == maximumNodeCount)
-        {
-            printErrorMessage(FORMAT("Malformed node cache: node count exceeds the supported limit.\nPath: {}\n"
-                                     "Limit: {}",
-                                     fileName.string(), maximumNodeCount));
-        }
-
         const string_view nodePath(bytes + offset, pathSize);
-        if (nodePath.find('\0') != string_view::npos)
-        {
-            printErrorMessage(FORMAT("Malformed node cache: a node path contains a null byte.\nPath: {}\nNode id: {}",
-                                     fileName.string(), nodeCount));
-        }
         Node *node = Node::getHalfNode(nodePath);
-        if (node->myId != nodeCount)
-        {
-            printErrorMessage(FORMAT("Malformed node cache: duplicate node identity breaks stable ids.\nPath: {}\n"
-                                     "Record id: {}\nExisting id: {}\nNode path: {}",
-                                     fileName.string(), nodeCount, node->myId, nodePath));
-        }
         offset += pathSize;
-        uint64_t lastWriteTime;
-        uint64_t contentHash;
-        memcpy(&lastWriteTime, bytes + offset, sizeof(lastWriteTime));
-        offset += sizeof(lastWriteTime);
-        memcpy(&contentHash, bytes + offset, sizeof(contentHash));
-        offset += sizeof(contentHash);
-        node->lastWriteTime = lastWriteTime;
-        node->contentHash = contentHash;
-        ++nodeCount;
+        memcpy(&node->lastWriteTime, bytes + offset, sizeof(node->lastWriteTime));
+        offset += sizeof(node->lastWriteTime);
+        memcpy(&node->contentHash, bytes + offset, sizeof(node->contentHash));
+        offset += sizeof(node->contentHash);
     }
 }
 
 namespace
 {
-uint32_t readCheckedUint32(const string_view bytes, uint64_t &offset, const string_view field)
-{
-    if (offset > bytes.size() || bytes.size() - offset < sizeof(uint32_t))
-    {
-        printErrorMessage(
-            FORMAT("Malformed build cache: truncated {}.\nOffset: {}\nCache size: {}", field, offset, bytes.size()));
-    }
-    uint32_t value;
-    memcpy(&value, bytes.data() + offset, sizeof(value));
-    offset += sizeof(value);
-    return value;
-}
-
-uint64_t readCheckedUint64(const string_view bytes, uint64_t &offset, const string_view field)
-{
-    if (offset > bytes.size() || bytes.size() - offset < sizeof(uint64_t))
-    {
-        printErrorMessage(
-            FORMAT("Malformed cache: truncated {}.\nOffset: {}\nCache size: {}", field, offset, bytes.size()));
-    }
-    uint64_t value;
-    memcpy(&value, bytes.data() + offset, sizeof(value));
-    offset += sizeof(value);
-    return value;
-}
-
-string_view readCheckedStringView(const string_view bytes, uint64_t &offset, const string_view field)
-{
-    const uint32_t size = readCheckedUint32(bytes, offset, FORMAT("{} size", field));
-    if (offset > bytes.size() || size > bytes.size() - offset)
-    {
-        printErrorMessage(FORMAT("Malformed cache: truncated {}.\nPayload size: {}\nOffset: {}\nCache size: {}", field,
-                                 size, offset, bytes.size()));
-    }
-    const string_view result(bytes.data() + offset, size);
-    offset += size;
-    return result;
-}
-
-void readInvalidationArray(const string_view bytes, uint64_t &offset, flat_hash_set<Node *> &nodes,
-                           const string_view arrayName)
-{
-    const uint32_t count = readCheckedUint32(bytes, offset, FORMAT("{} count", arrayName));
-    if (offset > bytes.size() || count > (bytes.size() - offset) / sizeof(uint32_t))
-    {
-        printErrorMessage(FORMAT("Malformed build cache: truncated {} node-id array.\nCount: {}\nOffset: {}\n"
-                                 "Cache size: {}",
-                                 arrayName, count, offset, bytes.size()));
-    }
-    if (count > nodeIndices.size())
-    {
-        printErrorMessage(FORMAT("Malformed build cache: {} node-id count exceeds the node cache.\n"
-                                 "Count: {}\nNode-cache count: {}",
-                                 arrayName, count, nodeIndices.size()));
-    }
-    nodes.reserve(count);
-    for (uint32_t index = 0; index < count; ++index)
-    {
-        const uint32_t nodeId = readCheckedUint32(bytes, offset, FORMAT("{} node id", arrayName));
-        if (nodeId >= nodeIndices.size())
-        {
-            printErrorMessage(FORMAT("Malformed build cache: {} node id is out of range.\nArray index: {}\n"
-                                     "Node id: {}\nNode-cache count: {}",
-                                     arrayName, index, nodeId, nodeIndices.size()));
-        }
-        Node *node = nodeIndices[nodeId];
-        nodes.emplace(node);
-    }
-}
-
-void writeInvalidationArray(string &bytes, const flat_hash_set<Node *> &nodes)
-{
-    assert(nodes.size() <= std::numeric_limits<uint32_t>::max());
-    writeUint32(bytes, static_cast<uint32_t>(nodes.size()));
-    for (const Node *node : nodes)
-    {
-        assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
-        writeUint32(bytes, node->myId);
-    }
-}
-
-uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
-{
-    recompileNodes.clear();
-    reconfigureNodes.clear();
-    uint64_t offset = 0;
-    buildExecutableCommandCache = readCheckedUint64(cacheBytes, offset, "build executable command cache");
-    configureExecutableCommandCache = readCheckedUint64(cacheBytes, offset, "configure executable command cache");
-    selectedToolchainCommandCache = readCheckedUint64(cacheBytes, offset, "selected toolchain command cache");
-    projectCacheContentCache = readCheckedUint64(cacheBytes, offset, "project cache content cache");
-    readInvalidationArray(cacheBytes, offset, recompileNodes, "recompile");
-    readInvalidationArray(cacheBytes, offset, reconfigureNodes, "reconfigure");
-    return offset;
-}
-
 void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 {
     projectCacheContentCache = projectCache.contentCache();
-    writeUint64(cacheBytes, buildExecutableCommandCache);
-    writeUint64(cacheBytes, configureExecutableCommandCache);
+    writeUint64(cacheBytes, buildExeCommandHash);
+    writeUint64(cacheBytes, configureExeCommandHash);
     writeUint64(cacheBytes, selectedToolchainCommandCache);
     writeUint64(cacheBytes, projectCacheContentCache);
-    writeInvalidationArray(cacheBytes, recompileNodes);
-    writeInvalidationArray(cacheBytes, reconfigureNodes);
+    const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
+        writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
+        for (const Node *node : nodes)
+        {
+            writeUint32(cacheBytes, node->myId);
+        }
+    };
+    writeNodes(recompileNodes);
+    writeNodes(reconfigureNodes);
 }
 
 void readConfigCache()
@@ -783,23 +652,19 @@ void readConfigCache()
     uint64_t bufferRead = 0;
 
     uint32_t count = 0;
-    while (bufferRead != bufferSize)
+    while (bufferRead < bufferSize)
     {
         BTargetCache bTargetCache;
 
-        bTargetCache.name = readCheckedUint64(configCache, bufferRead, "target cache name");
-        bTargetCache.configCache = readCheckedStringView(configCache, bufferRead, "target config payload");
+        bTargetCache.name = readUint64(configCache.data(), bufferRead);
+        bTargetCache.configCache = readStringView(configCache.data(), bufferRead);
 
         bTargetCaches.emplace_back(bTargetCache);
-        if (!nameToIndexMap.emplace(bTargetCache.name, count).second)
-        {
-            printErrorMessage(FORMAT("Malformed config cache: duplicate target cache name.\nCache name: {}\n"
-                                     "Entry index: {}",
-                                     bTargetCache.name, count));
-        }
+        nameToIndexMap.emplace(bTargetCache.name, count);
 
         ++count;
     }
+    assert(bufferRead == bufferSize);
 }
 
 void readBuildCache()
@@ -807,56 +672,53 @@ void readBuildCache()
     string_view buildCache = buildCacheGlobal;
     buildCache.remove_prefix(sizeof(buildCacheContentHash));
     const uint64_t bufferSize = buildCache.size();
-    uint64_t bytesRead = readBuildCacheInvalidationPrefix(buildCache);
+    uint64_t bytesRead = 0;
+    buildExeCommandHash = readUint64(buildCache.data(), bytesRead);
+    configureExeCommandHash = readUint64(buildCache.data(), bytesRead);
+    selectedToolchainCommandCache = readUint64(buildCache.data(), bytesRead);
+    projectCacheContentCache = readUint64(buildCache.data(), bytesRead);
+    recompileNodes.clear();
+    reconfigureNodes.clear();
+    const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
+        const uint32_t count = readUint32(buildCache.data(), bytesRead);
+        nodes.reserve(count);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            nodes.emplace(nodeIndices[readUint32(buildCache.data(), bytesRead)]);
+        }
+    };
+    readNodes(recompileNodes);
+    readNodes(reconfigureNodes);
 
     for (BTargetCache &fileCacheTarget : bTargetCaches)
     {
         // Keep the ordinary target-row serialization unchanged after the new global prefix.
         const uint64_t offset = bytesRead;
-        const uint32_t depsSize = readCheckedUint32(buildCache, bytesRead, "target dependency count");
-        if (bytesRead > bufferSize || depsSize > (bufferSize - bytesRead) / sizeof(uint32_t))
-        {
-            printErrorMessage(FORMAT("Malformed build cache: truncated target dependency ids.\n"
-                                     "Dependency count: {}\nOffset: {}\nCache size: {}",
-                                     depsSize, bytesRead, bufferSize));
-        }
+        const uint32_t depsSize = readUint32(buildCache.data(), bytesRead);
         bytesRead += sizeof(uint32_t) * depsSize;
 
         fileCacheTarget.depsCache = {buildCache.data() + offset, bytesRead - offset};
-        fileCacheTarget.setBuildCache(readCheckedStringView(buildCache, bytesRead, "target build payload"));
+        fileCacheTarget.setBuildCache(readStringView(buildCache.data(), bytesRead));
     }
-
-    if (bytesRead != bufferSize)
-    {
-        printErrorMessage(FORMAT("Malformed build cache: target row count does not match the config cache.\n"
-                                 "Consumed bytes: {}\nCache size: {}\nConfig target count: {}",
-                                 bytesRead, bufferSize, bTargetCaches.size()));
-    }
+    assert(bytesRead == bufferSize);
 }
 } // namespace
 
 void writeNodesCache()
 {
     const uint32_t nodeCount = Node::idCount;
-    assert(nodeIndices.size() == nodeCount);
 
     uint64_t fileSize = 0;
     for (uint32_t id = 0; id < nodeCount; ++id)
     {
         const Node &node = *nodeIndices[id];
-        assert(node.myId == id);
-        if (node.filePath.empty() || node.filePath.size() > std::numeric_limits<uint16_t>::max())
-        {
-            printErrorMessage(FORMAT("Cannot serialize a node path with this length.\nNode id: {}\nPath length: {}", id,
-                                     node.filePath.size()));
-        }
         constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 2 * sizeof(uint64_t);
         fileSize += fixedRecordSize + node.filePath.size();
     }
 
     const string destination = cachePath(nodesCacheFileName);
     string fileBuffer;
-    fileBuffer.resize_and_overwrite(fileSize, [nodeCount](char *bytes, const uint64_t bufferSize) {
+    fileBuffer.resize_and_overwrite(fileSize, [nodeCount](char *bytes, const uint64_t) {
         uint64_t offset = 0;
         for (uint32_t id = 0; id < nodeCount; ++id)
         {
@@ -871,7 +733,6 @@ void writeNodesCache()
             memcpy(bytes + offset, &node.contentHash, sizeof(node.contentHash));
             offset += sizeof(node.contentHash);
         }
-        assert(offset == bufferSize);
         return offset;
     });
 
@@ -896,10 +757,8 @@ string getConfigCache()
         }
 
         // writing size to the placeholder above.
-        const uint64_t payloadSize = configCache.size() - (currentSize + sizeof(uint32_t));
-        assert(payloadSize <= std::numeric_limits<uint32_t>::max());
-        const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
-        memcpy(configCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
+        const uint32_t size = static_cast<uint32_t>(configCache.size() - (currentSize + sizeof(uint32_t)));
+        memcpy(configCache.data() + currentSize, &size, sizeof(size));
     }
     return configCache;
 }
@@ -942,17 +801,15 @@ string getBuildCache()
             }
 
             // writing size to the placeholder above.
-            const uint64_t payloadSize = buildCache.size() - (currentSize + sizeof(uint32_t));
-            assert(payloadSize <= std::numeric_limits<uint32_t>::max());
-            const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
-            memcpy(buildCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
+            const uint32_t size = static_cast<uint32_t>(buildCache.size() - (currentSize + sizeof(uint32_t)));
+            memcpy(buildCache.data() + currentSize, &size, sizeof(size));
 
             if (ndeb == NDEB::NO)
             {
                 if (BTarget *bt = fileCacheTarget.bTarget; bt && fileCacheTarget.bTarget->newlyAdded)
                 {
                     fileCacheTarget.bTarget->verifyBuildCache(
-                        string_view{buildCache.data() + currentSize + sizeof(uint32_t), serializedSize});
+                        string_view{buildCache.data() + currentSize + sizeof(uint32_t), size});
                 }
             }
         }
@@ -1012,16 +869,14 @@ string getBuildCache()
         }
 
         // writing size to the placeholder above.
-        const uint64_t payloadSize = buildCache.size() - (currentSize + sizeof(uint32_t));
-        assert(payloadSize <= std::numeric_limits<uint32_t>::max());
-        const uint32_t serializedSize = static_cast<uint32_t>(payloadSize);
-        memcpy(buildCache.data() + currentSize, &serializedSize, sizeof(serializedSize));
+        const uint32_t size = static_cast<uint32_t>(buildCache.size() - (currentSize + sizeof(uint32_t)));
+        memcpy(buildCache.data() + currentSize, &size, sizeof(size));
 
         if (ndeb == NDEB::NO)
         {
             if (const BTarget *bt = fileCacheTarget.bTarget; bt && (bt->buildFooterUpdated || bt->buildCacheUpdated))
             {
-                const string_view written{buildCache.data() + currentSize + sizeof(uint32_t), serializedSize};
+                const string_view written{buildCache.data() + currentSize + sizeof(uint32_t), size};
                 fileCacheTarget.bTarget->verifyBuildCache(written);
             }
         }

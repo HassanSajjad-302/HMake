@@ -78,10 +78,10 @@ inline constexpr string_view buildCacheFileName = "build-cache.bin";
 /// Hash of the payload following `build-cache.bin`'s leading u64, shared with hbuild's take-off path.
 extern uint64_t buildCacheContentHash;
 
-/// Take-off command/content caches stored at the start of the `build-cache.bin` payload, after its content hash.
+/// Take-off command hashes/content caches stored at the start of the `build-cache.bin` payload, after its content hash.
 /// Generated configure/build executables preserve these values when rewriting ordinary target rows.
-extern uint64_t buildExecutableCommandCache;
-extern uint64_t configureExecutableCommandCache;
+extern uint64_t buildExeCommandHash;
+extern uint64_t configureExeCommandHash;
 extern uint64_t selectedToolchainCommandCache;
 extern uint64_t projectCacheContentCache;
 
