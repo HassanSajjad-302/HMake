@@ -23,7 +23,7 @@ class PLOAT : public BTarget
   public:
     Configuration &config;
     Node *outputFileNode = nullptr;
-    uint32_t configCacheBytesRead = 0;
+    uint64_t configCacheBytesRead = 0;
     bool hasObjectFiles = false;
 
     string getOutputName() const;

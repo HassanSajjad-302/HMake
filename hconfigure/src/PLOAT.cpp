@@ -2,7 +2,7 @@
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CppMod.hpp"
-#include "JConsts.hpp"
+#include "Configuration.hpp"
 #include "LOAT.hpp"
 #include "ObjectFileProducer.hpp"
 #include <utility>
@@ -293,7 +293,7 @@ void PLOAT::populateReqAndUseReqDeps()
             }
         }
 
-        for (size_t position = 0; position < pending.size(); ++position)
+        for (uint64_t position = 0; position < pending.size(); ++position)
         {
             PLOAT *dependency = pending[position];
             const PloatDepInfo dependencyInfo = dependencies.find(dependency)->second;
