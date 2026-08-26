@@ -258,8 +258,8 @@ void Builder::executeRoundZero()
     sigemptyset(&ignoredSigpipe.sa_mask);
     if (sigaction(SIGPIPE, &ignoredSigpipe, &oldSigpipe) == -1)
     {
-        printErrorMessage(FORMAT("Could not install the build IPC SIGPIPE policy.\nSystem error: {}",
-                                 P2978::getErrorString()));
+        printErrorMessage(
+            FORMAT("Could not install the build IPC SIGPIPE policy.\nSystem error: {}", P2978::getErrorString()));
     }
 
     const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
@@ -430,8 +430,7 @@ void Builder::executeRoundZero()
         if constexpr (ndeb == NDEB::NO)
         {
             // +1 accounts for possible signalfd readiness event.
-            assert(readyEventCount == -1 ||
-                   readyEventCount <= maxRunningProcessAllowed - availableProcessSlots + 1);
+            assert(readyEventCount == -1 || readyEventCount <= maxRunningProcessAllowed - availableProcessSlots + 1);
         }
 
         for (int readyEventIndex = 0; readyEventIndex < readyEventCount; readyEventIndex++)
@@ -542,8 +541,8 @@ void Builder::executeRoundZero()
     }
     if (sigaction(SIGPIPE, &oldSigpipe, nullptr) == -1)
     {
-        printErrorMessage(FORMAT("Could not restore the process SIGPIPE policy.\nSystem error: {}",
-                                 P2978::getErrorString()));
+        printErrorMessage(
+            FORMAT("Could not restore the process SIGPIPE policy.\nSystem error: {}", P2978::getErrorString()));
     }
     if (close(static_cast<int>(serverFd)) == -1)
     {
@@ -707,7 +706,7 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T> &v, uint16_t n)
+template <typename T> static void divideInChunk(std::pmr::vector<std::span<T>> &result, vector<T> &v, uint16_t n)
 {
     // Produce non-owning partitions for regular-cost work. Content hashing uses a different strategy below because
     // file sizes make its individual items highly uneven.
@@ -747,8 +746,9 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
 
 void Builder::checkNodes()
 {
-    vector<Node *> statNodes;
-    vector<Node *> hashNodes;
+    STACK_PMR_VECTOR(Node *, statNodes, 32 * 1024);
+    STACK_PMR_VECTOR(Node *, hashNodes, 8 * 1024);
+
     constexpr uint32_t initialNodeCheckCapacity = 1024;
     statNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
     hashNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
@@ -778,11 +778,11 @@ void Builder::checkNodes()
     if (!statNodes.empty())
     {
         const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
-        vector<std::span<Node *>> chunks;
+        STACK_PMR_VECTOR(std::span<Node *>, chunks, 256)
         chunks.reserve(workerCount);
         divideInChunk(chunks, statNodes, workerCount);
 
-        vector<thread> workers;
+        STACK_PMR_VECTOR(thread, workers, 256)
         workers.reserve(workerCount - 1);
         for (uint32_t i = 1; i < workerCount; ++i)
         {
@@ -851,7 +851,7 @@ void Builder::checkNodes()
         }
     };
 
-    vector<thread> workers;
+    STACK_PMR_VECTOR(thread, workers, 256)
     workers.reserve(workerCount - 1);
     for (uint32_t i = 1; i < workerCount; ++i)
     {
