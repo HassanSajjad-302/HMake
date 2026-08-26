@@ -1643,7 +1643,6 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     }
     else if (c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
     {
-        compileCommand += commandType == CommandType::CONVENTIONAL ? "" : "-nostdinc -nostdinc++ ";
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand += (target->isSystem ? "-fmodule-header=system -o\"" : "-fmodule-header=user -o\"") +
