@@ -3,10 +3,8 @@
 #define HMAKE_POINTERARRAYLIST_HPP
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <limits>
 
 /**
  * @brief Non-owning, index-linked queue optimized for scheduler front insertion.
@@ -32,7 +30,7 @@ template <typename T> class PointerArrayList
         uint32_t next;
     };
 
-    static constexpr uint32_t invalidIndex = std::numeric_limits<uint32_t>::max();
+    static constexpr uint32_t invalidIndex = -1;
     static constexpr uint32_t initialCapacity = 1024;
 
     uint32_t capacity_ = 0;
@@ -46,12 +44,12 @@ template <typename T> class PointerArrayList
 
         if (arraySize == invalidIndex)
         {
-            // The queue uses uint32_t links, so it cannot represent another entry.
+            // The invalid-index sentinel cannot represent another entry.
             std::abort();
         }
 
         const uint64_t doubled = static_cast<uint64_t>(capacity_) * 2;
-        reserve(static_cast<std::size_t>(std::min<uint64_t>(doubled, static_cast<uint64_t>(invalidIndex))));
+        reserve(std::min<uint64_t>(doubled, invalidIndex));
     }
 
   public:
@@ -75,13 +73,13 @@ template <typename T> class PointerArrayList
     }
 
     /// Returns physical slots used since the last `clear()`, including tombstones and consumed entries.
-    uint32_t size() const
+    uint64_t size() const
     {
         return arraySize;
     }
 
     /// Returns the number of physical slots available without reallocation.
-    uint32_t capacity() const noexcept
+    uint64_t capacity() const noexcept
     {
         return capacity_;
     }
@@ -92,7 +90,7 @@ template <typename T> class PointerArrayList
      * Numeric links and insertion indices remain valid. Raw pointers/references into
      * `storage` or `array` are invalidated if growth occurs.
      */
-    void reserve(const std::size_t requestedCapacity)
+    void reserve(const uint64_t requestedCapacity)
     {
         if (requestedCapacity <= capacity_)
         {
@@ -103,7 +101,7 @@ template <typename T> class PointerArrayList
             std::abort();
         }
 
-        const auto newCapacity = static_cast<uint32_t>(requestedCapacity);
+        const uint32_t newCapacity = static_cast<uint32_t>(requestedCapacity);
         ArrayListItem *newStorage = new ArrayListItem[newCapacity];
         if (arraySize)
         {
