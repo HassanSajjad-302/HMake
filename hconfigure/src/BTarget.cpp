@@ -32,7 +32,7 @@ void RealBTarget::sortGraph()
 
     // Independent targets deliberately keep discovery order. Required ordering belongs in dependency edges, while
     // this append-only frontier keeps Kahn's traversal O(V + E).
-    vector<RealBTarget *> noEdges;
+    STACK_PMR_VECTOR(RealBTarget *, noEdges, 32 * 1024)
     noEdges.reserve(graphEdges.size());
     uint64_t noEdgesIndex = 0;
 
