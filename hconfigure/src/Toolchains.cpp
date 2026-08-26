@@ -1,4 +1,15 @@
-#include "ToolsCache.hpp"
+#include "Toolchains.hpp"
+
+#if __has_include("BuiltinToolchain.hpp")
+#include "BuiltinToolchain.hpp"
+#endif
+
+#if !defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) || !defined(HMAKE_DEFAULT_COMPILER) || !defined(HMAKE_DEFAULT_LINKER) ||    \
+    !defined(HMAKE_DEFAULT_ARCHIVER) || !defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) ||                                   \
+    !defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) || !defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) ||                           \
+    !defined(HMAKE_DEFAULT_TARGET) || !defined(HMAKE_DEFAULT_INCLUDE_DIRS) || !defined(HMAKE_DEFAULT_LIBRARY_DIRS)
+#error "The HMake built-in toolchain requires all HMAKE_DEFAULT_* definitions."
+#endif
 
 #include "BuildSystemFunctions.hpp"
 
@@ -345,9 +356,6 @@ Toolchains::Toolchains()
             userToolchainsFilePath = path(homeDirectory) / ".hmake" / "toolchains.json";
         }
     }
-#if defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) && defined(HMAKE_DEFAULT_COMPILER) && defined(HMAKE_DEFAULT_LINKER) &&       \
-    defined(HMAKE_DEFAULT_ARCHIVER) && defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) &&                                    \
-    defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) && defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) && defined(HMAKE_DEFAULT_TARGET)
     Toolchain builtIn;
     builtIn.family = HMAKE_DEFAULT_TOOLCHAIN_FAMILY;
     builtIn.style = HMAKE_DEFAULT_TOOLCHAIN_STYLE;
@@ -356,12 +364,9 @@ Toolchains::Toolchains()
     builtIn.compiler.bTPath = HMAKE_DEFAULT_COMPILER;
     builtIn.linker.bTPath = HMAKE_DEFAULT_LINKER;
     builtIn.archiver.bTPath = HMAKE_DEFAULT_ARCHIVER;
+    builtIn.includeDirs = HMAKE_DEFAULT_INCLUDE_DIRS;
+    builtIn.libraryDirs = HMAKE_DEFAULT_LIBRARY_DIRS;
     addBuiltin(HMAKE_DEFAULT_TOOLCHAIN_NAME, std::move(builtIn));
-#elif defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) || defined(HMAKE_DEFAULT_COMPILER) || defined(HMAKE_DEFAULT_LINKER) ||     \
-    defined(HMAKE_DEFAULT_ARCHIVER) || defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) ||                                    \
-    defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) || defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) || defined(HMAKE_DEFAULT_TARGET)
-#error "The HMake built-in toolchain requires all HMAKE_DEFAULT_* definitions."
-#endif
 }
 
 void Toolchains::addBuiltin(const string &name, Toolchain toolchain)

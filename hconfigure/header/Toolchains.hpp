@@ -1,5 +1,5 @@
-#ifndef HMAKE_TOOLSCACHE_HPP
-#define HMAKE_TOOLSCACHE_HPP
+#ifndef HMAKE_TOOLCHAINS_HPP
+#define HMAKE_TOOLCHAINS_HPP
 
 #include "BuildTools.hpp"
 #include "Features.hpp"
@@ -55,4 +55,4 @@ struct Toolchains
 };
 
 inline Toolchains toolchains;
-#endif // HMAKE_TOOLSCACHE_HPP
+#endif // HMAKE_TOOLCHAINS_HPP
