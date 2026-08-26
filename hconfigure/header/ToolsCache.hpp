@@ -3,56 +3,56 @@
 
 #include "BuildTools.hpp"
 #include "Features.hpp"
-#include <vector>
-using std::vector;
 
-// On Windows standard libraries and includes are not provided by default. And tools used are different based on
-// Architecture and Address-Model.
-struct VSTools
+#include <map>
+#include <vector>
+
+/// One fully resolved, stable named toolchain from toolchains.json.
+///
+/// `family` identifies the tool implementation (clang/gcc/msvc), while
+/// `style` identifies its command-line convention (gnu/msvc).
+struct Toolchain
 {
-    string command;
-    string commandArguments;
+    string name;
+    string family;
+    string style;
+    string version;
+    string target;
+
     Compiler compiler;
     Linker linker;
     Archiver archiver;
-    Arch hostArch;
-    AddressModel hostAM;
-    Arch targetArch;
-    AddressModel targetAM;
-    vector<string> includeDirs;
-    vector<string> libraryDirs;
-    VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
-            AddressModel targetAM_, bool executingFromWSL = false);
-    VSTools() = default;
-    void initializeFromVSToolBatchCommand(bool executingFromWSL = false);
-    void initializeFromVSToolBatchCommand(const string &command, bool executingFromWSL = false);
+
+    std::vector<string> includeDirs;
+    std::vector<string> libraryDirs;
+    std::vector<string> bootstrapArguments;
+
+    // Parsed target-triple values used by Configuration compatibility checks.
+    TargetOS targetOs = TargetOS::NONE;
+    Arch targetArch = Arch::NONE;
+    AddressModel targetAddressModel = AddressModel::NONE;
 };
 
-// On Windows standard libraries and includes are not provided by default. And tools used are different based on
-// Architecture and Address-Model.
-struct LinuxTools
+struct Toolchains
 {
-    string command;
-    Compiler compiler;
-    vector<string> includeDirs;
-    LinuxTools(Compiler compiler_);
-    LinuxTools() = default;
+    Toolchains();
+
+    void initialize(const path &sourceDirectory = {});
+
+    const Toolchain *find(string_view name);
+    string_view defaultName();
+    string toJson();
+
+  private:
+    path userToolchainsFilePath;
+    std::map<string, Toolchain, std::less<>> entries;
+    std::vector<string> registryOrder;
+    bool userFileLoaded = false;
+    bool sourceFileLoaded = false;
+
+    void addBuiltin(const string &name, Toolchain toolchain);
+    void loadFile(const path &filePath);
 };
 
-struct ToolsCache
-{
-    path toolsCacheFilePath;
-    vector<VSTools> vsTools;
-    vector<LinuxTools> linuxTools;
-    // Following are tools besides vsTools
-    vector<Compiler> compilers;
-    vector<Linker> linkers;
-    vector<Archiver> archivers;
-    ToolsCache();
-    void detectToolsAndInitialize();
-    void initializeToolsCacheVariableFromToolsCacheFile();
-    void writeToolsCacheFile();
-};
-
-inline ToolsCache toolsCache;
+inline Toolchains toolchains;
 #endif // HMAKE_TOOLSCACHE_HPP

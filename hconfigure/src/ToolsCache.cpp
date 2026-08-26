@@ -1,555 +1,615 @@
 #include "ToolsCache.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "JConsts.hpp"
-#include "RunCommand.hpp"
 
+#include "BuildSystemFunctions.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <cctype>
+#include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <utility>
+#include <limits>
 #include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
-#include <sstream>
-#include <format>
+#include <utility>
 
-using std::ofstream, std::filesystem::remove;
-
-VSTools::VSTools(string batchFile, path toolBinDir, const Arch hostArch_, const AddressModel hostAM_,
-                 const Arch targetArch_, const AddressModel targetAM_, const bool executingFromWSL)
-    : command(std::move(batchFile)), hostArch(hostArch_), hostAM(hostAM_), targetArch(targetArch_), targetAM(targetAM_)
+namespace
 {
-    bool hostSupported = false;
-    bool targetSupported = false;
-    const string str = toolBinDir.parent_path().filename().string();
-    const vector<string_view> vec = split(str, '.');
-    const Version toolVersion(atol(vec[0].data()), atoi(vec[1].data()), atoi(vec[2].data()));
-    if (hostArch_ == Arch::X86)
+constexpr string_view extendsField = "extends";
+constexpr string_view compilerField = "compiler";
+constexpr string_view linkerField = "linker";
+constexpr string_view archiverField = "archiver";
+constexpr string_view familyField = "family";
+constexpr string_view styleField = "style";
+constexpr string_view versionField = "version";
+constexpr string_view targetField = "target";
+constexpr string_view includeDirsField = "include-dirs";
+constexpr string_view libraryDirsField = "library-dirs";
+constexpr string_view bootstrapArgumentsField = "bootstrap-arguments";
+
+constexpr uint16_t toolchainFieldBit(const string_view field)
+{
+    if (field == extendsField)
     {
-        if (hostAM == AddressModel::A_32)
-        {
-            toolBinDir /= "Hostx86/";
-            hostSupported = true;
-        }
-        else if (hostAM == AddressModel::A_64)
-        {
-            toolBinDir /= "Hostx64/";
-            hostSupported = true;
-        }
+        return 1U << 0;
     }
-    if (targetArch_ == Arch::X86)
+    if (field == compilerField)
     {
-        if (targetAM == AddressModel::A_32)
-        {
-            toolBinDir /= "x86/";
-            targetSupported = true;
-            commandArguments = hostAM == AddressModel::A_32 ? "x86" : "amd64_x86";
-        }
-        else if (targetAM == AddressModel::A_64)
-        {
-            toolBinDir /= "x64/";
-            targetSupported = true;
-            commandArguments = hostAM == AddressModel::A_32 ? "x86_x64" : "x64";
-        }
+        return 1U << 1;
     }
-    // TODO
-    // Investigating batchFile reveals that other platforms like arm are supported but currently don't know where the
-    // tools will be installed. Support the vcvarsall.bat file code here and provide API about it.
-    if (!hostSupported || !targetSupported)
+    if (field == linkerField)
     {
-        printErrorMessage(FORMAT("Visual Studio toolchain does not support the requested architecture combination.\n"
-                                 "Host address model: {}\nTarget address model: {}",
-                                 static_cast<uint8_t>(hostAM), static_cast<uint8_t>(targetAM)));
+        return 1U << 2;
     }
-    compiler.bTFamily = linker.bTFamily = archiver.bTFamily = BTFamily::MSVC;
-    compiler.bTVersion = linker.bTVersion = archiver.bTVersion = toolVersion;
-    toolBinDir = toolBinDir.lexically_normal();
-    compiler.bTPath = path(toolBinDir / "cl.exe").lexically_normal().string();
-    linker.bTPath = path(toolBinDir / "link.exe").lexically_normal().string();
-    archiver.bTPath = path(toolBinDir / "lib.exe").lexically_normal().string();
-    initializeFromVSToolBatchCommand(executingFromWSL);
+    if (field == archiverField)
+    {
+        return 1U << 3;
+    }
+    if (field == familyField)
+    {
+        return 1U << 4;
+    }
+    if (field == styleField)
+    {
+        return 1U << 5;
+    }
+    if (field == versionField)
+    {
+        return 1U << 6;
+    }
+    if (field == targetField)
+    {
+        return 1U << 7;
+    }
+    if (field == includeDirsField)
+    {
+        return 1U << 8;
+    }
+    if (field == libraryDirsField)
+    {
+        return 1U << 9;
+    }
+    if (field == bootstrapArgumentsField)
+    {
+        return 1U << 10;
+    }
+    return 0;
 }
 
-void VSTools::initializeFromVSToolBatchCommand(const bool executingFromWSL)
+[[noreturn]] void toolchainError(const path &filePath, const string_view toolchainName, const string_view message)
 {
-    initializeFromVSToolBatchCommand(command + " " + commandArguments, executingFromWSL);
+    printErrorMessage(FORMAT("Invalid toolchain registry.\nFile: {}\nToolchain: {}\n{}", filePath.string(),
+                             toolchainName.empty() ? "<top-level>" : toolchainName, message));
 }
 
-void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool executingFromWSL)
+string readRequiredString(const rapidjson::Value &value, const path &filePath, const string_view toolchainName,
+                          const string_view field)
 {
-    const string temporaryIncludeFilename = "temporaryInclude.txt";
-    const string temporaryLibFilename = "temporaryLib.txt";
-    const string temporaryBatchFilename = "temporaryBatch.bat";
-    const string cmdExe = executingFromWSL ? "cmd.exe /c " : "";
-    const string batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " +
-                                temporaryIncludeFilename + "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " +
-                                temporaryLibFilename;
-    ofstream(temporaryBatchFilename) << batchCommand;
-
-    if (const int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
+    if (!value.IsString())
     {
-        printErrorMessage(FORMAT("Could not initialize the Visual Studio build environment.\nCommand: {}\n"
-                                 "Exit code: {}",
-                                 finalCommand, code));
+        toolchainError(filePath, toolchainName, FORMAT("Field '{}' must be a string.", field));
     }
-    remove(temporaryBatchFilename);
+    string result(value.GetString(), value.GetStringLength());
+    if (result.find('\0') != string::npos)
+    {
+        toolchainError(filePath, toolchainName, FORMAT("Field '{}' must not contain a null byte.", field));
+    }
+    return result;
+}
 
-    auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> vector<string> {
-        vector<string> separatedPaths{};
-        size_t pos = accumulatedPaths.find(';');
-        while (pos != string::npos)
+std::vector<string> readStringArray(const rapidjson::Value &value, const path &filePath,
+                                    const string_view toolchainName, const string_view field)
+{
+    if (!value.IsArray())
+    {
+        toolchainError(filePath, toolchainName, FORMAT("Field '{}' must be an array of strings.", field));
+    }
+    std::vector<string> result;
+    result.reserve(value.Size());
+    for (const rapidjson::Value &entry : value.GetArray())
+    {
+        if (!entry.IsString())
         {
-            string token = accumulatedPaths.substr(0, pos);
-            if (token.empty())
+            toolchainError(filePath, toolchainName, FORMAT("Every '{}' entry must be a string.", field));
+        }
+        string item(entry.GetString(), entry.GetStringLength());
+        if (item.find('\0') != string::npos)
+        {
+            toolchainError(filePath, toolchainName, FORMAT("Field '{}' contains a string with a null byte.", field));
+        }
+        result.emplace_back(std::move(item));
+    }
+    return result;
+}
+
+string lowercase(string value)
+{
+    std::ranges::transform(value, value.begin(), [](const unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return value;
+}
+
+Version parseVersion(const string &text, const path &sourceFile, const string_view toolchainName)
+{
+    Version result;
+    unsigned *parts[] = {&result.majorVersion, &result.minorVersion, &result.patchVersion};
+    uint64_t offset = 0;
+    uint64_t part = 0;
+    while (offset < text.size())
+    {
+        uint64_t value = 0;
+        const uint64_t start = offset;
+        while (offset < text.size() && std::isdigit(static_cast<unsigned char>(text[offset])))
+        {
+            value = value * 10 + static_cast<unsigned>(text[offset] - '0');
+            if (value > std::numeric_limits<unsigned>::max())
             {
-                break;
+                toolchainError(sourceFile, toolchainName, FORMAT("Version component is too large in '{}'.", text));
             }
-            emplaceInVector(separatedPaths, std::move(token));
-            accumulatedPaths.erase(0, pos + 1);
-            pos = accumulatedPaths.find(';');
+            ++offset;
         }
-        return separatedPaths;
-    };
-
-    auto convertPathsToWSLPaths = [executingFromWSL](vector<string> &vec) {
-        if (executingFromWSL)
+        if (offset == start)
         {
-            const string s = "\\";
-            const string t = "/";
-
-            const vector<string> vec2 = std::move(vec);
-            vec.clear();
-            for (const string &str : vec2)
-            {
-                string str2 = str;
-                string::size_type n = 0;
-                while ((n = str2.find(s, n)) != string::npos)
-                {
-                    str2.replace(n, s.size(), t);
-                    n += t.size();
-                }
-                str2.erase(0, 2);
-                string str3 = "/mnt/c" + str2;
-                vec.emplace_back(std::move(str3));
-            }
+            toolchainError(sourceFile, toolchainName,
+                           FORMAT("Version '{}' must contain dot-separated decimal components.", text));
         }
-    };
-
-    string accumulatedPaths = fileToString(temporaryIncludeFilename);
-    remove(temporaryIncludeFilename);
-    accumulatedPaths.pop_back(); // Remove trailing newline/space from echo output.
-    accumulatedPaths.pop_back();
-    accumulatedPaths.append(";");
-    includeDirs = splitPathsAndAssignToVector(accumulatedPaths);
-    convertPathsToWSLPaths(includeDirs);
-    accumulatedPaths = fileToString(temporaryLibFilename);
-    remove(temporaryLibFilename);
-    accumulatedPaths.pop_back(); // Remove trailing newline/space from echo output.
-    accumulatedPaths.pop_back();
-    accumulatedPaths.append(";");
-    libraryDirs = splitPathsAndAssignToVector(accumulatedPaths);
-    convertPathsToWSLPaths(libraryDirs);
-}
-
-LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
-{
-    const string str = std::filesystem::current_path().string();
-    const string temporaryCppFile = "temporary-main.cpp";
-    ofstream(temporaryCppFile) << "";
-    command = compiler.bTPath + " " + temporaryCppFile + " -E -v";
-    RunCommand r;
-    r.runProcess(command.c_str());
-    remove(temporaryCppFile);
-    if (r.exitStatus != EXIT_SUCCESS)
-    {
-        printErrorMessage(FORMAT("Could not query the compiler environment.\nCompiler: {}\nCommand: {}\n"
-                                 "Exit code: {}\nCompiler output:\n{}",
-                                 compiler.bTPath, command, r.exitStatus, *r.output));
-    }
-
-    const vector<string_view> lines = split(*r.output, '\n');
-    size_t foundIndex = 0;
-    for (size_t i = 0; i < lines.size(); ++i)
-    {
-        if (lines[i] == "#include <...> search starts here:")
+        if (part < 3)
         {
-            foundIndex = i;
+            *parts[part] = static_cast<unsigned>(value);
+        }
+        ++part;
+        if (offset == text.size())
+        {
             break;
         }
+        if (text[offset++] != '.' || offset == text.size())
+        {
+            toolchainError(sourceFile, toolchainName,
+                           FORMAT("Version '{}' must contain dot-separated decimal components.", text));
+        }
+    }
+    return result;
+}
+
+void parseTargetTriple(Toolchain &toolchain, const path &sourceFile)
+{
+    const string triple = lowercase(toolchain.target);
+    const uint64_t separator = triple.find('-');
+    const string_view architecture = string_view(triple).substr(0, separator);
+
+    if (architecture == "x86_64" || architecture == "amd64")
+    {
+        toolchain.targetArch = Arch::X86;
+        toolchain.targetAddressModel = AddressModel::A_64;
+    }
+    else if (architecture == "x86" || architecture == "i386" || architecture == "i486" ||
+             architecture == "i586" || architecture == "i686")
+    {
+        toolchain.targetArch = Arch::X86;
+        toolchain.targetAddressModel = AddressModel::A_32;
+    }
+    else if (architecture == "aarch64" || architecture == "arm64")
+    {
+        toolchain.targetArch = Arch::ARM;
+        toolchain.targetAddressModel = AddressModel::A_64;
+    }
+    else if (architecture.starts_with("arm"))
+    {
+        toolchain.targetArch = Arch::ARM;
+        toolchain.targetAddressModel = AddressModel::A_32;
+    }
+    else if (architecture == "s390x")
+    {
+        toolchain.targetArch = Arch::S390X;
+        toolchain.targetAddressModel = AddressModel::A_64;
+    }
+    else if (architecture == "powerpc64" || architecture == "powerpc64le" || architecture == "ppc64" ||
+             architecture == "ppc64le")
+    {
+        toolchain.targetArch = Arch::POWER;
+        toolchain.targetAddressModel = AddressModel::A_64;
+    }
+    else if (architecture == "powerpc" || architecture == "ppc")
+    {
+        toolchain.targetArch = Arch::POWER;
+        toolchain.targetAddressModel = AddressModel::A_32;
+    }
+    else if (architecture == "loongarch64")
+    {
+        toolchain.targetArch = Arch::LOONGARCH;
+        toolchain.targetAddressModel = AddressModel::A_64;
+    }
+    else
+    {
+        toolchainError(sourceFile, toolchain.name,
+                       FORMAT("Unsupported architecture in target triple '{}'.", toolchain.target));
     }
 
-    if (foundIndex)
+    if (triple.contains("android"))
     {
-        size_t endIndex = 0;
-        for (size_t i = foundIndex + 1; i < lines.size(); ++i)
-        {
-            if (lines[i] == "End of search list.")
-            {
-                endIndex = i;
-                break;
-            }
-        }
+        toolchain.targetOs = TargetOS::ANDROID;
+    }
+    else if (triple.contains("linux"))
+    {
+        toolchain.targetOs = TargetOS::LINUX_;
+    }
+    else if (triple.contains("windows") || triple.contains("win32") || triple.contains("mingw") ||
+             triple.ends_with("-msvc"))
+    {
+        toolchain.targetOs = TargetOS::WINDOWS;
+    }
+    else if (triple.contains("darwin") || triple.contains("macos") || triple.contains("apple"))
+    {
+        toolchain.targetOs = TargetOS::DARWIN;
+    }
+    else if (triple.contains("freebsd"))
+    {
+        toolchain.targetOs = TargetOS::FREEBSD;
+    }
+    else if (triple.contains("openbsd"))
+    {
+        toolchain.targetOs = TargetOS::OPENBSD;
+    }
+    else if (triple.contains("qnx"))
+    {
+        toolchain.targetOs = TargetOS::QNX;
+    }
+    else if (triple.contains("cygwin"))
+    {
+        toolchain.targetOs = TargetOS::CYGWIN;
+    }
+    else
+    {
+        toolchainError(sourceFile, toolchain.name,
+                       FORMAT("Unsupported operating system in target triple '{}'.", toolchain.target));
+    }
+}
 
-        if (endIndex)
+void initializeBuildTools(Toolchain &toolchain, const path &sourceFile)
+{
+    const string family = lowercase(toolchain.family);
+    const string style = lowercase(toolchain.style);
+    if (family != "clang" && family != "gcc" && family != "msvc")
+    {
+        toolchainError(sourceFile, toolchain.name,
+                       FORMAT("Unsupported family '{}'. Expected clang, gcc, or msvc.", toolchain.family));
+    }
+    if (style != "gnu" && style != "msvc")
+    {
+        toolchainError(sourceFile, toolchain.name,
+                       FORMAT("Unsupported style '{}'. Expected gnu or msvc.", toolchain.style));
+    }
+    if ((family == "gcc" && style != "gnu") || (family == "msvc" && style != "msvc"))
+    {
+        toolchainError(sourceFile, toolchain.name,
+                       FORMAT("Family '{}' is incompatible with style '{}'.", toolchain.family, toolchain.style));
+    }
+
+    toolchain.family = family;
+    toolchain.style = style;
+
+    const BTFamily buildToolFamily = style == "msvc" ? BTFamily::MSVC : BTFamily::GCC;
+    const BTSubFamily subFamily = family == "clang" ? BTSubFamily::CLANG : BTSubFamily::NONE;
+    const Version version = parseVersion(toolchain.version, sourceFile, toolchain.name);
+    toolchain.compiler = Compiler(buildToolFamily, subFamily, version, toolchain.compiler.bTPath);
+    toolchain.linker = Linker(buildToolFamily, subFamily, version, toolchain.linker.bTPath);
+    toolchain.archiver = Archiver(buildToolFamily, subFamily, version, toolchain.archiver.bTPath);
+    parseTargetTriple(toolchain, sourceFile);
+}
+
+void requireField(const bool present, const path &sourceFile, const string &name, const string_view fieldName)
+{
+    if (!present)
+    {
+        toolchainError(sourceFile, name, FORMAT("Resolved entry is missing required field '{}'.", fieldName));
+    }
+}
+
+void addJsonString(rapidjson::Value &object, const string_view name, const string &value,
+                   rapidjson::Document::AllocatorType &allocator)
+{
+    rapidjson::Value jsonName(name.data(), static_cast<rapidjson::SizeType>(name.size()), allocator);
+    rapidjson::Value jsonValue(value.data(), static_cast<rapidjson::SizeType>(value.size()), allocator);
+    object.AddMember(jsonName, jsonValue, allocator);
+}
+
+rapidjson::Value makeJsonStringArray(const std::vector<string> &values,
+                                     rapidjson::Document::AllocatorType &allocator)
+{
+    rapidjson::Value result(rapidjson::kArrayType);
+    result.Reserve(static_cast<rapidjson::SizeType>(values.size()), allocator);
+    for (const string &value : values)
+    {
+        rapidjson::Value jsonValue(value.data(), static_cast<rapidjson::SizeType>(value.size()), allocator);
+        result.PushBack(jsonValue, allocator);
+    }
+    return result;
+}
+} // namespace
+
+Toolchains::Toolchains()
+{
+    if constexpr (os == OS::NT)
+    {
+        if (const char *localAppData = std::getenv("LOCALAPPDATA"))
         {
-            for (size_t i = foundIndex + 1; i < endIndex; ++i)
-            {
-                // Each line starts with a leading space; trim it before storing.
-                emplaceInVector(includeDirs, string(lines[i].substr(1, lines[i].size() - 1)));
-                printMessage(FORMAT("Found standard include-dir {}\n", includeDirs[includeDirs.size() - 1]));
-            }
-        }
-        else
-        {
-            printMessage("Warning! No standard include found during LinuxTools::\n");
+            userToolchainsFilePath = path(localAppData) / "HMake" / "toolchains.json";
         }
     }
     else
     {
-        printMessage("Warning! No standard include found during LinuxTools::\n");
-    }
-}
-
-static string archToString(Arch a) {
-    switch (a) {
-        case Arch::X86: return "X86";
-        case Arch::ARM: return "ARM";
-        case Arch::S390X: return "S390X";
-        case Arch::POWER: return "POWER";
-        case Arch::LOONGARCH: return "LOONGARCH";
-        default: return "NONE";
-    }
-}
-static Arch stringToArch(const string& s) {
-    if (s == "X86") return Arch::X86;
-    if (s == "ARM") return Arch::ARM;
-    if (s == "S390X") return Arch::S390X;
-    if (s == "POWER") return Arch::POWER;
-    if (s == "LOONGARCH") return Arch::LOONGARCH;
-    return Arch::NONE;
-}
-
-static string amToString(AddressModel am) {
-    switch (am) {
-        case AddressModel::A_32: return "A_32";
-        case AddressModel::A_64: return "A_64";
-        default: return "NONE";
-    }
-}
-static AddressModel stringToAm(const string& s) {
-    if (s == "A_32") return AddressModel::A_32;
-    if (s == "A_64") return AddressModel::A_64;
-    return AddressModel::NONE;
-}
-
-static string familyToString(BTFamily f) {
-    if (f == BTFamily::GCC) return "gcc";
-    return "msvc";
-}
-static BTFamily stringToFamily(const string& s) {
-    if (s == "gcc") return BTFamily::GCC;
-    return BTFamily::MSVC;
-}
-
-static string subFamilyToString(BTSubFamily f) {
-    if (f == BTSubFamily::CLANG) return "clang";
-    return "";
-}
-static BTSubFamily stringToSubFamily(const string& s) {
-    if (s == "clang") return BTSubFamily::CLANG;
-    return BTSubFamily::NONE;
-}
-
-static void writeVersion(rapidjson::Value& val, const Version& v, rapidjson::Document::AllocatorType& alloc) {
-    string s = std::format("{}.{}.{}", v.majorVersion, v.minorVersion, v.patchVersion);
-    val.SetString(s.c_str(), s.length(), alloc);
-}
-static Version readVersion(const rapidjson::Value& val) {
-    Version v;
-    string s = val.GetString();
-    std::stringstream ss(s);
-    string item;
-    int count = 0;
-    while (std::getline(ss, item, '.')) {
-        if (count == 0) v.majorVersion = std::stoi(item);
-        else if (count == 1) v.minorVersion = std::stoi(item);
-        else v.patchVersion = std::stoi(item);
-        ++count;
-    }
-    return v;
-}
-
-static void writeBuildTool(rapidjson::Value& val, const BuildTool& bt, rapidjson::Document::AllocatorType& alloc) {
-    val.SetObject();
-    rapidjson::Value family(familyToString(bt.bTFamily).c_str(), alloc);
-    val.AddMember("family", family, alloc);
-    rapidjson::Value subFamily(subFamilyToString(bt.btSubFamily).c_str(), alloc);
-    val.AddMember("sub-family", subFamily, alloc);
-    rapidjson::Value version;
-    writeVersion(version, bt.bTVersion, alloc);
-    val.AddMember("version", version, alloc);
-    rapidjson::Value path(bt.bTPath.c_str(), alloc);
-    val.AddMember("path", path, alloc);
-}
-static void readBuildTool(const rapidjson::Value& val, BuildTool& bt) {
-    if (val.HasMember("family")) bt.bTFamily = stringToFamily(val["family"].GetString());
-    if (val.HasMember("sub-family")) bt.btSubFamily = stringToSubFamily(val["sub-family"].GetString());
-    if (val.HasMember("version")) bt.bTVersion = readVersion(val["version"]);
-    if (val.HasMember("path")) bt.bTPath = val["path"].GetString();
-}
-
-static void writeVSTools(rapidjson::Value& val, const VSTools& vt, rapidjson::Document::AllocatorType& alloc) {
-    val.SetObject();
-    rapidjson::Value command(vt.command.c_str(), alloc);
-    val.AddMember("command", command, alloc);
-    rapidjson::Value commandArguments(vt.commandArguments.c_str(), alloc);
-    val.AddMember("commandArguments", commandArguments, alloc);
-    
-    rapidjson::Value compilerVal;
-    writeBuildTool(compilerVal, vt.compiler, alloc);
-    val.AddMember("compiler", compilerVal, alloc);
-    
-    rapidjson::Value linkerVal;
-    writeBuildTool(linkerVal, vt.linker, alloc);
-    val.AddMember("linker", linkerVal, alloc);
-    
-    rapidjson::Value archiverVal;
-    writeBuildTool(archiverVal, vt.archiver, alloc);
-    val.AddMember("archiver", archiverVal, alloc);
-    
-    rapidjson::Value hostArch(archToString(vt.hostArch).c_str(), alloc);
-    val.AddMember("host-architecture", hostArch, alloc);
-    
-    rapidjson::Value hostAM(amToString(vt.hostAM).c_str(), alloc);
-    val.AddMember("host-address-model", hostAM, alloc);
-    
-    rapidjson::Value targetArch(archToString(vt.targetArch).c_str(), alloc);
-    val.AddMember("target-architecture", targetArch, alloc);
-    
-    rapidjson::Value targetAM(amToString(vt.targetAM).c_str(), alloc);
-    val.AddMember("target-address-model", targetAM, alloc);
-    
-    rapidjson::Value includeDirsVal(rapidjson::kArrayType);
-    for (const auto& dir : vt.includeDirs) {
-        rapidjson::Value d(dir.c_str(), alloc);
-        includeDirsVal.PushBack(d, alloc);
-    }
-    val.AddMember("include-dirs", includeDirsVal, alloc);
-    
-    rapidjson::Value libraryDirsVal(rapidjson::kArrayType);
-    for (const auto& dir : vt.libraryDirs) {
-        rapidjson::Value d(dir.c_str(), alloc);
-        libraryDirsVal.PushBack(d, alloc);
-    }
-    val.AddMember("library-dirs", libraryDirsVal, alloc);
-}
-static VSTools readVSTools(const rapidjson::Value& val) {
-    VSTools vt;
-    if (val.HasMember("command")) vt.command = val["command"].GetString();
-    if (val.HasMember("commandArguments")) vt.commandArguments = val["commandArguments"].GetString();
-    if (val.HasMember("compiler")) readBuildTool(val["compiler"], vt.compiler);
-    if (val.HasMember("linker")) readBuildTool(val["linker"], vt.linker);
-    if (val.HasMember("archiver")) readBuildTool(val["archiver"], vt.archiver);
-    if (val.HasMember("host-architecture")) vt.hostArch = stringToArch(val["host-architecture"].GetString());
-    if (val.HasMember("host-address-model")) vt.hostAM = stringToAm(val["host-address-model"].GetString());
-    if (val.HasMember("target-architecture")) vt.targetArch = stringToArch(val["target-architecture"].GetString());
-    if (val.HasMember("target-address-model")) vt.targetAM = stringToAm(val["target-address-model"].GetString());
-    
-    if (val.HasMember("include-dirs")) {
-        for (const auto& d : val["include-dirs"].GetArray()) {
-            vt.includeDirs.push_back(d.GetString());
-        }
-    }
-    if (val.HasMember("library-dirs")) {
-        for (const auto& d : val["library-dirs"].GetArray()) {
-            vt.libraryDirs.push_back(d.GetString());
-        }
-    }
-    return vt;
-}
-
-static void writeLinuxTools(rapidjson::Value& val, const LinuxTools& lt, rapidjson::Document::AllocatorType& alloc) {
-    val.SetObject();
-    rapidjson::Value command(lt.command.c_str(), alloc);
-    val.AddMember("command", command, alloc);
-    
-    rapidjson::Value compilerVal;
-    writeBuildTool(compilerVal, lt.compiler, alloc);
-    val.AddMember("compiler", compilerVal, alloc);
-    
-    rapidjson::Value includeDirsVal(rapidjson::kArrayType);
-    for (const auto& dir : lt.includeDirs) {
-        rapidjson::Value d(dir.c_str(), alloc);
-        includeDirsVal.PushBack(d, alloc);
-    }
-    val.AddMember("include-dirs", includeDirsVal, alloc);
-}
-static LinuxTools readLinuxTools(const rapidjson::Value& val) {
-    LinuxTools lt;
-    if (val.HasMember("command")) lt.command = val["command"].GetString();
-    if (val.HasMember("compiler")) readBuildTool(val["compiler"], lt.compiler);
-    if (val.HasMember("include-dirs")) {
-        for (const auto& d : val["include-dirs"].GetArray()) {
-            lt.includeDirs.push_back(d.GetString());
-        }
-    }
-    return lt;
-}
-
-ToolsCache::ToolsCache()
-{
-    const string toolsCacheFile = "toolsCache.json";
-    if constexpr (os == OS::LINUX)
-    {
-        if (const char *homedir = getenv("HOME"); homedir)
+        if (const char *homeDirectory = std::getenv("HOME"))
         {
-            toolsCacheFilePath = path(homedir) / ".hmake" / path(toolsCacheFile);
+            userToolchainsFilePath = path(homeDirectory) / ".hmake" / "toolchains.json";
+        }
+    }
+#if defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) && defined(HMAKE_DEFAULT_COMPILER) && defined(HMAKE_DEFAULT_LINKER) &&       \
+    defined(HMAKE_DEFAULT_ARCHIVER) && defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) &&                                    \
+    defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) && defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) && defined(HMAKE_DEFAULT_TARGET)
+    Toolchain builtIn;
+    builtIn.family = HMAKE_DEFAULT_TOOLCHAIN_FAMILY;
+    builtIn.style = HMAKE_DEFAULT_TOOLCHAIN_STYLE;
+    builtIn.version = HMAKE_DEFAULT_TOOLCHAIN_VERSION;
+    builtIn.target = HMAKE_DEFAULT_TARGET;
+    builtIn.compiler.bTPath = HMAKE_DEFAULT_COMPILER;
+    builtIn.linker.bTPath = HMAKE_DEFAULT_LINKER;
+    builtIn.archiver.bTPath = HMAKE_DEFAULT_ARCHIVER;
+    addBuiltin(HMAKE_DEFAULT_TOOLCHAIN_NAME, std::move(builtIn));
+#elif defined(HMAKE_DEFAULT_TOOLCHAIN_NAME) || defined(HMAKE_DEFAULT_COMPILER) || defined(HMAKE_DEFAULT_LINKER) ||     \
+    defined(HMAKE_DEFAULT_ARCHIVER) || defined(HMAKE_DEFAULT_TOOLCHAIN_FAMILY) ||                                    \
+    defined(HMAKE_DEFAULT_TOOLCHAIN_STYLE) || defined(HMAKE_DEFAULT_TOOLCHAIN_VERSION) || defined(HMAKE_DEFAULT_TARGET)
+#error "The HMake built-in toolchain requires all HMAKE_DEFAULT_* definitions."
+#endif
+}
+
+void Toolchains::addBuiltin(const string &name, Toolchain toolchain)
+{
+    const path sourceFile = "<builtin>";
+    assert(!name.empty());
+    assert(!entries.contains(name));
+    toolchain.name = name;
+    assert(!toolchain.compiler.bTPath.empty() && !toolchain.linker.bTPath.empty() &&
+           !toolchain.archiver.bTPath.empty() && !toolchain.family.empty() && !toolchain.style.empty() &&
+           !toolchain.version.empty() && !toolchain.target.empty());
+    initializeBuildTools(toolchain, sourceFile);
+    entries.emplace(name, std::move(toolchain));
+    registryOrder.emplace_back(name);
+}
+
+void Toolchains::loadFile(const path &filePath)
+{
+    std::error_code error;
+    const std::filesystem::file_status status = std::filesystem::status(filePath, error);
+    if (error == std::errc::no_such_file_or_directory)
+    {
+        return;
+    }
+    if (error)
+    {
+        printErrorMessage(FORMAT("Could not inspect a toolchain registry.\nPath: {}\nSystem error: {}",
+                                 filePath.string(), error.message()));
+    }
+    if (status.type() == std::filesystem::file_type::not_found)
+    {
+        return;
+    }
+    if (status.type() != std::filesystem::file_type::regular)
+    {
+        printErrorMessage(
+            FORMAT("A toolchain-registry path is not a regular file.\nPath: {}", filePath.string()));
+    }
+
+    const string content = fileToString(filePath.string());
+    rapidjson::Document document;
+    document.Parse(content.data(), content.size());
+    if (document.HasParseError())
+    {
+        printErrorMessage(FORMAT("Could not parse the toolchain registry.\nFile: {}\nParser error: {}\nByte offset: {}",
+                                 filePath.string(), rapidjson::GetParseError_En(document.GetParseError()),
+                                 document.GetErrorOffset()));
+    }
+    if (!document.IsObject())
+    {
+        toolchainError(filePath, {}, "The top level must be an object keyed by toolchain name.");
+    }
+
+    for (auto member = document.MemberBegin(); member != document.MemberEnd(); ++member)
+    {
+        const string name(member->name.GetString(), member->name.GetStringLength());
+        if (name.empty() || name.find('\0') != string::npos)
+        {
+            toolchainError(filePath, {}, "Toolchain names must not be empty or contain null bytes.");
+        }
+        if (!member->value.IsObject())
+        {
+            toolchainError(filePath, name, "A toolchain definition must be an object.");
+        }
+        if (entries.contains(name))
+        {
+            toolchainError(filePath, name, "Duplicate toolchain name.");
+        }
+
+        uint16_t fields = 0;
+        string baseName;
+        bool hasBase = false;
+        for (auto field = member->value.MemberBegin(); field != member->value.MemberEnd(); ++field)
+        {
+            const string_view fieldName(field->name.GetString(), field->name.GetStringLength());
+            const uint16_t fieldBit = toolchainFieldBit(fieldName);
+            if (fieldBit == 0)
+            {
+                toolchainError(filePath, name, FORMAT("Unknown field '{}'.", fieldName));
+            }
+            if ((fields & fieldBit) != 0)
+            {
+                toolchainError(filePath, name, FORMAT("Duplicate field '{}'.", fieldName));
+            }
+            fields |= fieldBit;
+            if (fieldName == extendsField)
+            {
+                baseName = readRequiredString(field->value, filePath, name, fieldName);
+                hasBase = true;
+            }
+        }
+
+        Toolchain toolchain;
+        if (hasBase)
+        {
+            const auto base = entries.find(baseName);
+            if (base == entries.end())
+            {
+                toolchainError(filePath, name,
+                               FORMAT("Base toolchain '{}' must be built-in or declared before this entry.", baseName));
+            }
+            toolchain = base->second;
         }
         else
         {
-            printErrorMessage("Cannot locate the tool cache because HOME is not set.\nEnvironment variable: HOME\n"
-                              "Hint: set HOME to the current user's home directory.");
+            requireField((fields & toolchainFieldBit(compilerField)) != 0, filePath, name, compilerField);
+            requireField((fields & toolchainFieldBit(linkerField)) != 0, filePath, name, linkerField);
+            requireField((fields & toolchainFieldBit(archiverField)) != 0, filePath, name, archiverField);
+            requireField((fields & toolchainFieldBit(familyField)) != 0, filePath, name, familyField);
+            requireField((fields & toolchainFieldBit(styleField)) != 0, filePath, name, styleField);
+            requireField((fields & toolchainFieldBit(versionField)) != 0, filePath, name, versionField);
+            requireField((fields & toolchainFieldBit(targetField)) != 0, filePath, name, targetField);
+            requireField((fields & toolchainFieldBit(includeDirsField)) != 0, filePath, name, includeDirsField);
+            requireField((fields & toolchainFieldBit(libraryDirsField)) != 0, filePath, name, libraryDirsField);
+            requireField((fields & toolchainFieldBit(bootstrapArgumentsField)) != 0, filePath, name,
+                         bootstrapArgumentsField);
         }
-    }
-    else if constexpr (os == OS::NT)
-    {
-        toolsCacheFilePath = R"(C:\Program Files (x86)\HMake\)" + toolsCacheFile;
+
+        toolchain.name = name;
+        for (auto field = member->value.MemberBegin(); field != member->value.MemberEnd(); ++field)
+        {
+            const string_view fieldName(field->name.GetString(), field->name.GetStringLength());
+            if (fieldName == extendsField)
+            {
+                continue;
+            }
+            if (fieldName == compilerField)
+            {
+                toolchain.compiler.bTPath = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == linkerField)
+            {
+                toolchain.linker.bTPath = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == archiverField)
+            {
+                toolchain.archiver.bTPath = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == familyField)
+            {
+                toolchain.family = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == styleField)
+            {
+                toolchain.style = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == versionField)
+            {
+                toolchain.version = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == targetField)
+            {
+                toolchain.target = readRequiredString(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == includeDirsField)
+            {
+                toolchain.includeDirs = readStringArray(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == libraryDirsField)
+            {
+                toolchain.libraryDirs = readStringArray(field->value, filePath, name, fieldName);
+            }
+            else if (fieldName == bootstrapArgumentsField)
+            {
+                toolchain.bootstrapArguments = readStringArray(field->value, filePath, name, fieldName);
+            }
+        }
+
+        if (toolchain.compiler.bTPath.empty() || toolchain.linker.bTPath.empty() ||
+            toolchain.archiver.bTPath.empty() || toolchain.family.empty() || toolchain.style.empty() ||
+            toolchain.version.empty() || toolchain.target.empty())
+        {
+            toolchainError(filePath, name, "Required string fields must not be empty after inheritance.");
+        }
+        initializeBuildTools(toolchain, filePath);
+        entries.emplace(name, std::move(toolchain));
+        registryOrder.emplace_back(name);
     }
 }
 
-void ToolsCache::detectToolsAndInitialize()
+void Toolchains::initialize(const path &sourceDirectory)
 {
-    if constexpr (os == OS::NT)
+    if (!userFileLoaded)
     {
-        string batchFilePath =
-            R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat")";
-        path toolBinDir = R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin)";
-        vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_64, Arch::X86, AddressModel::A_64);
-        vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_64, Arch::X86, AddressModel::A_32);
-        vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_32, Arch::X86, AddressModel::A_64);
-        vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_32, Arch::X86, AddressModel::A_32);
+        loadFile(userToolchainsFilePath);
+        userFileLoaded = true;
     }
-    else if constexpr (os == OS::LINUX)
+    if (!sourceDirectory.empty() && !sourceFileLoaded)
     {
-        linuxTools.emplace_back(Compiler(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                                         R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang)"));
-        linkers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                             R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang++)");
-        archivers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0), "/usr/bin/ar");
+        loadFile(sourceDirectory / "toolchains.json");
+        sourceFileLoaded = true;
     }
 }
 
-void ToolsCache::initializeToolsCacheVariableFromToolsCacheFile()
+const Toolchain *Toolchains::find(const string_view name)
 {
-    if (!std::filesystem::exists(toolsCacheFilePath))
-    {
-        return;
-    }
-    std::ifstream ifs(toolsCacheFilePath);
-    string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    rapidjson::Document doc;
-    doc.Parse(content.c_str());
-    if (doc.HasParseError())
-    {
-        return;
-    }
-
-    if (doc.HasMember(JConsts::vsTools.c_str()))
-    {
-        for (const auto& item : doc[JConsts::vsTools.c_str()].GetArray())
-        {
-            vsTools.push_back(readVSTools(item));
-        }
-    }
-    if (doc.HasMember(JConsts::linuxTools.c_str()))
-    {
-        for (const auto& item : doc[JConsts::linuxTools.c_str()].GetArray())
-        {
-            linuxTools.push_back(readLinuxTools(item));
-        }
-    }
-    if (doc.HasMember(JConsts::compilerArray.c_str()))
-    {
-        for (const auto& item : doc[JConsts::compilerArray.c_str()].GetArray())
-        {
-            Compiler c;
-            readBuildTool(item, c);
-            compilers.push_back(c);
-        }
-    }
-    if (doc.HasMember(JConsts::linkerArray.c_str()))
-    {
-        for (const auto& item : doc[JConsts::linkerArray.c_str()].GetArray())
-        {
-            Linker l;
-            readBuildTool(item, l);
-            linkers.push_back(l);
-        }
-    }
-    if (doc.HasMember(JConsts::archiverArray.c_str()))
-    {
-        for (const auto& item : doc[JConsts::archiverArray.c_str()].GetArray())
-        {
-            Archiver a;
-            readBuildTool(item, a);
-            archivers.push_back(a);
-        }
-    }
+    initialize();
+    const auto found = entries.find(name);
+    return found == entries.end() ? nullptr : &found->second;
 }
 
-void ToolsCache::writeToolsCacheFile()
+string_view Toolchains::defaultName()
 {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
+    initialize();
+    return registryOrder.empty() ? string_view{} : string_view(registryOrder.front());
+}
 
-    rapidjson::Value vsToolsVal(rapidjson::kArrayType);
-    for (const auto& vt : vsTools)
+string Toolchains::toJson()
+{
+    initialize();
+
+    rapidjson::Document document(rapidjson::kObjectType);
+    auto &allocator = document.GetAllocator();
+    for (const string &name : registryOrder)
     {
-        rapidjson::Value v;
-        writeVSTools(v, vt, alloc);
-        vsToolsVal.PushBack(v, alloc);
-    }
-    doc.AddMember(rapidjson::Value(JConsts::vsTools.c_str(), alloc), vsToolsVal, alloc);
+        const Toolchain &toolchain = entries.find(name)->second;
+        rapidjson::Value jsonToolchain(rapidjson::kObjectType);
+        addJsonString(jsonToolchain, compilerField, toolchain.compiler.bTPath, allocator);
+        addJsonString(jsonToolchain, linkerField, toolchain.linker.bTPath, allocator);
+        addJsonString(jsonToolchain, archiverField, toolchain.archiver.bTPath, allocator);
+        addJsonString(jsonToolchain, familyField, toolchain.family, allocator);
+        addJsonString(jsonToolchain, styleField, toolchain.style, allocator);
+        addJsonString(jsonToolchain, versionField, toolchain.version, allocator);
+        addJsonString(jsonToolchain, targetField, toolchain.target, allocator);
 
-    rapidjson::Value linuxToolsVal(rapidjson::kArrayType);
-    for (const auto& lt : linuxTools)
-    {
-        rapidjson::Value v;
-        writeLinuxTools(v, lt, alloc);
-        linuxToolsVal.PushBack(v, alloc);
-    }
-    doc.AddMember(rapidjson::Value(JConsts::linuxTools.c_str(), alloc), linuxToolsVal, alloc);
+        rapidjson::Value includeDirectories = makeJsonStringArray(toolchain.includeDirs, allocator);
+        rapidjson::Value includeDirectoriesName(includeDirsField.data(),
+                                                static_cast<rapidjson::SizeType>(includeDirsField.size()), allocator);
+        jsonToolchain.AddMember(includeDirectoriesName, includeDirectories, allocator);
 
-    rapidjson::Value compilersVal(rapidjson::kArrayType);
-    for (const auto& c : compilers)
-    {
-        rapidjson::Value v;
-        writeBuildTool(v, c, alloc);
-        compilersVal.PushBack(v, alloc);
-    }
-    doc.AddMember(rapidjson::Value(JConsts::compilerArray.c_str(), alloc), compilersVal, alloc);
+        rapidjson::Value libraryDirectories = makeJsonStringArray(toolchain.libraryDirs, allocator);
+        rapidjson::Value libraryDirectoriesName(libraryDirsField.data(),
+                                                static_cast<rapidjson::SizeType>(libraryDirsField.size()), allocator);
+        jsonToolchain.AddMember(libraryDirectoriesName, libraryDirectories, allocator);
 
-    rapidjson::Value linkersVal(rapidjson::kArrayType);
-    for (const auto& l : linkers)
-    {
-        rapidjson::Value v;
-        writeBuildTool(v, l, alloc);
-        linkersVal.PushBack(v, alloc);
-    }
-    doc.AddMember(rapidjson::Value(JConsts::linkerArray.c_str(), alloc), linkersVal, alloc);
+        rapidjson::Value bootstrapArguments = makeJsonStringArray(toolchain.bootstrapArguments, allocator);
+        rapidjson::Value bootstrapArgumentsName(bootstrapArgumentsField.data(),
+                                                static_cast<rapidjson::SizeType>(bootstrapArgumentsField.size()),
+                                                allocator);
+        jsonToolchain.AddMember(bootstrapArgumentsName, bootstrapArguments, allocator);
 
-    rapidjson::Value archiversVal(rapidjson::kArrayType);
-    for (const auto& a : archivers)
-    {
-        rapidjson::Value v;
-        writeBuildTool(v, a, alloc);
-        archiversVal.PushBack(v, alloc);
+        rapidjson::Value jsonName(name.data(), static_cast<rapidjson::SizeType>(name.size()), allocator);
+        document.AddMember(jsonName, jsonToolchain, allocator);
     }
-    doc.AddMember(rapidjson::Value(JConsts::archiverArray.c_str(), alloc), archiversVal, alloc);
 
-    ofstream ofs(toolsCacheFilePath);
     rapidjson::StringBuffer buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-    doc.Accept(writer);
-    ofs << buffer.GetString();
+    writer.SetIndent(' ', 4);
+    document.Accept(writer);
+    return {buffer.GetString(), buffer.GetSize()};
 }
