@@ -4,7 +4,6 @@
 #include "Builder.hpp"
 #include "ConfigurationAssign.hpp"
 #include "LOAT.hpp"
-#include "ToolsCache.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>
@@ -195,7 +194,7 @@ void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
     }
 }
 
-void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include)
+void readInclDirsAtBuildTime(const char *ptr, uint64_t &bytesRead, vector<InclNode> &include)
 {
     const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize);
@@ -209,7 +208,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNo
 void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_view, HfOrCppMod> &headerNameMapping)
 {
     // Reserve space for the count, fill it in after iteration.
-    const uint32_t countOffset = buffer.size();
+    const uint64_t countOffset = buffer.size();
     writeUint32(buffer, 0);
 
     uint32_t written = 0;
@@ -221,6 +220,7 @@ void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_vie
         }
         writeStringView(buffer, s);
         writeNode(buffer, h.data.node);
+        assert(written != static_cast<uint32_t>(-1));
         ++written;
     }
 
@@ -343,7 +343,7 @@ string_view CppTarget::getAdaptiveIncludeName(const Node *node) const
     // accept a sibling such as `/repo/project-other` for the source root `/repo/project`.
     const string_view sourceRoot = srcNode->filePath;
     const string_view sourcePath = node->filePath;
-    size_t relativeStart = sourceRoot.size();
+    uint64_t relativeStart = sourceRoot.size();
     const bool rootEndsInSeparator = !sourceRoot.empty() && sourceRoot.back() == slashc;
     if (!sourcePath.starts_with(sourceRoot) || sourcePath.size() <= relativeStart ||
         (!rootEndsInSeparator && sourcePath[relativeStart] != slashc))
@@ -1641,7 +1641,7 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
         char *ptr = const_cast<char *>(bTargetCaches[cppMod.cacheIndex].getBuildCache().data());
         if (calledFromConfiguration)
         {
-            uint32_t bytesRead = 1; // (1 headerStatusChanged)
+            uint64_t bytesRead = 1; // (1 headerStatusChanged)
             const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
             for (uint32_t i = 0; i < headerFilesSize; ++i)
             {
@@ -1664,7 +1664,7 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
             return;
         }
 
-        uint32_t bytesRead = 1; // (1 headerStatusChanged)
+        uint64_t bytesRead = 1; // (1 headerStatusChanged)
         const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
         for (uint32_t i = 0; i < headerFilesSize; ++i)
         {
@@ -1734,7 +1734,7 @@ void CppTarget::readConfigCacheAtBuildTime()
     const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
-    uint32_t bytesRead = configCacheRead;
+    uint64_t bytesRead = configCacheRead;
 
     RealBTarget &rb = realBTargets[0];
 
@@ -2252,7 +2252,7 @@ string CppTarget::getDependenciesString() const
 
 void CppTarget::verifyConfigCache(const string_view configCache) const
 {
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     verifyObjectFileProducerConfigCache(configCache, bytesRead);
 
     const uint32_t cachedSrcFileDepsSize = readUint32(configCache.data(), bytesRead);
