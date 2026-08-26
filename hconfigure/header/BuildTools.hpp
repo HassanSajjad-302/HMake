@@ -1,7 +1,10 @@
 #ifndef HMAKE_BUILDTOOLS_HPP
 #define HMAKE_BUILDTOOLS_HPP
 
+#include <compare>
+#include <cstdint>
 #include <filesystem>
+#include <string>
 
 using std::string;
 using std::filesystem::path;
