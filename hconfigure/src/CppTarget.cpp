@@ -513,8 +513,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
 
     if (exportName.empty())
     {
-        string fileName = node->getFileName();
-        if (const string ext = node->getExtension(); ext == ".cppm" || ext == ".ixx")
+        if (const string_view extension = node->getFileExtension(); extension == ".cppm" || extension == ".ixx")
         {
             exportName = node->getFileStem();
         }
