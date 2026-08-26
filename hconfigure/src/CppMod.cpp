@@ -215,7 +215,8 @@ flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, cons
 flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const path &workingDirectory)
 {
     flat_hash_set<Node *> dependencies;
-    string contents = fileToString(dependencyFile.string());
+    STACK_PMR_STRING(contents, 256 * 1024)
+    fileToString(dependencyFile.string(), contents);
     uint64_t writeOffset = 0;
     const uint64_t contentStart = contents.starts_with("\xef\xbb\xbf") ? 3 : 0;
     for (uint64_t index = contentStart; index < contents.size(); ++index)
@@ -261,7 +262,7 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
         printErrorMessage(FORMAT("Malformed Make dependency file.\nFile: {}", dependencyFile.string()));
     }
 
-    string token;
+    STACK_PMR_STRING(token, 1024)
     bool comment = false;
     const auto commit = [&]() {
         if (!token.empty())
@@ -352,7 +353,8 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
 
 flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const path &workingDirectory)
 {
-    string json = fileToString(dependencyFile.string());
+    STACK_PMR_STRING(json, 256 * 1024)
+    fileToString(dependencyFile.string(), json);
     char *const documentStart = json.data() + (json.starts_with("\xef\xbb\xbf") ? 3 : 0);
     rapidjson::Document document;
     document.ParseInsitu(documentStart);
@@ -410,8 +412,8 @@ void CppSrc::setUpdateStatus()
         return;
     }
 
-    // `STACK_PMR_VECTOR` takes an element count, not a byte count, and reserves it before the first insertion.
-    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() + 2)
+    STACK_PMR_VECTOR(uint64_t, contentHashes, 4 * 1024)
+    contentHashes.reserve(cachedHeaderFiles.size() + 2);
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -492,7 +494,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    STACK_PMR_STRING(outputStr, 64 * 1024)
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(ColorIndex::cyan);
@@ -526,7 +528,9 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
 void CppSrc::writeConfigCacheAtConfigTime(string &buffer)
 {
     const string fileNumber = toString(node->myId);
-    string objectFile = target->myBuildDir->filePath;
+    STACK_PMR_STRING(objectFile, 2 * 1024)
+    objectFile.reserve(target->myBuildDir->filePath.size() + 1 + node->getFileName().size() + fileNumber.size() + 2);
+    objectFile.assign(target->myBuildDir->filePath);
     objectFile += slashc;
     objectFile += node->getFileName();
     objectFile += fileNumber;
@@ -544,7 +548,8 @@ void CppSrc::writeBuildCacheAtConfigTime(string &buffer)
 void CppSrc::writeBuildCacheAtBuildTime(string &buffer)
 {
     RealBTarget &rb = realBTargets[0];
-    STACK_PMR_VECTOR(uint64_t, contentHashes, headerFiles.size() + 2)
+    STACK_PMR_VECTOR(uint64_t, contentHashes, 4 * 1024)
+    contentHashes.reserve(headerFiles.size() + 2);
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const Node *headerNode : headerFiles)
@@ -565,7 +570,7 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        vector<uint64_t> contentHashes;
+        STACK_PMR_VECTOR(uint64_t, contentHashes, 4 * 1024)
         contentHashes.reserve(headerFiles.size() + 2);
         contentHashes.emplace_back(commandHash);
         contentHashes.emplace_back(node->contentHash);
@@ -1535,7 +1540,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
 void CppMod::print(const Builder &builder, const string &output) const
 {
-    STACK_PMR_STRING(outputStr, 64 * 1024)
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(type == CppModType::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
@@ -1766,7 +1771,8 @@ void CppMod::setUpdateStatus()
     rb.updateStatus = UpdateStatus::UNCHECKED;
 
     // command-hash + source-hash + cachedHeaderFiles
-    STACK_PMR_VECTOR(uint64_t, contentHashes, cachedHeaderFiles.size() + 2)
+    STACK_PMR_VECTOR(uint64_t, contentHashes, 256)
+    contentHashes.reserve(cachedHeaderFiles.size() + 2);
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
     for (const uint32_t nodeIndex : cachedHeaderFiles)
@@ -1914,7 +1920,10 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
 
     if (!isImpl)
     {
-        string interfaceFile = target->myBuildDir->filePath;
+        STACK_PMR_STRING(interfaceFile, 2 * 1024)
+        interfaceFile.reserve(target->myBuildDir->filePath.size() + 1 + node->getFileName().size() +
+                              fileNumber.size() + 4);
+        interfaceFile.assign(target->myBuildDir->filePath);
         interfaceFile += slashc;
         interfaceFile += node->getFileName();
         interfaceFile += fileNumber;
@@ -1926,7 +1935,10 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
 
     if (!isHU)
     {
-        string objectFile = target->myBuildDir->filePath;
+        STACK_PMR_STRING(objectFile, 2 * 1024)
+        objectFile.reserve(target->myBuildDir->filePath.size() + 1 + node->getFileName().size() + fileNumber.size() +
+                           2);
+        objectFile.assign(target->myBuildDir->filePath);
         objectFile += slashc;
         objectFile += node->getFileName();
         objectFile += fileNumber;
@@ -2075,7 +2087,8 @@ void CppMod::writeBuildCacheAtBuildTime(string &buffer)
     RealBTarget &rb = realBTargets[0];
 
     // command-hash + source-hash + container-size
-    STACK_PMR_VECTOR(uint64_t, contentHashes, (target->useIPC ? composingHeaders.size() : headerFiles.size()) + 2)
+    STACK_PMR_VECTOR(uint64_t, contentHashes, 256)
+    contentHashes.reserve((target->useIPC ? composingHeaders.size() : headerFiles.size()) + 2);
     contentHashes.emplace_back(commandHash);
     contentHashes.emplace_back(node->contentHash);
 
@@ -2156,8 +2169,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
     if constexpr (bsMode == BSMode::BUILD)
     {
         // Recompute cumulativeHash and dump to debug file for comparison.
-        std::vector<uint64_t> contentHashes;
-        contentHashes.reserve(1 + 1 + (target->useIPC ? composingHeaders.size() : headerFiles.size()));
+        STACK_PMR_VECTOR(uint64_t, contentHashes, 256)
+        contentHashes.reserve(2 + (target->useIPC ? composingHeaders.size() : headerFiles.size()));
         contentHashes.emplace_back(commandHash);
         contentHashes.emplace_back(node->contentHash);
 
@@ -2444,7 +2457,7 @@ void AdaptiveManager::prepareWorkingSet()
         }
     }
 
-    vector<Node *> nodes;
+    STACK_PMR_VECTOR(Node *, nodes, 1024)
     nodes.reserve(candidates.size());
     for (const auto &[candidatePath, node] : candidates)
     {
@@ -2464,7 +2477,7 @@ void AdaptiveManager::prepareWorkingSet()
 
     const uint32_t hardwareThreads = std::max(1u, std::thread::hardware_concurrency());
     const uint32_t workerCount = std::min<uint32_t>(hardwareThreads, nodes.size());
-    vector<std::thread> workers;
+    STACK_PMR_VECTOR(std::thread, workers, 256)
     workers.reserve(workerCount > 0 ? workerCount - 1 : 0);
     const auto statStride = [&](const uint32_t worker) {
         for (uint32_t i = worker; i < nodes.size(); i += workerCount)
