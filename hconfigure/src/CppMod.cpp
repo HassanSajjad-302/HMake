@@ -112,8 +112,16 @@ void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        compileCommand +=
-            "-c /nologo /showIncludes /TP \"" + node->filePath + "\" /Fo\"" + objectNodes.front()->filePath + "\"";
+        compileCommand += "-c /nologo ";
+        if (target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
+        {
+            compileCommand += "/sourceDependencies \"" + objectNodes.front()->filePath + ".json\" ";
+        }
+        else
+        {
+            compileCommand += "/showIncludes ";
+        }
+        compileCommand += "/TP \"" + node->filePath + "\" /Fo\"" + objectNodes.front()->filePath + "\"";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -129,17 +137,11 @@ Node *dependencyNode(const string_view dependency, const path &workingDirectory)
     {
         return nullptr;
     }
-    path dependencyPath{string(dependency)};
+    path dependencyPath{dependency};
     if (dependencyPath.is_relative())
     {
+        // Both callers supply an absolute working directory, so dependency normalization stays purely lexical.
         dependencyPath = workingDirectory / dependencyPath;
-    }
-    std::error_code error;
-    dependencyPath = std::filesystem::absolute(dependencyPath, error);
-    if (error)
-    {
-        printErrorMessage(FORMAT("Could not normalize a compiler dependency path.\nPath: {}\nSystem error: {}",
-                                 dependencyPath.string(), error.message()));
     }
     string normalized = dependencyPath.lexically_normal().string();
     lowerCaseOnWindows(normalized.data(), normalized.size());
@@ -214,12 +216,9 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
 {
     flat_hash_set<Node *> dependencies;
     string contents = fileToString(dependencyFile.string());
-    if (contents.starts_with("\xef\xbb\xbf"))
-    {
-        contents.erase(0, 3);
-    }
     uint64_t writeOffset = 0;
-    for (uint64_t index = 0; index < contents.size(); ++index)
+    const uint64_t contentStart = contents.starts_with("\xef\xbb\xbf") ? 3 : 0;
+    for (uint64_t index = contentStart; index < contents.size(); ++index)
     {
         if (contents[index] == '\\' && index + 1 < contents.size() &&
             (contents[index + 1] == '\n' || contents[index + 1] == '\r'))
@@ -354,12 +353,9 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
 flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const path &workingDirectory)
 {
     string json = fileToString(dependencyFile.string());
-    if (json.starts_with("\xef\xbb\xbf"))
-    {
-        json.erase(0, 3);
-    }
+    char *const documentStart = json.data() + (json.starts_with("\xef\xbb\xbf") ? 3 : 0);
     rapidjson::Document document;
-    document.Parse(json.data(), json.size());
+    document.ParseInsitu(documentStart);
     if (document.HasParseError() || !document.IsObject())
     {
         printErrorMessage(FORMAT("Malformed MSVC source-dependencies file.\nFile: {}\nByte offset: {}",
@@ -465,6 +461,11 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         dependencyFile = objectNodes.front()->filePath;
         dependencyFile.replace_extension(".d");
     }
+    else if (compiler.bTFamily == BTFamily::MSVC &&
+             target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
+    {
+        dependencyFile = objectNodes.front()->filePath + ".json";
+    }
     headerFiles = parseHeaderDeps(*run.output, compiler, realBTargets[0].exitStatus, dependencyFile,
                                   currentNode->filePath);
     for (auto iterator = headerFiles.begin(); iterator != headerFiles.end();)
@@ -525,8 +526,12 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
 void CppSrc::writeConfigCacheAtConfigTime(string &buffer)
 {
     const string fileNumber = toString(node->myId);
-    objectNodes.emplace_back(
-        Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".o", true, true));
+    string objectFile = target->myBuildDir->filePath;
+    objectFile += slashc;
+    objectFile += node->getFileName();
+    objectFile += fileNumber;
+    objectFile += ".o";
+    objectNodes.emplace_back(Node::getNode(objectFile, true, true));
     writeNode(buffer, objectNodes.front());
 }
 
@@ -1780,7 +1785,9 @@ void CppMod::generateStandAloneCommand()
         if (const RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::UPDATE_NEEDED)
         {
             path scriptDirectory = target->myBuildDir->filePath;
-            scriptDirectory /= node->getFileName() + toString(node->myId);
+            string scriptName(node->getFileName());
+            scriptName += toString(node->myId);
+            scriptDirectory /= scriptName;
             std::filesystem::create_directory(scriptDirectory);
             string scriptContents =
                 FORMAT("#!/bin/bash\n\nset -x\n\n# This script compiles {}. Run it in the build-dir with same "
@@ -1907,16 +1914,24 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
 
     if (!isImpl)
     {
-        interfaceNode = Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".ifc",
-                                      true, true);
+        string interfaceFile = target->myBuildDir->filePath;
+        interfaceFile += slashc;
+        interfaceFile += node->getFileName();
+        interfaceFile += fileNumber;
+        interfaceFile += ".ifc";
+        interfaceNode = Node::getNode(interfaceFile, true, true);
         writeNode(buffer, interfaceNode);
         writeStringView(buffer, logicalName);
     }
 
     if (!isHU)
     {
-        objectNodes.emplace_back(
-            Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".o", true, true));
+        string objectFile = target->myBuildDir->filePath;
+        objectFile += slashc;
+        objectFile += node->getFileName();
+        objectFile += fileNumber;
+        objectFile += ".o";
+        objectNodes.emplace_back(Node::getNode(objectFile, true, true));
         writeNode(buffer, objectNodes.front());
     }
     else
