@@ -49,7 +49,8 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         "private-header-units", "interface-header-units", "interface-files",        "module-files",
     };
 
-    string str = fileToString(dir + "module-map.txt");
+    STACK_PMR_STRING(str, 64 * 1024)
+    fileToString(dir + "module-map.txt", str);
     uint32_t start = 0;
     int currentModeIndex = -1;
     string_view pendingLogicalName;
@@ -467,7 +468,7 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
         return {};
     }
 
-    string firstLine;
+    STACK_PMR_STRING(firstLine, 1024)
     if (!std::getline(file, firstLine))
     {
         printErrorMessage(FORMAT("Could not read the module declaration line.\nModule file: {}", node->filePath));
@@ -1700,15 +1701,15 @@ void CppTarget::writeBigHeaderUnits()
         {
             if (bigHu)
             {
-                string str;
+                STACK_PMR_STRING(str, 16 * 1024)
                 for (const auto &[s, _] : bigHu->composingHeaders)
                 {
                     str += "#include \"" + s + "\"\n";
                 }
-                string fileStr;
+                STACK_PMR_STRING(fileStr, 16 * 1024)
                 if (bigHu->node->fileType != file_type::not_found)
                 {
-                    fileStr = fileToString(bigHu->node->filePath);
+                    fileToString(bigHu->node->filePath, fileStr);
                     if constexpr (os == OS::NT)
                     {
                         fileStr.erase(std::remove(fileStr.begin(), fileStr.end(), '\r'), fileStr.end());
