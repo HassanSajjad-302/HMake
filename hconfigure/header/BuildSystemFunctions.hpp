@@ -14,6 +14,8 @@
 
 #include "HashValues.hpp"
 #include "gtl/include/gtl/phmap.hpp"
+#include <array>
+#include <cstddef>
 #include <deque>
 #include <filesystem>
 #include <format>
@@ -563,26 +565,25 @@ template <typename T> struct TPointerLess
     static alignas(16) inline char _##var[sizeof(type)];                                                               \
     static inline type &var = reinterpret_cast<type &>(_##var);
 
-// Stack-backed pmr::vector with automatic alignment accounting.
-// Allocates 'StackCap_' elements inline on the stack via a monotonic_buffer_resource.
-// The buffer is oversized by (alignof - 1) bytes to absorb worst-case alignment padding,
-// and reserve() is computed to exactly fill the usable portion.
-// If the vector grows beyond StackCap_, it spills transparently to heap via new/delete.
-// Spilled memory is freed when the monotonic_buffer_resource goes out of scope —
-// monotonic_buffer_resource::deallocate() is a no-op; cleanup happens in its destructor
-// which releases all upstream chunks at once. Vector and resource must share the same scope.
+// Stack-backed, initially empty PMR containers. StackCap_ is the positive compile-time element/character capacity;
+// std::array deliberately makes a runtime-sized invocation ill-formed instead of accepting a compiler VLA extension.
+// The small allowance covers alignment, string terminators, capacity rounding, and debug-library allocator
+// bookkeeping without increasing the capacity reserved by the container. Growth beyond the inline storage uses the
+// resource's upstream fallback and is released with the local resource. Use these multi-declaration macros only at
+// braced block scope with a simple Name_; alias a Type_ containing commas first.
 #define STACK_PMR_VECTOR(Type_, Name_, StackCap_)                                                                      \
-    char Name_##_buf_[sizeof(Type_) * (StackCap_) + alignof(Type_) - 1];                                               \
-    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+    static_assert((StackCap_) > 0);                                                                                    \
+    alignas(Type_)                                                                                                     \
+        std::array<std::byte, sizeof(Type_) * (StackCap_) + alignof(Type_) - 1 + 64> Name_##_buf_;                     \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::vector<Type_> Name_(&Name_##_res_);                                                                      \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(Type_) + 1) / sizeof(Type_));
+    Name_.reserve((Name_##_buf_.size() - alignof(Type_) + 1 - 64) / sizeof(Type_));
 
-// Stack-backed pmr::string. Same semantics as STACK_PMR_VECTOR.
-// StackCap_ is in bytes (chars), not elements.
 #define STACK_PMR_STRING(Name_, StackCap_)                                                                             \
-    char Name_##_buf_[(StackCap_) + alignof(char) - 1];                                                                \
-    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+    static_assert((StackCap_) > 0);                                                                                    \
+    alignas(std::max_align_t) std::array<std::byte, (StackCap_) + 64> Name_##_buf_;                                    \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::string Name_(&Name_##_res_);                                                                             \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(char) + 1) / sizeof(char));
+    Name_.reserve(Name_##_buf_.size() - 64);
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP
