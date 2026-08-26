@@ -38,7 +38,8 @@ void ObjectFileProducer::populateReqAndUseReqObjectFileProducers()
     const auto populate = [this](OpDepInfoMap &dependencies, PloatDepInfoMap &ploatDependencies) {
         // Direct declarations are available before round one. Follow those declarations to a fixed point instead of
         // relying on dependency completion order: UE deliberately suppresses scheduler edges for semantic cycles.
-        STACK_PMR_VECTOR(ObjectFileProducer *, pending, dependencies.size() + 1)
+        STACK_PMR_VECTOR(ObjectFileProducer *, pending, 256)
+        pending.reserve(dependencies.size() + 1);
         for (const auto &entry : dependencies)
         {
             if (entry.first != this)
@@ -157,7 +158,8 @@ void ObjectFileProducer::getObjectFiles(std::pmr::vector<Node *> &objectNodes,
 
 void ObjectFileProducer::writeConfigCacheAtConfigTime(string &buffer)
 {
-    STACK_PMR_VECTOR(ObjectFileProducer *, sortedReqObjectFileProducers, reqObjectFileProducers.size())
+    STACK_PMR_VECTOR(ObjectFileProducer *, sortedReqObjectFileProducers, 1024)
+    sortedReqObjectFileProducers.reserve(reqObjectFileProducers.size());
     for (const auto &entry : reqObjectFileProducers)
     {
         sortedReqObjectFileProducers.emplace_back(entry.first);
