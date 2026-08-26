@@ -217,7 +217,7 @@ void IspcTarget::readConfigCacheAtBuildTime()
 {
     const string_view configCache = bTargetCaches[cacheIndex].configCache;
     const char *ptr = configCache.data();
-    uint32_t bytesRead = configCacheRead;
+    uint64_t bytesRead = configCacheRead;
     const uint32_t sourceCount = readUint32(ptr, bytesRead);
     sourceNodes.reserve(sourceCount);
     for (uint32_t index = 0; index < sourceCount; ++index)
@@ -265,7 +265,7 @@ string getDependencyListPath(const IspcTarget *target, const Node *source)
 
 bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
 {
-    constexpr size_t bufferSize = 64 * 1024;
+    constexpr uint64_t bufferSize = 64 * 1024;
     alignas(64) std::array<char, bufferSize> lhsBuffer;
     alignas(64) std::array<char, bufferSize> rhsBuffer;
 
@@ -346,14 +346,14 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
         return false;
     }
 
-    const auto readFully = [](const int file, char *destination, size_t bytes) {
+    const auto readFully = [](const int file, char *destination, uint64_t bytes) {
         while (bytes != 0)
         {
-            const ssize_t bytesRead = read(file, destination, bytes);
+            const int64_t bytesRead = read(file, destination, bytes);
             if (bytesRead > 0)
             {
                 destination += bytesRead;
-                bytes -= bytesRead;
+                bytes -= static_cast<uint64_t>(bytesRead);
             }
             else if (bytesRead != -1 || errno != EINTR)
             {
@@ -366,7 +366,7 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
     bool same = true;
     while (remaining != 0)
     {
-        const size_t bytes = remaining < bufferSize ? remaining : bufferSize;
+        const uint64_t bytes = remaining < bufferSize ? remaining : bufferSize;
         if (!readFully(lhs, lhsBuffer.data(), bytes) || !readFully(rhs, rhsBuffer.data(), bytes) ||
             std::memcmp(lhsBuffer.data(), rhsBuffer.data(), bytes) != 0)
         {
@@ -427,7 +427,7 @@ IspcHeader::IspcHeader(IspcTarget *target_, Node *sourceNode_)
         finalHeader->doStatFile = true;
 
         const string_view buildCache = bTargetCaches[cacheIndex].getBuildCache();
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         const uint32_t dependencyCount = readUint32(buildCache.data(), bytesRead);
         cachedDependencies = span{reinterpret_cast<const uint32_t *>(buildCache.data() + bytesRead), dependencyCount};
         bytesRead += dependencyCount * sizeof(uint32_t);
@@ -457,7 +457,8 @@ void IspcHeader::getCommand(std::pmr::string &command) const
 
 uint64_t IspcHeader::getDependencyHash(const uint64_t modifiedAfter) const
 {
-    const size_t dependencyCount = dependenciesRefreshed ? discoveredDependencies.size() : cachedDependencies.size();
+    const uint64_t dependencyCount =
+        dependenciesRefreshed ? discoveredDependencies.size() : cachedDependencies.size();
     STACK_PMR_VECTOR(uint64_t, hashes, 256)
     hashes.reserve(dependencyCount * 2 + 1);
     hashes.emplace_back(dependencyCount);
@@ -556,7 +557,7 @@ void IspcHeader::parseDependencyList()
         }
 
         string dependency(entry);
-        for (size_t escaped = dependency.find("\\\\"); escaped != string::npos;
+        for (uint64_t escaped = dependency.find("\\\\"); escaped != string::npos;
              escaped = dependency.find("\\\\", escaped + 1))
         {
             dependency.erase(escaped, 1);
@@ -643,7 +644,7 @@ void IspcHeader::writeBuildCacheAtBuildTime(string &buffer)
 
 void IspcHeader::verifyBuildCache(const string_view buildCache) const
 {
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     const uint32_t dependencyCount = readUint32(buildCache.data(), bytesRead);
     for (uint32_t index = 0; index < dependencyCount; ++index)
     {
