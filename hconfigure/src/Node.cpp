@@ -76,28 +76,28 @@ Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
     nodeIndices.emplace_back(this);
 }
 
-string Node::getFileName() const
+string_view Node::getFileName() const noexcept
 {
     if (const uint64_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
     {
-        return string(filePath.substr(slashPos + 1));
+        return {filePath.data() + slashPos + 1, filePath.size() - slashPos - 1};
     }
     return filePath;
 }
 
-string Node::getFileStem() const
+string_view Node::getFileStem() const noexcept
 {
     const uint64_t slashPos = filePath.find_last_of(slashc);
     const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
     const uint64_t dotPos = filePath.find_last_of('.');
     if (dotPos == string::npos || dotPos <= nameStart)
     {
-        return string(filePath.substr(nameStart));
+        return {filePath.data() + nameStart, filePath.size() - nameStart};
     }
-    return string(filePath.substr(nameStart, dotPos - nameStart));
+    return {filePath.data() + nameStart, dotPos - nameStart};
 }
 
-string Node::getExtension() const
+string_view Node::getFileExtension() const noexcept
 {
     const uint64_t slashPos = filePath.find_last_of(slashc);
     const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
@@ -106,7 +106,7 @@ string Node::getExtension() const
     {
         return {};
     }
-    return filePath.substr(dotPos);
+    return {filePath.data() + dotPos, filePath.size() - dotPos};
 }
 
 void Node::performSystemCheck()
