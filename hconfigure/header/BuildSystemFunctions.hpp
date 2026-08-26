@@ -565,23 +565,24 @@ template <typename T> struct TPointerLess
     static alignas(16) inline char _##var[sizeof(type)];                                                               \
     static inline type &var = reinterpret_cast<type &>(_##var);
 
-// Stack-backed, initially empty PMR containers. StackCap_ is the positive compile-time element/character capacity;
+// Stack-backed, initially empty PMR containers.
+// For STACK_PMR_VECTOR, Count_ is the positive compile-time element capacity (number of Type_ items).
+// For STACK_PMR_STRING, Bytes_ is the positive compile-time byte/character capacity.
 // std::array deliberately makes a runtime-sized invocation ill-formed instead of accepting a compiler VLA extension.
 // The small allowance covers alignment, string terminators, capacity rounding, and debug-library allocator
 // bookkeeping without increasing the capacity reserved by the container. Growth beyond the inline storage uses the
 // resource's upstream fallback and is released with the local resource. Use these multi-declaration macros only at
 // braced block scope with a simple Name_; alias a Type_ containing commas first.
-#define STACK_PMR_VECTOR(Type_, Name_, StackCap_)                                                                      \
-    static_assert((StackCap_) > 0);                                                                                    \
-    alignas(Type_)                                                                                                     \
-        std::array<std::byte, sizeof(Type_) * (StackCap_) + alignof(Type_) - 1 + 64> Name_##_buf_;                     \
+#define STACK_PMR_VECTOR(Type_, Name_, Count_)                                                                         \
+    static_assert((Count_) > 0);                                                                                       \
+    alignas(Type_) std::array<std::byte, sizeof(Type_) * (Count_) + alignof(Type_) - 1 + 64> Name_##_buf_;            \
     std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::vector<Type_> Name_(&Name_##_res_);                                                                      \
     Name_.reserve((Name_##_buf_.size() - alignof(Type_) + 1 - 64) / sizeof(Type_));
 
-#define STACK_PMR_STRING(Name_, StackCap_)                                                                             \
-    static_assert((StackCap_) > 0);                                                                                    \
-    alignas(std::max_align_t) std::array<std::byte, (StackCap_) + 64> Name_##_buf_;                                    \
+#define STACK_PMR_STRING(Name_, Bytes_)                                                                                \
+    static_assert((Bytes_) > 0);                                                                                       \
+    alignas(std::max_align_t) std::array<std::byte, (Bytes_) + 64> Name_##_buf_;                                        \
     std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::string Name_(&Name_##_res_);                                                                             \
     Name_.reserve(Name_##_buf_.size() - 64);
