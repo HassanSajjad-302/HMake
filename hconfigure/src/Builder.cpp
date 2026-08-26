@@ -382,7 +382,8 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache);
+                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache,
+                                   &buildCacheContentHash);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -465,7 +466,8 @@ void Builder::executeRoundZero()
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache);
+                    writeCacheFile(configureNode->filePath + slashc + string(buildCacheFileName), buildCache,
+                                   &buildCacheContentHash);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
