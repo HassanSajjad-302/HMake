@@ -28,8 +28,8 @@ struct NodeHash
 {
     using is_transparent = void;
 
-    std::size_t operator()(const Node &node) const;
-    std::size_t operator()(const string_view &str) const;
+    uint64_t operator()(const Node &node) const;
+    uint64_t operator()(const string_view &str) const;
 };
 
 /// Interned representation of one filesystem path.
@@ -50,7 +50,7 @@ class Node
 
     /// Last-write timestamp restored from `nodes-cache.bin`, then replaced by `performSystemCheck()` with the current
     /// value.
-    uint64_t lastWriteTime = UINT64_MAX;
+    uint64_t lastWriteTime = -1;
 
     /// File size in bytes, populated by `performSystemCheck()` for regular files.
     uint64_t fileSize = 0;
@@ -60,7 +60,7 @@ class Node
     uint64_t contentHash = 0;
 
     /// Sentinel used in fingerprints so deleting an empty header-file is observable.
-    inline static constexpr uint64_t missingContentHash = UINT64_MAX;
+    static constexpr uint64_t missingContentHash = -1;
 
     /// Total number of `Node` instances constructed so far (next id to assign).
     inline static uint32_t idCount = 0;

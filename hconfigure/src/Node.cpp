@@ -57,12 +57,12 @@ bool NodeEqual::operator()(const string_view &lhs, const Node &rhs) const
     return lhs == rhs.filePath;
 }
 
-std::size_t NodeHash::operator()(const Node &node) const
+uint64_t NodeHash::operator()(const Node &node) const
 {
     return rapidhash(node.filePath.c_str(), node.filePath.size());
 }
 
-std::size_t NodeHash::operator()(const string_view &str) const
+uint64_t NodeHash::operator()(const string_view &str) const
 {
     return rapidhash(str.data(), str.size());
 }
@@ -78,7 +78,7 @@ Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
 
 string Node::getFileName() const
 {
-    if (const size_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
+    if (const uint64_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
     {
         return string(filePath.substr(slashPos + 1));
     }
@@ -87,9 +87,9 @@ string Node::getFileName() const
 
 string Node::getFileStem() const
 {
-    const size_t slashPos = filePath.find_last_of(slashc);
-    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const size_t dotPos = filePath.find_last_of('.');
+    const uint64_t slashPos = filePath.find_last_of(slashc);
+    const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
+    const uint64_t dotPos = filePath.find_last_of('.');
     if (dotPos == string::npos || dotPos <= nameStart)
     {
         return string(filePath.substr(nameStart));
@@ -99,9 +99,9 @@ string Node::getFileStem() const
 
 string Node::getExtension() const
 {
-    const size_t slashPos = filePath.find_last_of(slashc);
-    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const size_t dotPos = filePath.find_last_of('.');
+    const uint64_t slashPos = filePath.find_last_of(slashc);
+    const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
+    const uint64_t dotPos = filePath.find_last_of('.');
     if (dotPos == string::npos || dotPos <= nameStart)
     {
         return {};
@@ -317,7 +317,7 @@ Node *Node::getNodeNonNormalized(const string_view filePath_, const bool isFile,
 
 string_view Node::getDirectoryStringView() const
 {
-    const size_t separator = filePath.find_last_of(slashc);
+    const uint64_t separator = filePath.find_last_of(slashc);
     if (separator == string::npos)
     {
         return {};
