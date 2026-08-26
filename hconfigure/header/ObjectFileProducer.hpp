@@ -4,7 +4,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "ObjectFile.hpp"
 
-#include <ranges>
 #include <utility>
 
 class ObjectFileProducer;
@@ -183,12 +182,12 @@ class ObjectFileProducer : public BTarget
 
 #ifdef BUILD_MODE
 #define FOR_REQ_OBJECT_FILE_PRODUCERS(objectFileProducer_, producer_, depInfo_)                                        \
-    for (const auto [producer_, depInfo_] : std::views::transform(                                                     \
-             (objectFileProducer_)->cachedReqObjectFileProducers, [](const uint32_t packedDependency) {                \
-                 return std::pair{static_cast<ObjectFileProducer *>(                                                   \
-                                      bTargetCaches[OpDepInfo::getCacheIndex(packedDependency)].bTarget),              \
-                                  OpDepInfo::fromCache(packedDependency)};                                             \
-             }))
+    for (const uint32_t packedDependency_ : (objectFileProducer_)->cachedReqObjectFileProducers)                        \
+        if (const auto [producer_, depInfo_] =                                                                         \
+                std::pair{static_cast<ObjectFileProducer *>(                                                           \
+                              bTargetCaches[OpDepInfo::getCacheIndex(packedDependency_)].bTarget),                     \
+                          OpDepInfo::fromCache(packedDependency_)};                                                    \
+            true)
 #else
 #define FOR_REQ_OBJECT_FILE_PRODUCERS(objectFileProducer_, producer_, depInfo_)                                        \
     for (const auto &[producer_, depInfo_] : (objectFileProducer_)->reqObjectFileProducers)
