@@ -1,7 +1,9 @@
 #include "Configure.hpp"
+#include <charconv>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -28,27 +30,27 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     string configurePathString;
     if constexpr (bsMode != BSMode::CONFIGURE)
     {
-        path cacheJsonPath;
-        bool cacheJsonExists = false;
+        path projectCachePath;
+        bool projectCacheExists = false;
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            cacheJsonPath = p / "cache.json";
-            if (exists(cacheJsonPath))
+            projectCachePath = p / projectCacheFileName;
+            if (exists(projectCachePath))
             {
-                cacheJsonExists = true;
+                projectCacheExists = true;
                 break;
             }
         }
 
-        if (cacheJsonExists)
+        if (projectCacheExists)
         {
-            configurePathString = cacheJsonPath.parent_path().string();
+            configurePathString = projectCachePath.parent_path().string();
         }
         else
         {
-            printErrorMessage(FORMAT("Could not find cache.json in the current directory or any parent directory.\n"
+            printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
                                      "Current directory: {}\n"
-                                     "Hint: run hhelper from the project's build directory first.",
+                                     "Hint: run hbuild from the project's build directory first.",
                                      current_path().string()));
         }
     }
@@ -58,66 +60,105 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 
     lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
+    const path nodesCachePath = path(configurePathString) / string(nodesCacheFileName);
+    if (exists(nodesCachePath))
+    {
+        loadNodesCache(nodesCachePath);
+    }
     configureNode = Node::getHalfNode(configurePathString);
 
-    if constexpr (bsMode == BSMode::BUILD)
+    if constexpr (bsMode != BSMode::BUILD)
     {
-        for (int i = 1; i < argc; ++i)
+        return;
+    }
+
+    bool positionalOnly = false;
+    for (int i = 1; i < argc; ++i)
+    {
+        const string argument{argv[i]};
+        if (!positionalOnly && argument == "--")
         {
-            const string argument{argv[i]};
-            if (argument == "-n")
+            positionalOnly = true;
+            continue;
+        }
+        if (!positionalOnly && argument == "--dry-run")
+        {
+            dryRun = true;
+            continue;
+        }
+        if (!positionalOnly && argument == "--header-units-only")
+        {
+            huOnly = true;
+            continue;
+        }
+        if (!positionalOnly && argument == "--standalone")
+        {
+            standAlone = true;
+            continue;
+        }
+        if (!positionalOnly && argument == "--print-hash-map")
+        {
+            printHashMap = true;
+            continue;
+        }
+        if (!positionalOnly && argument == "--jobs")
+        {
+            if (++i == argc)
             {
-                dryRun = true;
-                continue;
-            }
-            if (argument == "-hu")
-            {
-                huOnly = true;
-                continue;
-            }
-            if (argument == "-s")
-            {
-                standAlone = true;
-            }
-            if (argument == "-p")
-            {
-                printHashMap = true;
+                printErrorMessage("Missing value for generated-build option --jobs.");
             }
 
-            string targetArgFullPath = (current_path() / argument).lexically_normal().string();
-            lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
-            if (targetArgFullPath.size() <= configureNode->filePath.size())
+            const string_view value{argv[i]};
+            uint16_t jobs = 0;
+            const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), jobs);
+            if (error != std::errc{} || end != value.data() + value.size() || jobs == 0)
             {
-                printErrorMessage(FORMAT("Build target resolves outside the configured project.\n"
-                                         "Argument: {}\n"
-                                         "Resolved path: {}\n"
-                                         "Configure directory: {}",
-                                         argument, targetArgFullPath, configureNode->filePath));
+                printErrorMessage(FORMAT("Invalid generated-build job count.\nValue: {}\nExpected: 1..{}", value,
+                                         std::numeric_limits<uint16_t>::max()));
             }
-            if (targetArgFullPath.ends_with(slashc))
-            {
-                cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
-                                   targetArgFullPath.end() - 1);
-            }
-            else
-            {
-                cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
-                                   targetArgFullPath.end());
-            }
+            buildJobsOverride = jobs;
+            continue;
+        }
+        if (!positionalOnly && argument.starts_with('-'))
+        {
+            printErrorMessage(FORMAT("Unknown generated-build option.\nOption: {}", argument));
+        }
+
+        string targetArgFullPath = (current_path() / argument).lexically_normal().string();
+        lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
+        if (targetArgFullPath.size() <= configureNode->filePath.size() ||
+            !targetArgFullPath.starts_with(configureNode->filePath) ||
+            targetArgFullPath[configureNode->filePath.size()] != slashc)
+        {
+            printErrorMessage(FORMAT("Build target resolves outside the configured project.\n"
+                                     "Argument: {}\n"
+                                     "Resolved path: {}\n"
+                                     "Configure directory: {}",
+                                     argument, targetArgFullPath, configureNode->filePath));
+        }
+        if (targetArgFullPath.ends_with(slashc))
+        {
+            cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
+                               targetArgFullPath.end() - 1);
+        }
+        else
+        {
+            cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1, targetArgFullPath.end());
         }
     }
 }
 
 void callConfigurationSpecification()
 {
-    // Specifications may append producer configurations. Only configurations present on entry receive the callback;
-    // their owners initialize and finalize dynamically created companions explicitly.
-    const size_t configurationCount = allConfigurations.size();
-    for (size_t index = 0; index < configurationCount; ++index)
+    // Specifications may append producer configurations. Only configurations present on entry have
+    // configurationSpecification() invoked here; their owners initialize and finalize dynamically created
+    // companions explicitly.
+    const uint64_t configurationCount = allConfigurations.size();
+    for (uint64_t index = 0; index < configurationCount; ++index)
     {
         if (Configuration &config = *allConfigurations[index]; config.evaluate(AlwaysConfigureThis::YES) ||
-                                                              config.isHBuildInSameOrChildDirectory() ||
-                                                              configureNode == currentNode)
+                                                               config.isHBuildInSameOrChildDirectory() ||
+                                                               configureNode == currentNode)
         {
             config.initialize();
             (*configurationSpecificationFuncPtr)(config);
@@ -204,6 +245,14 @@ int main2(const int argc, char **argv)
     parseCmdArgumentsAndSetConfigureNode(argc, argv);
     initializeCache();
     (*buildSpecificationFuncPtr)();
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        // A per-invocation -j value has higher precedence than defaults assigned by cache.txt or buildSpecification().
+        if (buildJobsOverride != 0)
+        {
+            projectCache.defaultJobs = buildJobsOverride;
+        }
+    }
     bool errorHappened = false;
     if constexpr (bsMode == BSMode::BUILD)
     {
