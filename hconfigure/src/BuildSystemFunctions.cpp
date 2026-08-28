@@ -451,6 +451,92 @@ void fileToString(const string &fileName, std::pmr::string &buffer)
     readFileIntoString(fileName, buffer);
 }
 
+string decodeBackslashEscapes(string value)
+{
+    const uint64_t size = value.size();
+    uint64_t writeOffset = 0;
+    for (uint64_t readOffset = 0; readOffset < size; ++readOffset)
+    {
+        if (value[readOffset] != '\\')
+        {
+            value[writeOffset++] = value[readOffset];
+            continue;
+        }
+
+        const uint64_t escapeOffset = readOffset;
+        if (++readOffset == size)
+        {
+            printErrorMessage(FORMAT("Incomplete backslash escape.\nByte offset: {}", escapeOffset));
+        }
+
+        switch (value[readOffset])
+        {
+        case '\\':
+            value[writeOffset++] = '\\';
+            break;
+        case '"':
+            value[writeOffset++] = '"';
+            break;
+        case 'n':
+            value[writeOffset++] = '\n';
+            break;
+        case 'r':
+            value[writeOffset++] = '\r';
+            break;
+        case 't':
+            value[writeOffset++] = '\t';
+            break;
+        case 'b':
+            value[writeOffset++] = '\b';
+            break;
+        case 'f':
+            value[writeOffset++] = '\f';
+            break;
+        case 'x':
+        {
+            if (readOffset + 2 >= size)
+            {
+                printErrorMessage(FORMAT("Incomplete hexadecimal escape.\nByte offset: {}\n"
+                                         "Expected exactly two hexadecimal digits after \\x.",
+                                         escapeOffset));
+            }
+            const auto hexValue = [](const char character) -> uint8_t {
+                if (character >= '0' && character <= '9')
+                {
+                    return static_cast<uint8_t>(character - '0');
+                }
+                if (character >= 'a' && character <= 'f')
+                {
+                    return static_cast<uint8_t>(character - 'a' + 10);
+                }
+                if (character >= 'A' && character <= 'F')
+                {
+                    return static_cast<uint8_t>(character - 'A' + 10);
+                }
+                return UINT8_MAX;
+            };
+            const uint8_t high = hexValue(value[readOffset + 1]);
+            const uint8_t low = hexValue(value[readOffset + 2]);
+            if (high == UINT8_MAX || low == UINT8_MAX)
+            {
+                printErrorMessage(FORMAT("Malformed hexadecimal escape.\nByte offset: {}\n"
+                                         "Expected exactly two hexadecimal digits after \\x.",
+                                         escapeOffset));
+            }
+            value[writeOffset++] = static_cast<char>((high << 4) | low);
+            readOffset += 2;
+            break;
+        }
+        default:
+            printErrorMessage(FORMAT("Unknown backslash escape.\nByte offset: {}\nEscape byte: 0x{:02X}",
+                                     escapeOffset,
+                                     static_cast<uint32_t>(static_cast<unsigned char>(value[readOffset]))));
+        }
+    }
+    value.resize(writeOffset);
+    return value;
+}
+
 namespace
 {
 template <typename String> void appendResponseArgument(String &responseContents, const string_view argument)
