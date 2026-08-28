@@ -309,9 +309,9 @@ void initializeBuildTools(Toolchain &toolchain, const path &sourceFile)
     parseTargetTriple(toolchain, sourceFile);
 }
 
-void requireField(const bool present, const path &sourceFile, const string &name, const string_view fieldName)
+void errorOnMissingField(const bool missing, const path &sourceFile, const string &name, const string_view fieldName)
 {
-    if (!present)
+    if (missing)
     {
         toolchainError(sourceFile, name, FORMAT("Resolved entry is missing required field '{}'.", fieldName));
     }
@@ -399,9 +399,9 @@ void Toolchains::loadFile(const path &filePath)
         printErrorMessage(FORMAT("A toolchain-registry path is not a regular file.\nPath: {}", filePath.string()));
     }
 
-    const string content = fileToString(filePath.string());
+    string content = fileToString(filePath.string());
     rapidjson::Document document;
-    document.Parse(content.data(), content.size());
+    document.ParseInsitu(content.data());
     if (document.HasParseError())
     {
         printErrorMessage(FORMAT("Could not parse the toolchain registry.\nFile: {}\nParser error: {}\nByte offset: {}",
@@ -465,17 +465,17 @@ void Toolchains::loadFile(const path &filePath)
         }
         else
         {
-            requireField((fields & toolchainFieldBit(compilerField)) != 0, filePath, name, compilerField);
-            requireField((fields & toolchainFieldBit(linkerField)) != 0, filePath, name, linkerField);
-            requireField((fields & toolchainFieldBit(archiverField)) != 0, filePath, name, archiverField);
-            requireField((fields & toolchainFieldBit(familyField)) != 0, filePath, name, familyField);
-            requireField((fields & toolchainFieldBit(styleField)) != 0, filePath, name, styleField);
-            requireField((fields & toolchainFieldBit(versionField)) != 0, filePath, name, versionField);
-            requireField((fields & toolchainFieldBit(targetField)) != 0, filePath, name, targetField);
-            requireField((fields & toolchainFieldBit(includeDirsField)) != 0, filePath, name, includeDirsField);
-            requireField((fields & toolchainFieldBit(libraryDirsField)) != 0, filePath, name, libraryDirsField);
-            requireField((fields & toolchainFieldBit(bootstrapArgumentsField)) != 0, filePath, name,
-                         bootstrapArgumentsField);
+            errorOnMissingField((fields & toolchainFieldBit(compilerField)) == 0, filePath, name, compilerField);
+            errorOnMissingField((fields & toolchainFieldBit(linkerField)) == 0, filePath, name, linkerField);
+            errorOnMissingField((fields & toolchainFieldBit(archiverField)) == 0, filePath, name, archiverField);
+            errorOnMissingField((fields & toolchainFieldBit(familyField)) == 0, filePath, name, familyField);
+            errorOnMissingField((fields & toolchainFieldBit(styleField)) == 0, filePath, name, styleField);
+            errorOnMissingField((fields & toolchainFieldBit(versionField)) == 0, filePath, name, versionField);
+            errorOnMissingField((fields & toolchainFieldBit(targetField)) == 0, filePath, name, targetField);
+            errorOnMissingField((fields & toolchainFieldBit(includeDirsField)) == 0, filePath, name, includeDirsField);
+            errorOnMissingField((fields & toolchainFieldBit(libraryDirsField)) == 0, filePath, name, libraryDirsField);
+            errorOnMissingField((fields & toolchainFieldBit(bootstrapArgumentsField)) == 0, filePath, name,
+                                bootstrapArgumentsField);
         }
 
         toolchain.name = name;
