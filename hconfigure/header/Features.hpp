@@ -19,9 +19,10 @@
  */
 
 #include "BuildTools.hpp"
-#include "Cache.hpp"
-
+#include "BuildSystemFunctions.hpp"
 #include "TargetType.hpp"
+#include <cstdint>
+#include <string>
 #include <vector>
 
 using std::vector;
@@ -251,9 +252,6 @@ enum class RuntimeDebugging : bool
 string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
 /// Recovers HMake's logical target name from a platform-specific artifact name.
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
-/// Returns the platform-appropriate command path for an executable (`./name` or `name.exe`).
-string getSlashedExecutableName(const string &name);
-
 /// @name Language and optimization features
 /// @{
 /// C++ language-standard spellings supported by HMake's compiler adapters.
@@ -427,18 +425,15 @@ struct LinkerFeatures
     LTO lto = LTO::OFF;
     LTOMode ltoMode = LTOMode::FULL;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
-    RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
-    TargetOS targetOs;
-    DebugSymbols debugSymbols = DebugSymbols::ON;
+    RuntimeDebugging runtimeDebugging = RuntimeDebugging::OFF;
+    TargetOS targetOs = TargetOS::NONE;
+    DebugSymbols debugSymbols = DebugSymbols::OFF;
     Profiling profiling = Profiling::OFF;
     Visibility visibility = Visibility::HIDDEN;
 
-    ConfigType configurationType;
-
-    // Following two are initialized in constructor
-    // AddressModel and Architecture to target for.
-    Arch arch;
-    AddressModel addModel;
+    // Address model and architecture to target.
+    Arch arch = Arch::NONE;
+    AddressModel addModel = AddressModel::NONE;
 
     // Windows Specifc
     DebugStore debugStore = DebugStore::OBJECT;
@@ -448,7 +443,7 @@ struct LinkerFeatures
     // Windows specific
     UserInterface userInterface = UserInterface::CONSOLE;
     InstructionSet instructionSet = InstructionSet::OFF;
-    CpuType cpuType;
+    CpuType cpuType = CpuType::NONE;
 
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
@@ -457,11 +452,8 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    TargetType libraryType;
-    LinkerFeatures();
-
     /// Produces flags for the selected linker and current feature values.
-    string getLinkerFlags();
+    string getLinkerFlags() const;
 
     /// Produces the command prefix used to link an executable or shared library.
     string getLinkCommand() const;
@@ -504,7 +496,6 @@ struct LinkerFeatures
         else if constexpr (std::is_same_v<T, Linker>) linker = property;
         else if constexpr (std::is_same_v<T, Archiver>) archiver = property;
         else if constexpr (std::is_same_v<T, Threading>) threading = property;
-        else if constexpr (std::is_same_v<T, TargetType>) libraryType = property;
 
         if constexpr (sizeof...(properties)) {
             return assign(properties...);
@@ -703,9 +694,6 @@ struct CppCompilerFeatures
 
     /// Resolves host defaults and the selected compiler. Called by `getCompileCommand()`.
     void initialize();
-
-    void setCpuType();
-    bool isCpuTypeG7();
 
     /// Applies a configuration preset and records it in `configType`.
     void setConfigType(ConfigType configType_);

@@ -1,6 +1,4 @@
 #include "Features.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "Cache.hpp"
 #include "CppTarget.hpp"
 
 namespace
@@ -313,46 +311,7 @@ string getTargetNameFromActualName(const TargetType bTargetType, const OS osLoca
     printErrorMessage("Unsupported target platform.\nOnly the currently configured host target is supported.");
 }
 
-string getSlashedExecutableName(const string &name)
-{
-    return os == OS::NT ? name + ".exe" : "./" + name;
-}
-
-LinkerFeatures::LinkerFeatures()
-{
-    // TODO
-    // Not Detecting
-    addModel = AddressModel::A_64;
-    arch = Arch::X86;
-    if constexpr (os == OS::NT)
-    {
-        targetOs = TargetOS::WINDOWS;
-    }
-    else if constexpr (os == OS::LINUX)
-    {
-        targetOs = TargetOS::LINUX_;
-    }
-    configurationType = ConfigType::RELEASE;
-    setConfigType(configurationType);
-    if (cache.isLinkerInToolsArray)
-    {
-        linker = toolsCache.vsTools[cache.selectedLinkerArrayIndex].linker;
-    }
-    else
-    {
-        linker = toolsCache.linkers[cache.selectedLinkerArrayIndex];
-    }
-    if (cache.isArchiverInToolsArray)
-    {
-        archiver = toolsCache.vsTools[cache.selectedArchiverArrayIndex].archiver;
-    }
-    else
-    {
-        archiver = toolsCache.archivers[cache.selectedArchiverArrayIndex];
-    }
-}
-
-string LinkerFeatures::getLinkerFlags()
+string LinkerFeatures::getLinkerFlags() const
 {
     string linkerFlags;
     if (linker.bTFamily == BTFamily::MSVC)
@@ -437,92 +396,7 @@ string LinkerFeatures::getLinkerFlags()
         }
 
         linkerFlags += (cxxStdDialect == CxxSTDDialect::GNU ? " -std=gnu++" : " -std=c++");
-        if (cxxStd == CxxSTD::V_LATEST)
-        {
-            if (linker.bTVersion >= Version{10})
-            {
-                linkerFlags += "20 ";
-            }
-            else if (linker.bTVersion >= Version{8})
-            {
-                linkerFlags += "2a ";
-            }
-            else if (linker.bTVersion >= Version{6})
-            {
-                linkerFlags += "17 ";
-            }
-            else if (linker.bTVersion >= Version{5})
-            {
-                linkerFlags += "1z ";
-            }
-            else if (linker.bTVersion >= Version{4, 9})
-            {
-                linkerFlags += "14 ";
-            }
-            else if (linker.bTVersion >= Version{4, 8})
-            {
-                linkerFlags += "1y ";
-            }
-            else if (linker.bTVersion >= Version{4, 7})
-            {
-                linkerFlags += "11 ";
-            }
-            else if (linker.bTVersion >= Version{3, 3})
-            {
-                linkerFlags += "98 ";
-            }
-        }
-        else
-        {
-            switch (cxxStd)
-            {
-            case CxxSTD::V_98:
-                linkerFlags += "98 ";
-                break;
-            case CxxSTD::V_03:
-                linkerFlags += "03 ";
-                break;
-            case CxxSTD::V_0x:
-                linkerFlags += "0x ";
-                break;
-            case CxxSTD::V_11:
-                linkerFlags += "11 ";
-                break;
-            case CxxSTD::V_1y:
-                linkerFlags += "1y ";
-                break;
-            case CxxSTD::V_14:
-                linkerFlags += "14 ";
-                break;
-            case CxxSTD::V_1z:
-                linkerFlags += "1z ";
-                break;
-            case CxxSTD::V_17:
-                linkerFlags += "17 ";
-                break;
-            case CxxSTD::V_2a:
-                linkerFlags += "2a ";
-                break;
-            case CxxSTD::V_20:
-                linkerFlags += "20 ";
-                break;
-            case CxxSTD::V_2b:
-                linkerFlags += "2b ";
-                break;
-            case CxxSTD::V_23:
-                linkerFlags += "23 ";
-                break;
-            case CxxSTD::V_2c:
-                linkerFlags += "2c ";
-                break;
-            case CxxSTD::V_26:
-                linkerFlags += "26 ";
-                break;
-            default:
-                break;
-            }
-        }
-
+        linkerFlags += getCxxStdVersionString(cxxStd, linker);
         linkerFlags += " -x c++ ";
 
         if (evaluate(AddressSanitizer::ON))
@@ -653,8 +527,6 @@ string LinkerFeatures::getArchiveCommand() const
 
 void LinkerFeatures::setConfigType(const ConfigType configType)
 {
-    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
-    // variant is set runtime-debugging is not set though. Here it is set, however.
     if (configType == ConfigType::DEBUG)
     {
         debugSymbols = DebugSymbols::ON;
@@ -674,10 +546,14 @@ void LinkerFeatures::setConfigType(const ConfigType configType)
 
 void CppCompilerFeatures::initialize()
 {
-    // TODO
-    // Not Detecting
-    addModel = AddressModel::A_64;
-    arch = Arch::X86;
+    if (addModel == AddressModel::NONE)
+    {
+        addModel = AddressModel::A_64;
+    }
+    if (arch == Arch::NONE)
+    {
+        arch = Arch::X86;
+    }
     if (targetOs == TargetOS::NONE)
     {
         if constexpr (os == OS::NT)
@@ -693,57 +569,22 @@ void CppCompilerFeatures::initialize()
     {
         setConfigType(ConfigType::RELEASE);
     }
-    if (compiler.bTPath == "")
-    {
-        if (cache.isCompilerInToolsArray)
-        {
-            if constexpr (os == OS::NT)
-            {
-                compiler = toolsCache.vsTools[cache.selectedCompilerArrayIndex].compiler;
-            }
-            else
-            {
-                compiler = toolsCache.linuxTools[cache.selectedCompilerArrayIndex].compiler;
-            }
-        }
-        else
-        {
-            compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
-        }
-    }
-
-    if constexpr (os == OS::NT)
-    {
-        compiler.btSubFamily = BTSubFamily::CLANG;
-        compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
-    }
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)
 {
     configType = configType_;
-    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
-    // variant is set runtime-debugging is not set though. Here it is set, however.
     if (configType == ConfigType::DEBUG)
     {
         optimization = Optimization::OFF;
         inlining = Inlining::OFF;
-    }
-    else if (configType == ConfigType::RELEASE)
-    {
-        optimization = Optimization::SPEED;
-        inlining = Inlining::FULL;
-    }
-
-    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
-    // variant is set runtime-debugging is not set though. Here it is set, however.
-    if (configType == ConfigType::DEBUG)
-    {
         debugSymbols = DebugSymbols::ON;
         runtimeDebugging = RuntimeDebugging::ON;
     }
     else if (configType == ConfigType::RELEASE)
     {
+        optimization = Optimization::SPEED;
+        inlining = Inlining::FULL;
         runtimeDebugging = RuntimeDebugging::OFF;
         debugSymbols = DebugSymbols::OFF;
     }
@@ -761,7 +602,7 @@ string CppCompilerFeatures::getCompilerFlags() const
     string compilerFlags;
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        compilerFlags += " /nologo /FC /EHsc /c";
+        compilerFlags += " /nologo /FC /EHsc /c /X";
         if (evaluate(Warnings::ALL))
         {
             compilerFlags += " /W3";
@@ -854,7 +695,8 @@ string CppCompilerFeatures::getCompilerFlags() const
         {
             compilerFlags += " /std:c++20";
         }
-        else if (cxxStd == CxxSTD::V_23 || cxxStd == CxxSTD::V_2b || cxxStd == CxxSTD::V_LATEST)
+        else if (cxxStd == CxxSTD::V_23 || cxxStd == CxxSTD::V_2b || cxxStd == CxxSTD::V_26 ||
+                 cxxStd == CxxSTD::V_2c || cxxStd == CxxSTD::V_LATEST)
         {
             compilerFlags += " /std:c++latest";
         }
@@ -866,6 +708,7 @@ string CppCompilerFeatures::getCompilerFlags() const
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
+        compilerFlags += " -nostdinc -nostdinc++";
         if (evaluate(Threading::MULTI))
         {
             if (evaluate(TargetOS::WINDOWS) || evaluate(TargetOS::CYGWIN))
@@ -884,91 +727,7 @@ string CppCompilerFeatures::getCompilerFlags() const
         }
 
         compilerFlags += (cxxStdDialect == CxxSTDDialect::GNU ? " -std=gnu++" : " -std=c++");
-        if (cxxStd == CxxSTD::V_LATEST)
-        {
-            if (compiler.bTVersion >= Version{10})
-            {
-                compilerFlags += "20";
-            }
-            else if (compiler.bTVersion >= Version{8})
-            {
-                compilerFlags += "2a";
-            }
-            else if (compiler.bTVersion >= Version{6})
-            {
-                compilerFlags += "17";
-            }
-            else if (compiler.bTVersion >= Version{5})
-            {
-                compilerFlags += "1z";
-            }
-            else if (compiler.bTVersion >= Version{4, 9})
-            {
-                compilerFlags += "14";
-            }
-            else if (compiler.bTVersion >= Version{4, 8})
-            {
-                compilerFlags += "1y";
-            }
-            else if (compiler.bTVersion >= Version{4, 7})
-            {
-                compilerFlags += "11";
-            }
-            else if (compiler.bTVersion >= Version{3, 3})
-            {
-                compilerFlags += "98";
-            }
-        }
-        else
-        {
-            switch (cxxStd)
-            {
-            case CxxSTD::V_98:
-                compilerFlags += "98";
-                break;
-            case CxxSTD::V_03:
-                compilerFlags += "03";
-                break;
-            case CxxSTD::V_0x:
-                compilerFlags += "0x";
-                break;
-            case CxxSTD::V_11:
-                compilerFlags += "11";
-                break;
-            case CxxSTD::V_1y:
-                compilerFlags += "1y";
-                break;
-            case CxxSTD::V_14:
-                compilerFlags += "14";
-                break;
-            case CxxSTD::V_1z:
-                compilerFlags += "1z";
-                break;
-            case CxxSTD::V_17:
-                compilerFlags += "17";
-                break;
-            case CxxSTD::V_2a:
-                compilerFlags += "2a";
-                break;
-            case CxxSTD::V_20:
-                compilerFlags += "20";
-                break;
-            case CxxSTD::V_2b:
-                compilerFlags += "2b";
-                break;
-            case CxxSTD::V_23:
-                compilerFlags += "23";
-                break;
-            case CxxSTD::V_2c:
-                compilerFlags += "2c";
-                break;
-            case CxxSTD::V_26:
-                compilerFlags += "26";
-                break;
-            default:
-                break;
-            }
-        }
+        compilerFlags += getCxxStdVersionString(cxxStd, compiler);
 
         compilerFlags += " -x c++";
 
@@ -1131,25 +890,4 @@ string CppCompilerFeatures::getCompileCommand()
     compileCommand += '\"' + compiler.bTPath + "\" ";
     compileCommand += getCompilerFlags();
     return compileCommand;
-}
-
-void CppCompilerFeatures::setCpuType()
-{
-    if (evaluate(Arch::X86))
-    {
-        cpuType = CpuType::AMD64;
-    }
-    else if (evaluate(Arch::ARM))
-    {
-        cpuType = CpuType::ARM;
-    }
-    else
-    {
-        cpuType = CpuType::NONE;
-    }
-}
-
-bool CppCompilerFeatures::isCpuTypeG7()
-{
-    return false;
 }
