@@ -125,17 +125,17 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         {
             targetArgFullPath.pop_back();
         }
-        if (targetArgFullPath.size() <= configureNode->filePath.size() ||
-            !targetArgFullPath.starts_with(configureNode->filePath) ||
-            targetArgFullPath[configureNode->filePath.size()] != slashc)
+        const auto &base = configureNode->filePath;
+        if (!isPathInDirectory(targetArgFullPath, base))
         {
             printErrorMessage(FORMAT("Build target resolves outside the configured project.\n"
                                      "Argument: {}\n"
                                      "Resolved path: {}\n"
                                      "Configure directory: {}",
-                                     argument, targetArgFullPath, configureNode->filePath));
+                                     argument, targetArgFullPath, base));
         }
-        cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1, targetArgFullPath.end());
+        const uint64_t targetStart = base.size() + (base.back() != slashc);
+        cmdTargets.emplace(targetArgFullPath.begin() + targetStart, targetArgFullPath.end());
     }
 }
 
@@ -147,9 +147,20 @@ void callConfigurationSpecification()
     const uint64_t configurationCount = allConfigurations.size();
     for (uint64_t index = 0; index < configurationCount; ++index)
     {
-        if (Configuration &config = *allConfigurations[index]; config.evaluate(AlwaysConfigureThis::YES) ||
-                                                               config.isHBuildInSameOrChildDirectory() ||
-                                                               configureNode == currentNode)
+        Configuration &config = *allConfigurations[index];
+        bool configure = config.evaluate(AlwaysConfigureThis::YES) || configureNode == currentNode;
+        if (!configure)
+        {
+            string targetDirectory = configureNode->filePath;
+            if (!targetDirectory.ends_with(slashc))
+            {
+                targetDirectory += slashc;
+            }
+            targetDirectory += config.name;
+            configure = compareStringsFromEnd(currentNode->filePath, targetDirectory) ||
+                        isPathInDirectory(currentNode->filePath, targetDirectory);
+        }
+        if (configure)
         {
             config.initialize();
             (*configurationSpecificationFuncPtr)(config);
