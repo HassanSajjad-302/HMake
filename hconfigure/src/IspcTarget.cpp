@@ -151,16 +151,6 @@ void IspcTarget::initializeCommands()
         return;
     }
 
-    vector<const Define *> definitions;
-    definitions.reserve(cppTarget->reqCompileDefinitions.size());
-    for (const Define &definition : cppTarget->reqCompileDefinitions)
-    {
-        definitions.emplace_back(&definition);
-    }
-    std::ranges::sort(definitions, [](const Define *lhs, const Define *rhs) {
-        return lhs->name < rhs->name || (lhs->name == rhs->name && lhs->value < rhs->value);
-    });
-
     const Configuration *configuration = cppTarget->configuration;
     if (configuration->ispcCompileCommand.empty())
     {
@@ -168,7 +158,7 @@ void IspcTarget::initializeCommands()
                                  configuration->name, cppTarget->name));
     }
 
-    STACK_PMR_STRING(command, 256 * 1024)
+    STACK_PMR_STRING(command, 64 * 1024)
     command.append(configuration->ispcCompileCommand);
     for (const InclNode &include : cppTarget->reqIncls)
     {
@@ -176,17 +166,17 @@ void IspcTarget::initializeCommands()
         command += include.node->filePath;
         command += "\" ";
     }
-    for (const Define *definition : definitions)
+    for (const Define &definition : cppTarget->reqCompileDefinitions)
     {
-        if (definition->value.contains("\\\\U") || definition->value.contains("\\\\u"))
+        if (definition.value.contains("\\\\U") || definition.value.contains("\\\\u"))
         {
             // Matches UBT's guard against an ISPC universal-character warning for these escaped values.
             continue;
         }
         command += "-D";
-        command += definition->name;
+        command += definition.name;
         command.push_back('=');
-        command += definition->value;
+        command += definition.value;
         command.push_back(' ');
     }
     headerCommand.assign(command.data(), command.size());
@@ -253,7 +243,10 @@ string getIspcActionName(const IspcTarget *target, const Node *source, const str
 
 string getHeaderOutputBase(const IspcTarget *target, const Node *source)
 {
-    return target->myBuildDir->filePath + slashc + source->getFileName();
+    string result = target->myBuildDir->filePath;
+    result += slashc;
+    result += source->getFileName();
+    return result;
 }
 
 string getObjectOutputBase(const IspcTarget *target, const Node *source)
@@ -392,7 +385,7 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
 void printIspcResult(const BTarget &action, const Builder &builder, const string_view actionName,
                      const Node *sourceNode, const string_view ownerName, const std::pmr::string &command)
 {
-    string output;
+    STACK_PMR_STRING(output, 4 * 1024)
     if (isConsole)
     {
         output += getColorCode(ColorIndex::hot_pink);
@@ -523,7 +516,7 @@ bool IspcHeader::isEventRegistered(Builder &builder)
         return false;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     if (dryRun)
     {
@@ -548,7 +541,9 @@ void IspcHeader::parseDependencyList()
 
     discoveredDependencies.clear();
     flat_hash_set<Node *> uniqueDependencies;
-    const string contents = fileToString(dependencyListPath);
+    STACK_PMR_STRING(contents, 64 * 1024)
+    fileToString(dependencyListPath, contents);
+    STACK_PMR_STRING(dependency, 1024)
     for (string_view entry : split(contents, '\n'))
     {
         while (!entry.empty() && (entry.back() == '\r' || entry.back() == ' ' || entry.back() == '\t'))
@@ -564,7 +559,7 @@ void IspcHeader::parseDependencyList()
             continue;
         }
 
-        string dependency(entry);
+        dependency.assign(entry);
         for (uint64_t escaped = dependency.find("\\\\"); escaped != string::npos;
              escaped = dependency.find("\\\\", escaped + 1))
         {
@@ -578,7 +573,7 @@ void IspcHeader::parseDependencyList()
                                      target->cppTarget->name, sourceNode->filePath, dependency));
         }
         Node *node = Node::getHalfNode(dependencyPath.string());
-        if (isPathInConfigureDirectory(node->filePath))
+        if (isPathInDirectory(node->filePath, configureNode->filePath))
         {
             continue;
         }
@@ -621,7 +616,7 @@ bool IspcHeader::isEventCompleted(Builder &builder, string_view)
         }
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     printIspcResult(*this, builder, "ISPC Header", sourceNode, target->cppTarget->name, fullCommand);
     return false;
@@ -737,7 +732,7 @@ bool IspcObject::isEventRegistered(Builder &builder)
         return false;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     if (dryRun)
     {
@@ -763,7 +758,7 @@ bool IspcObject::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     printIspcResult(*this, builder, "ISPC Object", sourceNode, target->cppTarget->name, fullCommand);
     return false;
