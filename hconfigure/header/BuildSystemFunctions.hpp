@@ -457,6 +457,9 @@ void replaceFileAtomically(const string &temporaryFile, const string &destinatio
 
 /// Compares equal-length byte strings from the end, which is favorable for normalized paths sharing long roots.
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
+/// Returns true when an already-normalized child path is strictly inside an already-normalized parent directory.
+/// parentDirectory must be nonempty and must not end in slashc.
+bool isPathInDirectory(string_view childPath, string_view parentDirectory);
 
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);
@@ -466,11 +469,6 @@ void lowerCaseOnWindows(char *ptr, uint64_t size);
  * and lowercases it on Windows. It does not access the filesystem or resolve symlinks.
  */
 string getNormalizedPath(path filePath);
-
-/// Returns true when an already-normalized path is inside the active configure/build directory. Compiler dependency
-/// scanners omit such generated files because their producing BTarget, rather than their content hash, controls
-/// invalidation.
-bool isPathInConfigureDirectory(string_view filePath);
 
 /// Reads an entire file into a string. The file must exist and be readable.
 string fileToString(const string &fileName);

@@ -1115,6 +1115,13 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
     return true;
 }
 
+bool isPathInDirectory(const string_view childPath, const string_view parentDirectory)
+{
+    const uint64_t parentSize = parentDirectory.size();
+    return childPath.size() > parentSize && childPath[parentSize] == slashc &&
+           compareStringsFromEnd(parentDirectory, {childPath.data(), parentSize});
+}
+
 void lowerCaseOnWindows(char *ptr, const uint64_t size)
 {
     if constexpr (os == OS::NT)
@@ -1136,19 +1143,6 @@ string getNormalizedPath(path filePath)
     string result = filePath.string();
     lowerCaseOnWindows(result.data(), result.size());
     return result;
-}
-
-bool isPathInConfigureDirectory(const string_view filePath)
-{
-    const string_view configurePath = configureNode->filePath;
-    const uint64_t configurePathSize = configurePath.size();
-
-    // Reject almost every source-tree header with two O(1) checks before comparing the path prefix.
-    if (filePath.size() <= configurePathSize || filePath[configurePathSize] != slashc)
-    {
-        return false;
-    }
-    return compareStringsFromEnd(configurePath, {filePath.data(), configurePathSize});
 }
 
 string addQuotes(const string_view pstr)
