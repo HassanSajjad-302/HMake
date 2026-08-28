@@ -706,7 +706,8 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-template <typename T> static void divideInChunk(std::pmr::vector<std::span<T>> &result, vector<T> &v, uint16_t n)
+template <typename T>
+static void divideInChunk(std::pmr::vector<std::span<T>> &result, std::pmr::vector<T> &v, uint16_t n)
 {
     // Produce non-owning partitions for regular-cost work. Content hashing uses a different strategy below because
     // file sizes make its individual items highly uneven.
