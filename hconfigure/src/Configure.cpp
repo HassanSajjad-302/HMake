@@ -134,8 +134,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
                                      "Configure directory: {}",
                                      argument, targetArgFullPath, base));
         }
-        const uint64_t targetStart = base.size() + (base.back() != slashc);
-        cmdTargets.emplace(targetArgFullPath.begin() + targetStart, targetArgFullPath.end());
+        cmdTargets.emplace(targetArgFullPath.begin() + base.size() + 1, targetArgFullPath.end());
     }
 }
 
