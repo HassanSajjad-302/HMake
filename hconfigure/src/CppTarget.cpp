@@ -276,8 +276,8 @@ BTarget &CppTarget::getOrCreateBeforeTarget()
     }
     const uint64_t beforeCacheName =
         rapidhash_withSeed(&cacheName, sizeof(cacheName), 0x4245464F52450000ULL); // "BEFORE"
-    beforeTarget = new BTarget(name + "/before", beforeCacheName, false, BTargetType::BEFORE_TARGET, false, false,
-                               true, false);
+    beforeTarget =
+        new BTarget(name + "/before", beforeCacheName, false, BTargetType::BEFORE_TARGET, false, false, true, false);
     return *beforeTarget;
 }
 
@@ -341,15 +341,13 @@ string_view CppTarget::getAdaptiveIncludeName(const Node *node) const
 
     // Node paths are already lexically normalized (and lower-cased on Windows), so deriving the include name only
     // requires removing the source-root prefix.
-    const string_view sourceRoot = srcNode->filePath;
-    const string_view sourcePath = node->filePath;
-    if (!isPathInDirectory(sourcePath, sourceRoot))
+    if (!isPathInDirectory(node->filePath, srcNode->filePath))
     {
         printErrorMessage(FORMAT("Adaptive-unity source is outside the project source root.\nTarget: {}\n"
                                  "Source root: {}\nSource: {}",
                                  name, srcNode->filePath, node->filePath));
     }
-    const string_view includeName = sourcePath.substr(sourceRoot.size() + 1);
+    const string_view includeName = string_view(node->filePath).substr(srcNode->filePath.size() + 1);
     if (includeName.contains('"'))
     {
         printErrorMessage(FORMAT("Adaptive-unity include path contains a quote.\nSource: {}", node->filePath));
