@@ -13,19 +13,12 @@
 #include "ue.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
-#include "JConsts.hpp"
-#include "ToolsCache.hpp"
-#include <filesystem>
-#include <memory>
-#include <stack>
-#include <thread>
-#include <utility>
 
 /// User-defined function that declares the build graph.
 void buildSpecification();
 /// User-defined function that customizes one configuration.
 void configurationSpecification(Configuration &config);
-/// Invokes the registered `configurationSpecification` callback.
+/// Invokes the registered `configurationSpecification` function.
 void callConfigurationSpecification();
 
 /// Shared entry point used by generated configure and build executables.
