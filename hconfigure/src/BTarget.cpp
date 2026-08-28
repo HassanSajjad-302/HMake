@@ -631,18 +631,6 @@ void BTarget::setSelectiveBuild()
     }
 }
 
-// Returns true if hbuild is executed in the same dir or the child dir. Used in hmake.cpp to rule out other
-// configurations specifications
-bool BTarget::isHBuildInSameOrChildDirectory() const
-{
-    const string targetDirectory = configureNode->filePath + slashc + name;
-    const string_view invocationDirectory = currentNode->filePath;
-    return invocationDirectory.size() >= targetDirectory.size() &&
-           compareStringsFromEnd(targetDirectory, {invocationDirectory.data(), targetDirectory.size()}) &&
-           (invocationDirectory.size() == targetDirectory.size() ||
-            invocationDirectory[targetDirectory.size()] == slashc);
-}
-
 bool readBool(const char *ptr, uint64_t &bytesRead)
 {
     bool result;
