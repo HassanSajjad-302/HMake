@@ -2,8 +2,90 @@
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppTarget.hpp"
-#include "JConsts.hpp"
-#include "ToolsCache.hpp"
+
+namespace
+{
+string_view getCxxStdVersionString(const CxxSTD standard, const BuildTool &tool)
+{
+    if (standard == CxxSTD::V_LATEST)
+    {
+        const Version compilerVersion = tool.bTVersion;
+        if (tool.btSubFamily == BTSubFamily::CLANG)
+        {
+            if (compilerVersion >= Version{19})
+            {
+                return "2c";
+            }
+            if (compilerVersion >= Version{17})
+            {
+                return "23";
+            }
+            if (compilerVersion >= Version{10})
+            {
+                return "20";
+            }
+            if (compilerVersion >= Version{5})
+            {
+                return "17";
+            }
+            return "14";
+        }
+
+        if (compilerVersion >= Version{14})
+        {
+            return "2c";
+        }
+        if (compilerVersion >= Version{11})
+        {
+            return "23";
+        }
+        if (compilerVersion >= Version{8})
+        {
+            return "20";
+        }
+        if (compilerVersion >= Version{6})
+        {
+            return "17";
+        }
+        return "14";
+    }
+
+    switch (standard)
+    {
+    case CxxSTD::V_98:
+        return "98";
+    case CxxSTD::V_03:
+        return "03";
+    case CxxSTD::V_0x:
+        return "0x";
+    case CxxSTD::V_11:
+        return "11";
+    case CxxSTD::V_1y:
+        return "1y";
+    case CxxSTD::V_14:
+        return "14";
+    case CxxSTD::V_1z:
+        return "1z";
+    case CxxSTD::V_17:
+        return "17";
+    case CxxSTD::V_2a:
+        return "2a";
+    case CxxSTD::V_20:
+        return "20";
+    case CxxSTD::V_2b:
+        return "2b";
+    case CxxSTD::V_23:
+        return "23";
+    case CxxSTD::V_2c:
+        return "2c";
+    case CxxSTD::V_26:
+        return "26";
+    case CxxSTD::V_LATEST:
+        break;
+    }
+    return {};
+}
+} // namespace
 
 TemplateDepth::TemplateDepth(const unsigned long long templateDepth_) : templateDepth(templateDepth_)
 {
