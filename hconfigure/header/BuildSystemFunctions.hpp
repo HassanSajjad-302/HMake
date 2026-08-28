@@ -476,6 +476,8 @@ bool isPathInConfigureDirectory(string_view filePath);
 string fileToString(const string &fileName);
 /// Reads an entire file into caller-provided polymorphic-allocator storage.
 void fileToString(const string &fileName, std::pmr::string &buffer);
+/// Decodes `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and fixed-width `\xHH` escapes within the owned input buffer.
+[[nodiscard]] string decodeBackslashEscapes(string value);
 
 /**
  * Leaves \p command unchanged while it fits within \p threshold. For a larger command, writes the final launched
