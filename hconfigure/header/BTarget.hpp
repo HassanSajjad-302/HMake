@@ -461,9 +461,6 @@ class BTarget // BTarget
     /// arguments. Called in round1 before `completeRoundOne` call.
     void setSelectiveBuild();
 
-    /// Returns true when `hbuild` runs in this target directory or one of its children.
-    bool isHBuildInSameOrChildDirectory() const;
-
     /// string is used in logs and cycle diagnostics.
     virtual string getPrintName() const;
 
