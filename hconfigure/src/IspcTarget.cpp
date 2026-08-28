@@ -240,7 +240,15 @@ uint64_t getIspcActionCacheName(const IspcTarget *target, const Node *source, co
 
 string getIspcActionName(const IspcTarget *target, const Node *source, const string_view action)
 {
-    return target->name + '/' + string(action) + '-' + source->getFileName() + toString(source->myId);
+    string result;
+    result.reserve(target->name.size() + action.size() + source->getFileName().size() + 10);
+    result += target->name;
+    result += '/';
+    result += action;
+    result += '-';
+    result += source->getFileName();
+    result += toString(source->myId);
+    return result;
 }
 
 string getHeaderOutputBase(const IspcTarget *target, const Node *source)
