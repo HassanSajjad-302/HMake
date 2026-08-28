@@ -473,7 +473,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
     for (auto iterator = headerFiles.begin(); iterator != headerFiles.end();)
     {
         Node *header = *iterator;
-        if (header == node || isPathInConfigureDirectory(header->filePath))
+        if (header == node || isPathInDirectory(header->filePath, configureNode->filePath))
         {
             iterator = headerFiles.erase(iterator);
         }
