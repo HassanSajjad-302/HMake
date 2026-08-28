@@ -67,7 +67,33 @@ string cachePath(const string_view fileName)
 
 void initializeCache()
 {
-    projectCache.initializeFromCacheFile();
+    const string projectCachePath = cachePath(projectCacheFileName);
+    std::error_code projectCacheSystemError;
+    const bool projectCacheExists = std::filesystem::exists(projectCachePath, projectCacheSystemError);
+    if (projectCacheSystemError)
+    {
+        printErrorMessage(FORMAT("Could not inspect the project cache.\nFile: {}\nSystem error: {}", projectCachePath,
+                                 projectCacheSystemError.message()));
+    }
+    if (projectCacheExists)
+    {
+        const string contents = fileToString(projectCachePath);
+        string error;
+        if (!projectCache.parse(contents, error))
+        {
+            printErrorMessage(FORMAT("Invalid project cache.\nFile: {}\n{}", projectCachePath, error));
+        }
+    }
+
+    path sourcePath(projectCache.sourceDirectoryPath);
+    if (sourcePath.is_relative())
+    {
+        sourcePath = path(configureNode->filePath) / sourcePath;
+    }
+    sourcePath = sourcePath.lexically_normal();
+    srcNode = Node::getHalfNode(sourcePath.string());
+    normalizationBasePath = srcNode->filePath;
+
     toolchains.initialize(srcNode->filePath);
     if (projectCache.toolchainName.empty())
     {
