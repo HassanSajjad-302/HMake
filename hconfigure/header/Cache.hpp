@@ -3,11 +3,9 @@
 
 #include "BuildSystemFunctions.hpp"
 
-#include <algorithm>
-#include <cassert>
+#include <charconv>
 #include <type_traits>
 #include <utility>
-#include <variant>
 
 inline constexpr string_view projectCacheFileName = "cache.txt";
 
@@ -15,7 +13,8 @@ inline constexpr string_view projectCacheFileName = "cache.txt";
 ///
 /// Lines must begin at column zero; `#` starts a comment and only empty lines are blank. The first three non-comment
 /// lines are the source directory, toolchain, and default job count. Remaining value lines are uniquely named
-/// `name=value` cache variables. Comments, blank lines, and variable order are retained when the file is rewritten.
+/// `name=value` cache variables. String values use outermost double quotes, but their contents remain literal.
+/// Comments, blank lines, and variable order are retained when the file is rewritten.
 struct ProjectCache
 {
     string sourceDirectoryPath;
@@ -33,15 +32,9 @@ struct ProjectCache
     /// deliberately excluded.
     [[nodiscard]] uint64_t contentCache() const;
 
-    /// Generated-runtime wrappers around the shared text parser/serializer.
-    void initializeFromCacheFile();
-    void writeToCacheFile() const;
-
     template <typename T> T getOrAddVariable(string_view name, T defaultValue);
 
   private:
-    using VariableValue = std::variant<bool, int, string>;
-
     enum class LineKind : uint8_t
     {
         BLANK_OR_COMMENT,
@@ -58,12 +51,9 @@ struct ProjectCache
     };
 
     vector<Line> lines_;
+    gtl::flat_hash_map<string, uint64_t> variableLines_;
 
     static bool validateVariableName(string_view name, string &error);
-    static bool parseVariableValue(string_view text, VariableValue &value, string &error);
-    static string encodeVariableValue(const VariableValue &value);
-    static string_view variableTypeName(const VariableValue &value);
-    void appendVariable(string_view name, const VariableValue &value);
 };
 
 GLOBAL_VARIABLE(ProjectCache, projectCache)
@@ -97,45 +87,90 @@ template <typename T> T ProjectCache::getOrAddVariable(const string_view name, T
         printErrorMessage(validationError);
     }
 
-    const auto existing = std::ranges::find_if(lines_, [name](const Line &line) {
-        if (line.kind != LineKind::VARIABLE)
-        {
-            return false;
-        }
-        const uint64_t equals = line.text.find('=');
-        return string_view(line.text).substr(0, equals) == name;
-    });
-    if (existing != lines_.end())
+    const auto existing = variableLines_.find(name);
+    if (existing != variableLines_.end())
     {
-        const uint64_t equals = existing->text.find('=');
-        VariableValue storedValue;
-        string parseError;
-        const bool parsed = parseVariableValue(string_view(existing->text).substr(equals + 1), storedValue, parseError);
-        assert(parsed && parseError.empty());
-        if (!std::holds_alternative<T>(storedValue))
+        const string &line = lines_[existing->second].text;
+        const string_view value = string_view(line).substr(name.size() + 1);
+        if constexpr (std::is_same_v<T, bool>)
         {
-            constexpr string_view expectedType = [] {
-                if constexpr (std::is_same_v<T, bool>)
-                {
-                    return string_view("bool");
-                }
-                else if constexpr (std::is_same_v<T, int>)
-                {
-                    return string_view("int");
-                }
-                else
-                {
-                    return string_view("string");
-                }
-            }();
-            printErrorMessage(FORMAT("Cache variable has the wrong type.\nVariable: {}\nExpected: {}\nActual: {}",
-                                     name, expectedType, variableTypeName(storedValue)));
+            if (value == "true")
+            {
+                return true;
+            }
+            if (value == "false")
+            {
+                return false;
+            }
+            printErrorMessage(FORMAT("A bool cache variable must be exactly true or false.\nVariable: {}\nValue: {}",
+                                     name, value));
         }
-        return std::get<T>(storedValue);
+        else if constexpr (std::is_same_v<T, int>)
+        {
+            int result = 0;
+            const auto [end, parseError] = std::from_chars(value.data(), value.data() + value.size(), result, 10);
+            if (parseError != std::errc{} || end != value.data() + value.size())
+            {
+                printErrorMessage(
+                    FORMAT("An int cache variable must be a decimal integer.\nVariable: {}\nValue: {}", name, value));
+            }
+            return result;
+        }
+        else
+        {
+            if (value.size() < 2 || value.front() != '"' || value.back() != '"')
+            {
+                printErrorMessage(
+                    FORMAT("A string cache variable must use outermost double quotes.\nVariable: {}\nValue: {}", name,
+                           value));
+            }
+            return string(value.substr(1, value.size() - 2));
+        }
     }
 
-    const VariableValue storedDefault = defaultValue;
-    appendVariable(name, storedDefault);
+    string variableName(name);
+    string variableLine;
+    if constexpr (std::is_same_v<T, string>)
+    {
+        variableLine.reserve(variableName.size() + defaultValue.size() + 3);
+    }
+    else
+    {
+        variableLine.reserve(variableName.size() + 12);
+    }
+    variableLine += variableName;
+    variableLine.push_back('=');
+    if constexpr (std::is_same_v<T, bool>)
+    {
+        variableLine += defaultValue ? "true" : "false";
+    }
+    else if constexpr (std::is_same_v<T, int>)
+    {
+        variableLine += std::to_string(defaultValue);
+    }
+    else
+    {
+        if (defaultValue.find_first_of("\r\n") != string::npos || defaultValue.find('\0') != string::npos)
+        {
+            printErrorMessage(FORMAT("A string cache-variable default must fit on one line and must not contain a null "
+                                     "byte.\nVariable: {}",
+                                     name));
+        }
+        variableLine.push_back('"');
+        variableLine += defaultValue;
+        variableLine.push_back('"');
+    }
+
+    if (!lines_.empty() && !(lines_.back().kind == LineKind::BLANK_OR_COMMENT && lines_.back().text.empty()))
+    {
+        lines_.push_back({LineKind::BLANK_OR_COMMENT, {}});
+    }
+    lines_.push_back({LineKind::BLANK_OR_COMMENT,
+                      FORMAT("# Cache variable '{}'. Values are true, false, decimal, or quoted raw strings.",
+                             variableName)});
+    const uint64_t lineIndex = static_cast<uint64_t>(lines_.size());
+    lines_.push_back({LineKind::VARIABLE, std::move(variableLine)});
+    variableLines_.emplace(std::move(variableName), lineIndex);
     return defaultValue;
 }
 
