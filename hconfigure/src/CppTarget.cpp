@@ -340,21 +340,16 @@ string_view CppTarget::getAdaptiveIncludeName(const Node *node) const
     }
 
     // Node paths are already lexically normalized (and lower-cased on Windows), so deriving the include name only
-    // requires removing the source-root prefix. Keep the separator check: a plain starts_with() would incorrectly
-    // accept a sibling such as `/repo/project-other` for the source root `/repo/project`.
+    // requires removing the source-root prefix.
     const string_view sourceRoot = srcNode->filePath;
     const string_view sourcePath = node->filePath;
-    uint64_t relativeStart = sourceRoot.size();
-    const bool rootEndsInSeparator = !sourceRoot.empty() && sourceRoot.back() == slashc;
-    if (!sourcePath.starts_with(sourceRoot) || sourcePath.size() <= relativeStart ||
-        (!rootEndsInSeparator && sourcePath[relativeStart] != slashc))
+    if (!isPathInDirectory(sourcePath, sourceRoot))
     {
         printErrorMessage(FORMAT("Adaptive-unity source is outside the project source root.\nTarget: {}\n"
                                  "Source root: {}\nSource: {}",
                                  name, srcNode->filePath, node->filePath));
     }
-    relativeStart += !rootEndsInSeparator;
-    const string_view includeName = sourcePath.substr(relativeStart);
+    const string_view includeName = sourcePath.substr(sourceRoot.size() + 1);
     if (includeName.contains('"'))
     {
         printErrorMessage(FORMAT("Adaptive-unity include path contains a quote.\nSource: {}", node->filePath));
