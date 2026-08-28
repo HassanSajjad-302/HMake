@@ -27,41 +27,33 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
     }
 
+    const path currentDirectory = current_path();
     string configurePathString;
     if constexpr (bsMode != BSMode::CONFIGURE)
     {
-        path projectCachePath;
-        bool projectCacheExists = false;
-        for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
+        for (path directory = currentDirectory;; directory = directory.parent_path())
         {
-            projectCachePath = p / projectCacheFileName;
-            if (exists(projectCachePath))
+            if (exists(directory / projectCacheFileName))
             {
-                projectCacheExists = true;
+                configurePathString = directory.string();
                 break;
             }
-        }
-
-        if (projectCacheExists)
-        {
-            configurePathString = projectCachePath.parent_path().string();
-        }
-        else
-        {
-            printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
-                                     "Current directory: {}\n"
-                                     "Hint: run hbuild from the project's build directory first.",
-                                     current_path().string()));
+            if (directory == directory.root_path())
+            {
+                printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
+                                         "Current directory: {}\n"
+                                         "Hint: run hbuild from the project's build directory first.",
+                                         currentDirectory.string()));
+            }
         }
     }
     else
     {
-        configurePathString = current_path().string();
+        configurePathString = currentDirectory.string();
     }
 
     lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
-    const path nodesCachePath = path(configurePathString) / string(nodesCacheFileName);
-    if (exists(nodesCachePath))
+    if (const path nodesCachePath = path(configurePathString) / string(nodesCacheFileName); exists(nodesCachePath))
     {
         loadNodesCache(nodesCachePath);
     }
@@ -75,57 +67,64 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     bool positionalOnly = false;
     for (int i = 1; i < argc; ++i)
     {
-        const string argument{argv[i]};
-        if (!positionalOnly && argument == "--")
+        const string_view argument{argv[i]};
+        if (!positionalOnly)
         {
-            positionalOnly = true;
-            continue;
-        }
-        if (!positionalOnly && argument == "--dry-run")
-        {
-            dryRun = true;
-            continue;
-        }
-        if (!positionalOnly && argument == "--header-units-only")
-        {
-            huOnly = true;
-            continue;
-        }
-        if (!positionalOnly && argument == "--standalone")
-        {
-            standAlone = true;
-            continue;
-        }
-        if (!positionalOnly && argument == "--print-hash-map")
-        {
-            printHashMap = true;
-            continue;
-        }
-        if (!positionalOnly && argument == "--jobs")
-        {
-            if (++i == argc)
+            if (argument == "--")
             {
-                printErrorMessage("Missing value for generated-build option --jobs.");
+                positionalOnly = true;
+                continue;
             }
-
-            const string_view value{argv[i]};
-            uint16_t jobs = 0;
-            const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), jobs);
-            if (error != std::errc{} || end != value.data() + value.size() || jobs == 0)
+            if (argument == "--dry-run")
             {
-                printErrorMessage(FORMAT("Invalid generated-build job count.\nValue: {}\nExpected: 1..{}", value,
-                                         std::numeric_limits<uint16_t>::max()));
+                dryRun = true;
+                continue;
             }
-            buildJobsOverride = jobs;
-            continue;
-        }
-        if (!positionalOnly && argument.starts_with('-'))
-        {
-            printErrorMessage(FORMAT("Unknown generated-build option.\nOption: {}", argument));
+            if (argument == "--header-units-only")
+            {
+                huOnly = true;
+                continue;
+            }
+            if (argument == "--standalone")
+            {
+                standAlone = true;
+                continue;
+            }
+            if (argument == "--print-hash-map")
+            {
+                printHashMap = true;
+                continue;
+            }
+            if (argument == "--jobs")
+            {
+                if (++i == argc)
+                {
+                    printErrorMessage("Missing value for generated-build option --jobs.");
+                }
+
+                const string_view value{argv[i]};
+                uint16_t jobs = 0;
+                const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), jobs);
+                if (error != std::errc{} || end != value.data() + value.size() || jobs == 0)
+                {
+                    printErrorMessage(FORMAT("Invalid generated-build job count.\nValue: {}\nExpected: 1..{}", value,
+                                             std::numeric_limits<uint16_t>::max()));
+                }
+                buildJobsOverride = jobs;
+                continue;
+            }
+            if (argument.starts_with('-'))
+            {
+                printErrorMessage(FORMAT("Unknown generated-build option.\nOption: {}", argument));
+            }
         }
 
-        string targetArgFullPath = (current_path() / argument).lexically_normal().string();
+        string targetArgFullPath = (currentDirectory / path(argument)).lexically_normal().string();
         lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
+        if (targetArgFullPath.ends_with(slashc))
+        {
+            targetArgFullPath.pop_back();
+        }
         if (targetArgFullPath.size() <= configureNode->filePath.size() ||
             !targetArgFullPath.starts_with(configureNode->filePath) ||
             targetArgFullPath[configureNode->filePath.size()] != slashc)
@@ -136,15 +135,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
                                      "Configure directory: {}",
                                      argument, targetArgFullPath, configureNode->filePath));
         }
-        if (targetArgFullPath.ends_with(slashc))
-        {
-            cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
-                               targetArgFullPath.end() - 1);
-        }
-        else
-        {
-            cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1, targetArgFullPath.end());
-        }
+        cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1, targetArgFullPath.end());
     }
 }
 
