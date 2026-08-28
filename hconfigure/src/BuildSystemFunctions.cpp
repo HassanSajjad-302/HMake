@@ -230,7 +230,18 @@ bool configureOrBuild()
     {
         if (!builderPtr->errorHappenedInRoundMode)
         {
-            projectCache.writeToCacheFile();
+            if (projectCache.needsWrite)
+            {
+                STACK_PMR_STRING(projectCacheContents, 4 * 1024)
+                string projectCacheError;
+                if (!projectCache.serialize(projectCacheContents, projectCacheError))
+                {
+                    printErrorMessage(FORMAT("Invalid project cache.\nFile: {}\n{}", cachePath(projectCacheFileName),
+                                             projectCacheError));
+                }
+                writeCacheFile(cachePath(projectCacheFileName), projectCacheContents);
+                projectCache.needsWrite = false;
+            }
             const string configCache = getConfigCache();
             const string buildCache = getBuildCache();
             writeNodesCache();

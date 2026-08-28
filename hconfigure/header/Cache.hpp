@@ -21,13 +21,15 @@ struct ProjectCache
     /// Project toolchain selected by hbuild.
     string toolchainName;
     uint16_t defaultJobs;
+    /// Set for a default cache, direct field changes, and newly appended variables; cleared after parsing or writing.
+    bool needsWrite = true;
 
     ProjectCache();
 
     /// Parses CRLF/LF text without changing this object when validation fails.
     [[nodiscard]] bool parse(string_view contents, string &error);
     /// Serializes the retained layout with normalized LF line endings and one final newline.
-    [[nodiscard]] bool serialize(string &contents, string &error) const;
+    [[nodiscard]] bool serialize(std::pmr::string &contents, string &error) const;
     /// Hashes graph-affecting cache values in their semantic order. Comments, blank lines, and default jobs are
     /// deliberately excluded.
     [[nodiscard]] uint64_t contentCache() const;
@@ -171,6 +173,7 @@ template <typename T> T ProjectCache::getOrAddVariable(const string_view name, T
     const uint64_t lineIndex = static_cast<uint64_t>(lines_.size());
     lines_.push_back({LineKind::VARIABLE, std::move(variableLine)});
     variableLines_.emplace(std::move(variableName), lineIndex);
+    needsWrite = true;
     return defaultValue;
 }
 

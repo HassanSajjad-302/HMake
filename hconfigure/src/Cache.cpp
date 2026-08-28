@@ -148,10 +148,11 @@ bool ProjectCache::parse(string_view contents, string &error)
     defaultJobs = parsedDefaultJobs;
     lines_ = std::move(parsedLines);
     variableLines_ = std::move(parsedVariableLines);
+    needsWrite = false;
     return true;
 }
 
-bool ProjectCache::serialize(string &contents, string &error) const
+bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
 {
     error.clear();
     const auto validatePlainValue = [&error](const string_view value, const string_view field) {
