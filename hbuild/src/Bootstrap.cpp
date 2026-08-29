@@ -386,6 +386,47 @@ std::optional<path> findParentContaining(const path &start, const string_view fi
     return std::nullopt;
 }
 
+std::optional<path> resolveSourceDirectory(const std::optional<path> &requestedDirectory,
+                                           const string *cachedDirectory, const path &invocationDirectory,
+                                           const path &buildDirectory, string &diagnostic)
+{
+    path sourceDirectory;
+    if (requestedDirectory)
+    {
+        sourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
+    }
+    else if (cachedDirectory != nullptr)
+    {
+        sourceDirectory = normalizePath(buildDirectory, *cachedDirectory, diagnostic);
+    }
+    else
+    {
+        std::optional<path> found = findParentContaining(invocationDirectory, "hmake.cpp");
+        if (!found && buildDirectory != invocationDirectory)
+        {
+            found = findParentContaining(buildDirectory, "hmake.cpp");
+        }
+        if (!found)
+        {
+            diagnostic = "Could not find hmake.cpp in the current directory or any parent.\n"
+                         "Use -S <directory> to select the project source directory.";
+        }
+        return found;
+    }
+
+    if (!diagnostic.empty())
+    {
+        return std::nullopt;
+    }
+    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+    {
+        diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
+                     sourceDirectory.string();
+        return std::nullopt;
+    }
+    return sourceDirectory;
+}
+
 struct Command
 {
     path executable;
@@ -1084,40 +1125,18 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
 
     path sourceDirectory;
     path hmakeFile;
-    const auto resolveSourceDirectory = [&]() {
-        if (options.sourceDirectory)
-        {
-            sourceDirectory = normalizePath(invocationDirectory, *options.sourceDirectory, diagnostic);
-        }
-        else if (context.projectCacheExisted)
-        {
-            sourceDirectory = normalizePath(buildDirectory, projectCache.sourceDirectoryPath, diagnostic);
-        }
-        else if (const std::optional<path> source = findParentContaining(invocationDirectory, "hmake.cpp"))
-        {
-            sourceDirectory = *source;
-        }
-        else if (const std::optional<path> source = findParentContaining(buildDirectory, "hmake.cpp"))
-        {
-            sourceDirectory = *source;
-        }
-        else
-        {
-            diagnostic = "Could not find hmake.cpp in the current directory or any parent.\n"
-                         "Use -S <directory> to select the project source directory.";
-            return false;
-        }
-        if (!diagnostic.empty())
+    const auto resolveAndValidateSourceDirectory = [&]() {
+        const string *cachedSourceDirectory =
+            context.projectCacheExisted ? &projectCache.sourceDirectoryPath : nullptr;
+        std::optional<path> resolvedSourceDirectory =
+            resolveSourceDirectory(options.sourceDirectory, cachedSourceDirectory, invocationDirectory,
+                                   buildDirectory, diagnostic);
+        if (!resolvedSourceDirectory)
         {
             return false;
         }
+        sourceDirectory = std::move(*resolvedSourceDirectory);
         hmakeFile = sourceDirectory / "hmake.cpp";
-        if (!isRegularFile(hmakeFile))
-        {
-            diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
-                         sourceDirectory.string();
-            return false;
-        }
         if (!isPathInDirectory(buildDirectory.string(), sourceDirectory.string()))
         {
             diagnostic = "The build directory must be a strict lexical child of the source directory.\n"
@@ -1128,7 +1147,7 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
         }
         return true;
     };
-    if (!resolveSourceDirectory())
+    if (!resolveAndValidateSourceDirectory())
     {
         return false;
     }
@@ -1177,7 +1196,7 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
         }
         projectCache = std::move(lockedProjectCache);
         context.projectCacheExisted = lockedCacheExisted;
-        if (!resolveSourceDirectory())
+        if (!resolveAndValidateSourceDirectory())
         {
             return false;
         }
@@ -1316,31 +1335,13 @@ int runBootstrap(const int argc, char **argv)
             return reportError("Could not determine the current directory.\nSystem error: " + error.message());
         }
 
-        path sourceDirectory;
-        if (options.sourceDirectory)
+        const std::optional<path> sourceDirectory =
+            resolveSourceDirectory(options.sourceDirectory, nullptr, currentDirectory, currentDirectory, diagnostic);
+        if (!sourceDirectory)
         {
-            sourceDirectory = normalizePath(currentDirectory, *options.sourceDirectory, diagnostic);
-            if (!diagnostic.empty())
-            {
-                return reportError(diagnostic);
-            }
-            if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-            {
-                return reportError("The selected source directory does not contain hmake.cpp.\nDirectory: " +
-                                   sourceDirectory.string());
-            }
+            return reportError(diagnostic);
         }
-        else
-        {
-            const std::optional<path> found = findParentContaining(currentDirectory, "hmake.cpp");
-            if (!found)
-            {
-                return reportError("Could not find hmake.cpp in the current directory or any parent.\n"
-                                   "Use -S <directory> to select the project source directory.");
-            }
-            sourceDirectory = *found;
-        }
-        toolchains.initialize(sourceDirectory);
+        toolchains.initialize(*sourceDirectory);
         reportMessage(toolchains.toJson());
         reportMessage("\n");
         return 0;
