@@ -145,7 +145,7 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
-RunCommand::OutputAndStatus RunCommand::runProcess(const char *const command,
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command,
                                                    const std::filesystem::path &workingDirectory)
 {
     std::error_code error;
@@ -160,20 +160,23 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const char *const command,
     }
     directory = directory.lexically_normal();
 
-    error.clear();
-    std::filesystem::path captureDirectory =
-        workingDirectory.empty() ? std::filesystem::temp_directory_path(error) : directory;
-    if (!error)
+    std::filesystem::path captureDirectory = directory;
+    if (workingDirectory.empty())
     {
-        captureDirectory = std::filesystem::absolute(captureDirectory, error);
+        error.clear();
+        captureDirectory = std::filesystem::temp_directory_path(error);
+        if (!error)
+        {
+            captureDirectory = std::filesystem::absolute(captureDirectory, error);
+        }
+        if (error || !std::filesystem::is_directory(captureDirectory, error))
+        {
+            printErrorMessage(FORMAT("Could not use the synchronous process capture directory.\nDirectory: {}\n"
+                                     "System error: {}",
+                                     captureDirectory.string(), error ? error.message() : "not a directory"));
+        }
+        captureDirectory = captureDirectory.lexically_normal();
     }
-    if (error || !std::filesystem::is_directory(captureDirectory, error))
-    {
-        printErrorMessage(FORMAT("Could not use the synchronous process capture directory.\nDirectory: {}\n"
-                                 "System error: {}",
-                                 captureDirectory.string(), error ? error.message() : "not a directory"));
-    }
-    captureDirectory = captureDirectory.lexically_normal();
 
 #ifdef _WIN32
     const uint64_t processId = GetCurrentProcessId();
@@ -221,11 +224,17 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const char *const command,
     {
         errorOutput = fileToString(stderrFile.string());
     }
-    if (!result.output.empty() && !errorOutput.empty())
+    if (!errorOutput.empty())
     {
-        result.output += "\n--- STDERR ---\n";
+        constexpr string_view stderrSeparator = "\n--- STDERR ---\n";
+        result.output.reserve(result.output.size() + errorOutput.size() +
+                              (result.output.empty() ? 0 : stderrSeparator.size()));
+        if (!result.output.empty())
+        {
+            result.output += stderrSeparator;
+        }
+        result.output += errorOutput;
     }
-    result.output += errorOutput;
 
     error.clear();
     std::filesystem::remove(stdoutFile, error);

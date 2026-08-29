@@ -131,8 +131,8 @@ void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
 
 namespace
 {
-Node *dependencyNode(const string_view dependency, const path &workingDirectory, const Node *compiledSource,
-                     const bool excludeHeadersInConfigureNode)
+Node *dependencyNode(const string_view dependency, const string_view workingDirectory, path &workingDirectoryPath,
+                     const Node *compiledSource, const bool excludeHeadersInConfigureNode)
 {
     if (dependency.empty())
     {
@@ -146,8 +146,12 @@ Node *dependencyNode(const string_view dependency, const path &workingDirectory,
     }
     else
     {
+        if (workingDirectoryPath.empty())
+        {
+            workingDirectoryPath = path{workingDirectory};
+        }
         // Both callers supply an absolute working directory, so dependency normalization stays purely lexical.
-        string normalized = (workingDirectory / path{dependency}).lexically_normal().string();
+        string normalized = (workingDirectoryPath / path{dependency}).lexically_normal().string();
         lowerCaseOnWindows(normalized.data(), normalized.size());
         node = Node::getHalfNode(normalized);
     }
@@ -161,8 +165,8 @@ Node *dependencyNode(const string_view dependency, const path &workingDirectory,
 }
 
 flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, const bool collectHeaders,
-                                        const path &workingDirectory, const Node *compiledSource,
-                                        const bool excludeHeadersInConfigureNode)
+                                        const string_view workingDirectory, path &workingDirectoryPath,
+                                        const Node *compiledSource, const bool excludeHeadersInConfigureNode)
 {
     flat_hash_set<Node *> dependencies;
     constexpr string_view includeFileNote = "Note: including file:";
@@ -213,7 +217,7 @@ flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, cons
             if (headerStart != headerEnd)
             {
                 const string_view headerView(data + readOffset + headerStart, headerEnd - headerStart);
-                if (Node *header = dependencyNode(headerView, workingDirectory, compiledSource,
+                if (Node *header = dependencyNode(headerView, workingDirectory, workingDirectoryPath, compiledSource,
                                                   excludeHeadersInConfigureNode))
                 {
                     dependencies.emplace(header);
@@ -226,12 +230,13 @@ flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, cons
     return dependencies;
 }
 
-flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const path &workingDirectory,
-                                            const Node *compiledSource, const bool excludeHeadersInConfigureNode)
+flat_hash_set<Node *> parseMakeDependencies(const string &dependencyFile, const string_view workingDirectory,
+                                            path &workingDirectoryPath, const Node *compiledSource,
+                                            const bool excludeHeadersInConfigureNode)
 {
     flat_hash_set<Node *> dependencies;
     STACK_PMR_STRING(contents, 256 * 1024)
-    fileToString(dependencyFile.string(), contents);
+    fileToString(dependencyFile, contents);
     uint64_t writeOffset = 0;
     const uint64_t contentStart = contents.starts_with("\xef\xbb\xbf") ? 3 : 0;
     for (uint64_t index = contentStart; index < contents.size(); ++index)
@@ -274,7 +279,7 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
     }
     if (colon == string::npos)
     {
-        printErrorMessage(FORMAT("Malformed Make dependency file.\nFile: {}", dependencyFile.string()));
+        printErrorMessage(FORMAT("Malformed Make dependency file.\nFile: {}", dependencyFile));
     }
 
     STACK_PMR_STRING(token, 1024)
@@ -283,7 +288,8 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
         if (!token.empty())
         {
             if (Node *dependency =
-                    dependencyNode(token, workingDirectory, compiledSource, excludeHeadersInConfigureNode))
+                    dependencyNode(token, workingDirectory, workingDirectoryPath, compiledSource,
+                                   excludeHeadersInConfigureNode))
             {
                 dependencies.emplace(dependency);
             }
@@ -328,8 +334,9 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
 }
 
 void collectSourceDependencyPaths(const rapidjson::Value &value, const string_view memberName,
-                                  const path &workingDirectory, const Node *compiledSource,
-                                  const bool excludeHeadersInConfigureNode, flat_hash_set<Node *> &dependencies)
+                                  const string_view workingDirectory, path &workingDirectoryPath,
+                                  const Node *compiledSource, const bool excludeHeadersInConfigureNode,
+                                  flat_hash_set<Node *> &dependencies)
 {
     if (value.IsObject())
     {
@@ -337,7 +344,8 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
         {
             collectSourceDependencyPaths(iterator->value,
                                          {iterator->name.GetString(), iterator->name.GetStringLength()},
-                                         workingDirectory, compiledSource, excludeHeadersInConfigureNode,
+                                         workingDirectory, workingDirectoryPath, compiledSource,
+                                         excludeHeadersInConfigureNode,
                                          dependencies);
         }
         return;
@@ -349,7 +357,7 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
             if (element.IsString() && memberName == "Includes")
             {
                 if (Node *dependency = dependencyNode({element.GetString(), element.GetStringLength()},
-                                                      workingDirectory, compiledSource,
+                                                      workingDirectory, workingDirectoryPath, compiledSource,
                                                       excludeHeadersInConfigureNode))
                 {
                     dependencies.emplace(dependency);
@@ -357,8 +365,8 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
             }
             else
             {
-                collectSourceDependencyPaths(element, memberName, workingDirectory, compiledSource,
-                                             excludeHeadersInConfigureNode, dependencies);
+                collectSourceDependencyPaths(element, memberName, workingDirectory, workingDirectoryPath,
+                                             compiledSource, excludeHeadersInConfigureNode, dependencies);
             }
         }
         return;
@@ -366,39 +374,41 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
     if (value.IsString() && (memberName == "Source" || memberName == "Header" || memberName == "Path"))
     {
         if (Node *dependency = dependencyNode({value.GetString(), value.GetStringLength()}, workingDirectory,
-                                              compiledSource, excludeHeadersInConfigureNode))
+                                              workingDirectoryPath, compiledSource,
+                                              excludeHeadersInConfigureNode))
         {
             dependencies.emplace(dependency);
         }
     }
 }
 
-flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const path &workingDirectory,
-                                              const Node *compiledSource,
+flat_hash_set<Node *> parseSourceDependencies(const string &dependencyFile, const string_view workingDirectory,
+                                              path &workingDirectoryPath, const Node *compiledSource,
                                               const bool excludeHeadersInConfigureNode)
 {
     STACK_PMR_STRING(json, 256 * 1024)
-    fileToString(dependencyFile.string(), json);
+    fileToString(dependencyFile, json);
     char *const documentStart = json.data() + (json.starts_with("\xef\xbb\xbf") ? 3 : 0);
     rapidjson::Document document;
     document.ParseInsitu(documentStart);
     if (document.HasParseError() || !document.IsObject())
     {
         printErrorMessage(FORMAT("Malformed MSVC source-dependencies file.\nFile: {}\nByte offset: {}",
-                                 dependencyFile.string(), document.GetErrorOffset()));
+                                 dependencyFile, document.GetErrorOffset()));
     }
     flat_hash_set<Node *> dependencies;
-    collectSourceDependencyPaths(document, {}, workingDirectory, compiledSource, excludeHeadersInConfigureNode,
-                                 dependencies);
+    collectSourceDependencyPaths(document, {}, workingDirectory, workingDirectoryPath, compiledSource,
+                                 excludeHeadersInConfigureNode, dependencies);
     return dependencies;
 }
 } // namespace
 
 flat_hash_set<Node *> CppSrc::parseHeaderDeps(string &output, const Compiler &compiler, const int exitStatus,
-                                              const path &dependencyFile, const path &workingDirectory,
+                                              const string &dependencyFile, const string_view workingDirectory,
                                               const Node *compiledSource,
                                               const bool excludeHeadersInConfigureNode)
 {
+    path workingDirectoryPath;
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         if (!dependencyFile.empty())
@@ -407,17 +417,19 @@ flat_hash_set<Node *> CppSrc::parseHeaderDeps(string &output, const Compiler &co
             {
                 return {};
             }
-            return parseSourceDependencies(dependencyFile, workingDirectory, compiledSource,
+            return parseSourceDependencies(dependencyFile, workingDirectory, workingDirectoryPath, compiledSource,
                                            excludeHeadersInConfigureNode);
         }
         return parseShowIncludes(output, compiler.btSubFamily == BTSubFamily::CLANG, exitStatus == EXIT_SUCCESS,
-                                 workingDirectory, compiledSource, excludeHeadersInConfigureNode);
+                                 workingDirectory, workingDirectoryPath, compiledSource,
+                                 excludeHeadersInConfigureNode);
     }
     if (exitStatus != EXIT_SUCCESS)
     {
         return {};
     }
-    return parseMakeDependencies(dependencyFile, workingDirectory, compiledSource, excludeHeadersInConfigureNode);
+    return parseMakeDependencies(dependencyFile, workingDirectory, workingDirectoryPath, compiledSource,
+                                 excludeHeadersInConfigureNode);
 }
 
 void CppSrc::setUpdateStatus()
@@ -485,11 +497,12 @@ bool CppSrc::isEventRegistered(Builder &builder)
 bool CppSrc::isEventCompleted(Builder &builder, string_view)
 {
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
-    path dependencyFile;
+    string dependencyFile;
     if (compiler.bTFamily == BTFamily::GCC)
     {
         dependencyFile = objectNodes.front()->filePath;
-        dependencyFile.replace_extension(".d");
+        dependencyFile.resize(dependencyFile.size() - objectNodes.front()->getFileExtension().size());
+        dependencyFile += ".d";
     }
     else if (compiler.bTFamily == BTFamily::MSVC &&
              target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
@@ -1315,11 +1328,12 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     {
         const Compiler &compiler = target->configuration->compilerFeatures.compiler;
         const Node *compileOutput = objectNodes.empty() ? interfaceNode : objectNodes.front();
-        path dependencyFile;
+        string dependencyFile;
         if (compiler.bTFamily == BTFamily::GCC)
         {
             dependencyFile = compileOutput->filePath;
-            dependencyFile.replace_extension(".d");
+            dependencyFile.resize(dependencyFile.size() - compileOutput->getFileExtension().size());
+            dependencyFile += ".d";
         }
         else if (target->configuration->msvcHeaderDependencyMode ==
                  MSVCHeaderDependencyMode::DEPENDENCY_FILE)
@@ -1720,9 +1734,10 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     }
     else
     {
-        path dependencyFile = compileOutput->filePath;
-        dependencyFile.replace_extension(".d");
-        compileCommand += " -MMD -MF \"" + dependencyFile.string() + "\" ";
+        string dependencyFile = compileOutput->filePath;
+        dependencyFile.resize(dependencyFile.size() - compileOutput->getFileExtension().size());
+        dependencyFile += ".d";
+        compileCommand += " -MMD -MF \"" + dependencyFile + "\" ";
     }
 
     // Only for convention command-line approach if the compiler supports such.
@@ -2449,7 +2464,7 @@ void AdaptiveManager::prepareWorkingSet()
             {
                 const string commandLine =
                     "git -C " + addQuotes(srcNode->filePath) + " status --porcelain=v1 -z --untracked-files=all -- .";
-                const auto result = RunCommand::runProcess(commandLine.c_str());
+                const auto result = RunCommand::runProcess(commandLine);
                 if (result.exitStatus != EXIT_SUCCESS)
                 {
                     printErrorMessage(

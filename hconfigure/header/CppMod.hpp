@@ -7,12 +7,11 @@
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
 #include "gtl/include/gtl/btree.hpp"
-#include <filesystem>
 #include <list>
 #include <utility>
 #include <vector>
 
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
+using std::vector, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
 
 class CppTarget;
 class CppSrc;
@@ -72,7 +71,7 @@ class CppSrc : public ObjectFile
     /// use Make dependency syntax. Relative paths are resolved against workingDirectory and normalized lexically.
     /// The compiled source is always excluded; configure-tree headers are excluded only when requested.
     static flat_hash_set<Node *> parseHeaderDeps(string &output, const Compiler &compiler, int exitStatus,
-                                                 const path &dependencyFile, const path &workingDirectory,
+                                                 const string &dependencyFile, string_view workingDirectory,
                                                  const Node *compiledSource, bool excludeHeadersInConfigureNode);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
