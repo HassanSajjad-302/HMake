@@ -351,19 +351,18 @@ void printUsage()
         "  --target <name>         Add a target (repeatable)\n");
 }
 
-path normalizePath(const path &input, const path &base, string &diagnostic)
+path normalizePath(const path &base, const path &input, string &diagnostic)
 {
-    std::error_code error;
-    path result = input;
+    path result = input.is_relative() ? base / input : input;
     if (result.is_relative())
     {
-        result = base / result;
-    }
-    result = std::filesystem::absolute(result, error);
-    if (error)
-    {
-        diagnostic = "Could not make path absolute: " + input.string() + "\nSystem error: " + error.message();
-        return {};
+        std::error_code error;
+        result = std::filesystem::absolute(result, error);
+        if (error)
+        {
+            diagnostic = "Could not make path absolute: " + input.string() + "\nSystem error: " + error.message();
+            return {};
+        }
     }
     result = result.lexically_normal();
     if (result != result.root_path() && !result.has_filename())
@@ -1144,7 +1143,7 @@ path sourceDirectoryForListing(const Options &options, string &diagnostic)
         return {};
     }
 
-    const path sourceDirectory = normalizePath(*options.sourceDirectory, invocationDirectory, diagnostic);
+    const path sourceDirectory = normalizePath(invocationDirectory, *options.sourceDirectory, diagnostic);
     if (!diagnostic.empty())
     {
         return {};
@@ -1183,7 +1182,7 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
     path buildDirectory;
     if (options.buildDirectory)
     {
-        buildDirectory = normalizePath(*options.buildDirectory, invocationDirectory, diagnostic);
+        buildDirectory = normalizePath(invocationDirectory, *options.buildDirectory, diagnostic);
     }
     else if (const std::optional<path> cachedBuild = findParentContaining(invocationDirectory, projectCacheFileName))
     {
@@ -1219,11 +1218,11 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
         hmakeFile.clear();
         if (options.sourceDirectory)
         {
-            sourceDirectory = normalizePath(*options.sourceDirectory, invocationDirectory, diagnostic);
+            sourceDirectory = normalizePath(invocationDirectory, *options.sourceDirectory, diagnostic);
         }
         else if (context.projectCacheExisted)
         {
-            sourceDirectory = normalizePath(projectCache.sourceDirectoryPath, buildDirectory, diagnostic);
+            sourceDirectory = normalizePath(buildDirectory, projectCache.sourceDirectoryPath, diagnostic);
         }
         else if (const std::optional<path> source = findParentContaining(invocationDirectory, "hmake.cpp"))
         {
