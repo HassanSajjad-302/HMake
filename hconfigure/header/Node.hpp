@@ -104,6 +104,9 @@ class Node
     void performContentHash();
 
   public:
+    /// Returns whether a path is absolute according to the host platform's lexical path syntax.
+    static bool isAbsolute(string_view fileSystemPath);
+
     /// Retrieves/creates a node from normalized path and validates file-vs-directory shape.
     /// \param filePath_ normalized path (lower-cased on Windows).
     /// \param isFile expected shape (`true` regular file, `false` directory).

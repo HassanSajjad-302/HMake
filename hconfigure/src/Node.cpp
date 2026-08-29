@@ -76,6 +76,34 @@ Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
     nodeIndices.emplace_back(this);
 }
 
+bool Node::isAbsolute(string_view fileSystemPath)
+{
+    if (fileSystemPath.empty())
+    {
+        return false;
+    }
+
+    if constexpr (os == OS::NT)
+    {
+        const auto isSeparator = [](const char character) { return character == '\\' || character == '/'; };
+
+        if (fileSystemPath.size() >= 2 && isSeparator(fileSystemPath[0]) && isSeparator(fileSystemPath[1]))
+        {
+            return true;
+        }
+
+        const char driveLetter = fileSystemPath[0];
+        const bool isAsciiLetter = (driveLetter >= 'A' && driveLetter <= 'Z') ||
+                                   (driveLetter >= 'a' && driveLetter <= 'z');
+        return fileSystemPath.size() >= 3 && isAsciiLetter && fileSystemPath[1] == ':' &&
+               isSeparator(fileSystemPath[2]);
+    }
+    else
+    {
+        return fileSystemPath.front() == '/';
+    }
+}
+
 string_view Node::getFileName() const noexcept
 {
     if (const uint64_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
@@ -333,6 +361,33 @@ Node *Node::getHalfNode(const string_view filePath_)
 
 Node *Node::getHalfNodeNonNormalized(const string_view filePath_)
 {
+    if constexpr (os != OS::NT)
+    {
+        if (isAbsolute(filePath_) && filePath_.back() != '/')
+        {
+            bool isClearlyNormalized = true;
+            for (uint64_t i = 1; i < filePath_.size(); ++i)
+            {
+                if (filePath_[i] == '/' && filePath_[i - 1] == '/')
+                {
+                    isClearlyNormalized = false;
+                    break;
+                }
+                if (filePath_[i] == '.' && filePath_[i - 1] == '/' &&
+                    (i + 1 == filePath_.size() || filePath_[i + 1] == '/' ||
+                     (filePath_[i + 1] == '.' &&
+                      (i + 2 == filePath_.size() || filePath_[i + 2] == '/'))))
+                {
+                    isClearlyNormalized = false;
+                    break;
+                }
+            }
+            if (isClearlyNormalized)
+            {
+                return getHalfNode(filePath_);
+            }
+        }
+    }
     return getHalfNode(getNormalizedPath(filePath_));
 }
 
