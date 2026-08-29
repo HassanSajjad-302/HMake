@@ -4,20 +4,11 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <string_view>
 
 using std::string, std::string_view;
-
-enum class ProcessState
-{
-    LAUNCHED,
-    OUTPUT_CONNECTED,
-    COMPLETED,
-    CONNECTED,
-    IPCFD_CLOSED,
-    OUTPUTFD_CLOSED,
-};
 
 enum class CompleteReadType
 {
@@ -28,23 +19,28 @@ enum class CompleteReadType
 
 struct RunCommand
 {
-    static constexpr uint64_t invalidHandle = static_cast<uint64_t>(-1);
+    struct OutputAndStatus
+    {
+        string output;
+        int exitStatus = EXIT_FAILURE;
+    };
 
-    /// Leased from the process-wide output pool while a result is live. Every non-null pointer is pool-owned.
+    static constexpr uint64_t invalidHandle = -1;
+
+    /// Leased from the process-wide output pool while an asynchronous result is live. Every non-null pointer is
+    /// pool-owned; synchronous runs return their own string in OutputAndStatus.
     string *output = nullptr;
-    uint64_t readPipe = static_cast<uint64_t>(-1);
-    uint64_t writePipe = static_cast<uint64_t>(-1);
-    uint64_t pid = static_cast<uint64_t>(-1);
+    uint64_t readPipe = invalidHandle;
+    uint64_t writePipe = invalidHandle;
+    uint64_t pid = invalidHandle;
     int exitStatus = EXIT_FAILURE;
     bool haveWritePipe = false;
 #ifdef _WIN32
-    uint64_t index = static_cast<uint64_t>(-1);
+    uint64_t index = invalidHandle;
     bool readPending = false;
     bool pipeEof = false;
 #endif
 
-    // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
-    // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     RunCommand() = default;
     ~RunCommand();
     RunCommand(const RunCommand &) = delete;
@@ -52,7 +48,11 @@ struct RunCommand
     RunCommand(RunCommand &&) = delete;
     RunCommand &operator=(RunCommand &&) = delete;
 
-    void runProcess(const char *command);
+    /// Runs a shell command synchronously with inherited stdin and separately captured stdout/stderr.
+    /// This path does not use any instance or pooled asynchronous state. Call it from one thread at a time.
+    /// An explicit working directory also owns the capture files; otherwise they use the OS temporary directory.
+    [[nodiscard]] static OutputAndStatus runProcess(
+        const char *command, const std::filesystem::path &workingDirectory = {});
 
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing
