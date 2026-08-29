@@ -15,7 +15,6 @@ using std::vector, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::f
 
 class CppTarget;
 class CppSrc;
-struct Compiler;
 struct HfOrCppMod;
 
 struct CompareCppSrc
@@ -66,13 +65,6 @@ class CppSrc : public ObjectFile
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
     string getPrintName() const override;
     void getCompileCommand(std::pmr::string &compileCommand) const;
-    /// Parses compiler dependencies and removes MSVC showIncludes records from output.
-    /// MSVC uses showIncludes when dependencyFile is empty and /sourceDependencies otherwise; GCC-family compilers
-    /// use Make dependency syntax. Relative paths are resolved against workingDirectory and normalized lexically.
-    /// The compiled source is always excluded; configure-tree headers are excluded only when requested.
-    static flat_hash_set<Node *> parseHeaderDeps(string &output, const Compiler &compiler, int exitStatus,
-                                                 const string &dependencyFile, string_view workingDirectory,
-                                                 const Node *compiledSource, bool excludeHeadersInConfigureNode);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
