@@ -297,7 +297,7 @@ void printUsage()
         "Usage: hbuild [options] [targets...] [-- targets...]\n"
         "\n"
         "Project selection:\n"
-        "  -S <directory>          Source directory containing hmake.cpp\n"
+        "  -S <directory>          Verify the build's nearest hmake.cpp source directory\n"
         "  -B <directory>          Build directory; must be a strict child of the source directory\n"
         "  --toolchain <name>      Select the project toolchain\n"
         "  --list-toolchains       List registered toolchains and exit\n"
@@ -348,63 +348,59 @@ bool isRegularFile(const path &file)
     return std::filesystem::is_regular_file(file, error) && !error;
 }
 
-std::optional<path> findParentContaining(const path &start, const string_view filename)
+path resolveSourceDirectory(const std::optional<path> &requestedDirectory, const path &invocationDirectory,
+                            const path *buildDirectory, string &diagnostic)
 {
-    path candidate = start;
-    while (true)
+    if (buildDirectory == nullptr)
     {
-        std::error_code error;
-        if (std::filesystem::is_regular_file(candidate / filename, error) && !error)
+        if (requestedDirectory)
         {
-            return candidate;
+            path sourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
+            if (!diagnostic.empty())
+            {
+                return {};
+            }
+            if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+            {
+                diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
+                             sourceDirectory.string();
+                return {};
+            }
+            return sourceDirectory;
         }
-        const path parent = candidate.parent_path();
-        if (parent.empty() || parent == candidate)
-        {
-            break;
-        }
-        candidate = parent;
-    }
-    return std::nullopt;
-}
 
-std::optional<path> resolveSourceDirectory(const std::optional<path> &requestedDirectory,
-                                           const string *cachedDirectory, const path &invocationDirectory,
-                                           const path &buildDirectory, string &diagnostic)
-{
-    path sourceDirectory;
-    if (requestedDirectory)
-    {
-        sourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
-    }
-    else if (cachedDirectory != nullptr)
-    {
-        sourceDirectory = normalizePath(buildDirectory, *cachedDirectory, diagnostic);
-    }
-    else
-    {
-        std::optional<path> found = findParentContaining(invocationDirectory, "hmake.cpp");
-        if (!found && buildDirectory != invocationDirectory)
-        {
-            found = findParentContaining(buildDirectory, "hmake.cpp");
-        }
-        if (!found)
+        path sourceDirectory = findParentContaining(invocationDirectory, "hmake.cpp");
+        if (sourceDirectory.empty())
         {
             diagnostic = "Could not find hmake.cpp in the current directory or any parent.\n"
                          "Use -S <directory> to select the project source directory.";
         }
-        return found;
+        return sourceDirectory;
     }
 
+    path sourceDirectory = findParentContaining(*buildDirectory, "hmake.cpp");
+    if (sourceDirectory.empty())
+    {
+        diagnostic = "Could not find hmake.cpp in the build directory or any parent.\n"
+                     "Use -S <directory> and -B <directory> to select the project directories.";
+        return {};
+    }
+    if (!requestedDirectory)
+    {
+        return sourceDirectory;
+    }
+
+    const path requestedSourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
     if (!diagnostic.empty())
     {
-        return std::nullopt;
+        return {};
     }
-    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+    if (requestedSourceDirectory != sourceDirectory)
     {
-        diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
-                     sourceDirectory.string();
-        return std::nullopt;
+        diagnostic = "The selected source directory must be the nearest hmake.cpp ancestor of the build directory.\n"
+                     "Selected source directory: " +
+                     requestedSourceDirectory.string() + "\nNearest source directory: " + sourceDirectory.string();
+        return {};
     }
     return sourceDirectory;
 }
@@ -1054,7 +1050,6 @@ bool isDirectory(const path &directory)
 struct ProjectContext
 {
     Node *hmakeFile = nullptr;
-    bool projectCacheExisted = false;
     bool nodesCacheExisted = false;
 };
 
@@ -1067,9 +1062,10 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
     {
         buildDirectory = normalizePath(invocationDirectory, *options.buildDirectory, diagnostic);
     }
-    else if (const std::optional<path> cachedBuild = findParentContaining(invocationDirectory, projectCacheFileName))
+    else if (const path cachedBuild = findParentContaining(invocationDirectory, projectCacheFileName);
+             !cachedBuild.empty())
     {
-        buildDirectory = *cachedBuild;
+        buildDirectory = cachedBuild;
     }
     else
     {
@@ -1080,46 +1076,19 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
         return false;
     }
 
-    const path cacheFile = buildDirectory / projectCacheFileName;
-    string cacheContents;
-    context.projectCacheExisted = isRegularFile(cacheFile);
-    if (context.projectCacheExisted)
+    const path sourceDirectory =
+        resolveSourceDirectory(options.sourceDirectory, invocationDirectory, &buildDirectory, diagnostic);
+    if (sourceDirectory.empty())
     {
-        cacheContents = fileToString(cacheFile.string());
-        string cacheError;
-        if (!projectCache.parse(cacheContents, cacheError))
-        {
-            diagnostic = "Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError;
-            return false;
-        }
+        return false;
     }
-
-    path sourceDirectory;
-    path hmakeFile;
-    const auto resolveAndValidateSourceDirectory = [&]() {
-        const string *cachedSourceDirectory =
-            context.projectCacheExisted ? &projectCache.sourceDirectoryPath : nullptr;
-        std::optional<path> resolvedSourceDirectory =
-            resolveSourceDirectory(options.sourceDirectory, cachedSourceDirectory, invocationDirectory,
-                                   buildDirectory, diagnostic);
-        if (!resolvedSourceDirectory)
-        {
-            return false;
-        }
-        sourceDirectory = std::move(*resolvedSourceDirectory);
-        hmakeFile = sourceDirectory / "hmake.cpp";
-        if (!isPathInDirectory(buildDirectory.string(), sourceDirectory.string()))
-        {
-            diagnostic = "The build directory must be a strict lexical child of the source directory.\n"
-                         "Source directory: " +
-                         sourceDirectory.string() + "\nBuild directory: " + buildDirectory.string() +
-                         "\nHint: from the source directory, run hbuild -B build.";
-            return false;
-        }
-        return true;
-    };
-    if (!resolveAndValidateSourceDirectory())
+    const path hmakeFile = sourceDirectory / "hmake.cpp";
+    if (!isPathInDirectory(buildDirectory.string(), sourceDirectory.string()))
     {
+        diagnostic = "The build directory must be a strict lexical child of the source directory.\n"
+                     "Source directory: " +
+                     sourceDirectory.string() + "\nBuild directory: " + buildDirectory.string() +
+                     "\nHint: from the source directory, run hbuild -B build.";
         return false;
     }
 
@@ -1151,33 +1120,16 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
         return false;
     }
 
-    const bool lockedCacheExisted = isRegularFile(cacheFile);
-    const string lockedCacheContents = lockedCacheExisted ? fileToString(cacheFile.string()) : string{};
-    if (lockedCacheExisted != context.projectCacheExisted || lockedCacheContents != cacheContents)
+    const path cacheFile = buildDirectory / projectCacheFileName;
+    if (isRegularFile(cacheFile))
     {
-        ProjectCache lockedProjectCache;
-        if (lockedCacheExisted)
+        const string cacheContents = fileToString(cacheFile.string());
+        string cacheError;
+        if (!projectCache.parse(cacheContents, cacheError))
         {
-            string cacheError;
-            if (!lockedProjectCache.parse(lockedCacheContents, cacheError))
-            {
-                diagnostic = "Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError;
-                return false;
-            }
-        }
-        projectCache = std::move(lockedProjectCache);
-        context.projectCacheExisted = lockedCacheExisted;
-        if (!resolveAndValidateSourceDirectory())
-        {
+            diagnostic = "Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError;
             return false;
         }
-    }
-
-    if (!context.projectCacheExisted || options.sourceDirectory)
-    {
-        const string selectedSource = sourceDirectory.string();
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.sourceDirectoryPath != selectedSource;
-        projectCache.sourceDirectoryPath = selectedSource;
     }
     if (options.toolchain)
     {
@@ -1311,14 +1263,13 @@ int runBootstrap(const int argc, char **argv)
     }
     if (options.listToolchains)
     {
-        const std::optional<path> sourceDirectory =
-            resolveSourceDirectory(options.sourceDirectory, nullptr, invocationDirectory, invocationDirectory,
-                                   diagnostic);
-        if (!sourceDirectory)
+        const path sourceDirectory =
+            resolveSourceDirectory(options.sourceDirectory, invocationDirectory, nullptr, diagnostic);
+        if (sourceDirectory.empty())
         {
             printErrorMessage(diagnostic);
         }
-        toolchains.initialize(*sourceDirectory);
+        toolchains.initialize(sourceDirectory);
         printMessage(toolchains.toJson());
         printMessage("\n");
         return 0;
