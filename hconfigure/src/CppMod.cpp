@@ -1242,6 +1242,10 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     }
     else
     {
+        for (Node *headerFile : headerFiles)
+        {
+            headerFile->doHashFile = true;
+        }
     }
 
     if (type == CppModType::HEADER_UNIT || type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
@@ -1309,9 +1313,21 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
     {
-        // todo
-        // command currently does not add .d file and that .d file must be passed as-well.
-        // parseHeaderDeps(*run.output);
+        const Compiler &compiler = target->configuration->compilerFeatures.compiler;
+        const Node *compileOutput = objectNodes.empty() ? interfaceNode : objectNodes.front();
+        path dependencyFile;
+        if (compiler.bTFamily == BTFamily::GCC)
+        {
+            dependencyFile = compileOutput->filePath;
+            dependencyFile.replace_extension(".d");
+        }
+        else if (target->configuration->msvcHeaderDependencyMode ==
+                 MSVCHeaderDependencyMode::DEPENDENCY_FILE)
+        {
+            dependencyFile = compileOutput->filePath + ".json";
+        }
+        headerFiles = parseHeaderDeps(*run.output, compiler, rb.exitStatus, dependencyFile,
+                                      currentNode->filePath, node, true);
         completeModuleCompilation(builder);
         return false;
     }
@@ -1628,8 +1644,8 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     {
         useIPCsTR = "-useIPC ";
     }
-    if (const Compiler &c = target->configuration->compilerFeatures.compiler;
-        c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
+    const Compiler &compiler = target->configuration->compilerFeatures.compiler;
+    if (compiler.bTFamily == BTFamily::MSVC && compiler.btSubFamily == BTSubFamily::CLANG)
     {
         if (type == CppModType::HEADER_UNIT)
         {
@@ -1657,7 +1673,7 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
             compileCommand += " -fdiagnostics-color=never";
         }
     }
-    else if (c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
+    else if (compiler.bTFamily == BTFamily::GCC && compiler.btSubFamily == BTSubFamily::CLANG)
     {
         if (type == CppModType::HEADER_UNIT)
         {
@@ -1688,6 +1704,25 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     if (commandType != CommandType::CONVENTIONAL)
     {
         return;
+    }
+
+    const Node *compileOutput = objectNodes.empty() ? interfaceNode : objectNodes.front();
+    if (compiler.bTFamily == BTFamily::MSVC)
+    {
+        if (target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
+        {
+            compileCommand += " /sourceDependencies \"" + compileOutput->filePath + ".json\" ";
+        }
+        else
+        {
+            compileCommand += " /showIncludes ";
+        }
+    }
+    else
+    {
+        path dependencyFile = compileOutput->filePath;
+        dependencyFile.replace_extension(".d");
+        compileCommand += " -MMD -MF \"" + dependencyFile.string() + "\" ";
     }
 
     // Only for convention command-line approach if the compiler supports such.
