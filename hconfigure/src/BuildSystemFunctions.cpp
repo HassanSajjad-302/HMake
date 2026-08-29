@@ -91,7 +91,14 @@ void initializeCache()
         sourcePath = path(configureNode->filePath) / sourcePath;
     }
     sourcePath = sourcePath.lexically_normal();
-    srcNode = Node::getHalfNode(sourcePath.string());
+    srcNode = Node::getHalfNodeNonNormalized(sourcePath.string());
+    if (!isPathInDirectory(configureNode->filePath, srcNode->filePath))
+    {
+        printErrorMessage(FORMAT("The configure directory must be a strict lexical child of the source directory.\n"
+                                 "Source directory: {}\nConfigure directory: {}\n"
+                                 "Hint: from the source directory, run hbuild -B build.",
+                                 srcNode->filePath, configureNode->filePath));
+    }
     normalizationBasePath = srcNode->filePath;
 
     toolchains.initialize(srcNode->filePath);
