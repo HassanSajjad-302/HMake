@@ -131,25 +131,38 @@ void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
 
 namespace
 {
-Node *dependencyNode(const string_view dependency, const path &workingDirectory)
+Node *dependencyNode(const string_view dependency, const path &workingDirectory, const Node *compiledSource,
+                     const bool excludeHeadersInConfigureNode)
 {
     if (dependency.empty())
     {
         return nullptr;
     }
-    path dependencyPath{dependency};
-    if (dependencyPath.is_relative())
+
+    Node *node;
+    if (Node::isAbsolute(dependency))
+    {
+        node = Node::getHalfNodeNonNormalized(dependency);
+    }
+    else
     {
         // Both callers supply an absolute working directory, so dependency normalization stays purely lexical.
-        dependencyPath = workingDirectory / dependencyPath;
+        string normalized = (workingDirectory / path{dependency}).lexically_normal().string();
+        lowerCaseOnWindows(normalized.data(), normalized.size());
+        node = Node::getHalfNode(normalized);
     }
-    string normalized = dependencyPath.lexically_normal().string();
-    lowerCaseOnWindows(normalized.data(), normalized.size());
-    return Node::getHalfNode(normalized);
+
+    if (node == compiledSource ||
+        (excludeHeadersInConfigureNode && isPathInDirectory(node->filePath, configureNode->filePath)))
+    {
+        return nullptr;
+    }
+    return node;
 }
 
 flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, const bool collectHeaders,
-                                        const path &workingDirectory)
+                                        const path &workingDirectory, const Node *compiledSource,
+                                        const bool excludeHeadersInConfigureNode)
 {
     flat_hash_set<Node *> dependencies;
     constexpr string_view includeFileNote = "Note: including file:";
@@ -200,7 +213,8 @@ flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, cons
             if (headerStart != headerEnd)
             {
                 const string_view headerView(data + readOffset + headerStart, headerEnd - headerStart);
-                if (Node *header = dependencyNode(headerView, workingDirectory))
+                if (Node *header = dependencyNode(headerView, workingDirectory, compiledSource,
+                                                  excludeHeadersInConfigureNode))
                 {
                     dependencies.emplace(header);
                 }
@@ -212,7 +226,8 @@ flat_hash_set<Node *> parseShowIncludes(string &output, const bool isClang, cons
     return dependencies;
 }
 
-flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const path &workingDirectory)
+flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const path &workingDirectory,
+                                            const Node *compiledSource, const bool excludeHeadersInConfigureNode)
 {
     flat_hash_set<Node *> dependencies;
     STACK_PMR_STRING(contents, 256 * 1024)
@@ -267,7 +282,8 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
     const auto commit = [&]() {
         if (!token.empty())
         {
-            if (Node *dependency = dependencyNode(token, workingDirectory))
+            if (Node *dependency =
+                    dependencyNode(token, workingDirectory, compiledSource, excludeHeadersInConfigureNode))
             {
                 dependencies.emplace(dependency);
             }
@@ -312,7 +328,8 @@ flat_hash_set<Node *> parseMakeDependencies(const path &dependencyFile, const pa
 }
 
 void collectSourceDependencyPaths(const rapidjson::Value &value, const string_view memberName,
-                                  const path &workingDirectory, flat_hash_set<Node *> &dependencies)
+                                  const path &workingDirectory, const Node *compiledSource,
+                                  const bool excludeHeadersInConfigureNode, flat_hash_set<Node *> &dependencies)
 {
     if (value.IsObject())
     {
@@ -320,7 +337,8 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
         {
             collectSourceDependencyPaths(iterator->value,
                                          {iterator->name.GetString(), iterator->name.GetStringLength()},
-                                         workingDirectory, dependencies);
+                                         workingDirectory, compiledSource, excludeHeadersInConfigureNode,
+                                         dependencies);
         }
         return;
     }
@@ -330,28 +348,34 @@ void collectSourceDependencyPaths(const rapidjson::Value &value, const string_vi
         {
             if (element.IsString() && memberName == "Includes")
             {
-                if (Node *dependency = dependencyNode({element.GetString(), element.GetStringLength()}, workingDirectory))
+                if (Node *dependency = dependencyNode({element.GetString(), element.GetStringLength()},
+                                                      workingDirectory, compiledSource,
+                                                      excludeHeadersInConfigureNode))
                 {
                     dependencies.emplace(dependency);
                 }
             }
             else
             {
-                collectSourceDependencyPaths(element, memberName, workingDirectory, dependencies);
+                collectSourceDependencyPaths(element, memberName, workingDirectory, compiledSource,
+                                             excludeHeadersInConfigureNode, dependencies);
             }
         }
         return;
     }
     if (value.IsString() && (memberName == "Source" || memberName == "Header" || memberName == "Path"))
     {
-        if (Node *dependency = dependencyNode({value.GetString(), value.GetStringLength()}, workingDirectory))
+        if (Node *dependency = dependencyNode({value.GetString(), value.GetStringLength()}, workingDirectory,
+                                              compiledSource, excludeHeadersInConfigureNode))
         {
             dependencies.emplace(dependency);
         }
     }
 }
 
-flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const path &workingDirectory)
+flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const path &workingDirectory,
+                                              const Node *compiledSource,
+                                              const bool excludeHeadersInConfigureNode)
 {
     STACK_PMR_STRING(json, 256 * 1024)
     fileToString(dependencyFile.string(), json);
@@ -364,13 +388,16 @@ flat_hash_set<Node *> parseSourceDependencies(const path &dependencyFile, const 
                                  dependencyFile.string(), document.GetErrorOffset()));
     }
     flat_hash_set<Node *> dependencies;
-    collectSourceDependencyPaths(document, {}, workingDirectory, dependencies);
+    collectSourceDependencyPaths(document, {}, workingDirectory, compiledSource, excludeHeadersInConfigureNode,
+                                 dependencies);
     return dependencies;
 }
 } // namespace
 
 flat_hash_set<Node *> CppSrc::parseHeaderDeps(string &output, const Compiler &compiler, const int exitStatus,
-                                              const path &dependencyFile, const path &workingDirectory)
+                                              const path &dependencyFile, const path &workingDirectory,
+                                              const Node *compiledSource,
+                                              const bool excludeHeadersInConfigureNode)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
@@ -380,16 +407,17 @@ flat_hash_set<Node *> CppSrc::parseHeaderDeps(string &output, const Compiler &co
             {
                 return {};
             }
-            return parseSourceDependencies(dependencyFile, workingDirectory);
+            return parseSourceDependencies(dependencyFile, workingDirectory, compiledSource,
+                                           excludeHeadersInConfigureNode);
         }
         return parseShowIncludes(output, compiler.btSubFamily == BTSubFamily::CLANG, exitStatus == EXIT_SUCCESS,
-                                 workingDirectory);
+                                 workingDirectory, compiledSource, excludeHeadersInConfigureNode);
     }
     if (exitStatus != EXIT_SUCCESS)
     {
         return {};
     }
-    return parseMakeDependencies(dependencyFile, workingDirectory);
+    return parseMakeDependencies(dependencyFile, workingDirectory, compiledSource, excludeHeadersInConfigureNode);
 }
 
 void CppSrc::setUpdateStatus()
@@ -469,19 +497,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         dependencyFile = objectNodes.front()->filePath + ".json";
     }
     headerFiles = parseHeaderDeps(*run.output, compiler, realBTargets[0].exitStatus, dependencyFile,
-                                  currentNode->filePath);
-    for (auto iterator = headerFiles.begin(); iterator != headerFiles.end();)
-    {
-        Node *header = *iterator;
-        if (header == node || isPathInDirectory(header->filePath, configureNode->filePath))
-        {
-            iterator = headerFiles.erase(iterator);
-        }
-        else
-        {
-            ++iterator;
-        }
-    }
+                                  currentNode->filePath, node, true);
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {

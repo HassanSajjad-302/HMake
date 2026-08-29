@@ -70,8 +70,10 @@ class CppSrc : public ObjectFile
     /// Parses compiler dependencies and removes MSVC showIncludes records from output.
     /// MSVC uses showIncludes when dependencyFile is empty and /sourceDependencies otherwise; GCC-family compilers
     /// use Make dependency syntax. Relative paths are resolved against workingDirectory and normalized lexically.
+    /// The compiled source is always excluded; configure-tree headers are excluded only when requested.
     static flat_hash_set<Node *> parseHeaderDeps(string &output, const Compiler &compiler, int exitStatus,
-                                                 const path &dependencyFile, const path &workingDirectory);
+                                                 const path &dependencyFile, const path &workingDirectory,
+                                                 const Node *compiledSource, bool excludeHeadersInConfigureNode);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
