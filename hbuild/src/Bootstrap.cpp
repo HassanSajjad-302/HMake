@@ -1123,40 +1123,6 @@ bool isDirectory(const path &directory)
     return std::filesystem::is_directory(directory, error) && !error;
 }
 
-path sourceDirectoryForListing(const Options &options, string &diagnostic)
-{
-    std::error_code error;
-    const path invocationDirectory = std::filesystem::current_path(error);
-    if (error)
-    {
-        diagnostic = "Could not determine the current directory.\nSystem error: " + error.message();
-        return {};
-    }
-    if (!options.sourceDirectory)
-    {
-        if (const std::optional<path> found = findParentContaining(invocationDirectory, "hmake.cpp"))
-        {
-            return *found;
-        }
-        diagnostic = "Could not find hmake.cpp in the current directory or any parent.\n"
-                     "Use -S <directory> to select the project source directory.";
-        return {};
-    }
-
-    const path sourceDirectory = normalizePath(invocationDirectory, *options.sourceDirectory, diagnostic);
-    if (!diagnostic.empty())
-    {
-        return {};
-    }
-    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-    {
-        diagnostic = "The selected source directory does not contain hmake.cpp.\nDirectory: " +
-                     sourceDirectory.string();
-        return {};
-    }
-    return sourceDirectory;
-}
-
 struct ProjectContext
 {
     Node *hmakeFile = nullptr;
@@ -1173,11 +1139,11 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
         diagnostic = "Could not determine the current directory.\nSystem error: " + error.message();
         return false;
     }
-    invocationDirectory = normalizePath(invocationDirectory, invocationDirectory, diagnostic);
-    if (!diagnostic.empty())
-    {
-        return false;
-    }
+#ifdef _WIN32
+    string loweredInvocationDirectory = invocationDirectory.string();
+    lowerCaseOnWindows(loweredInvocationDirectory.data(), loweredInvocationDirectory.size());
+    invocationDirectory = path(loweredInvocationDirectory);
+#endif
 
     path buildDirectory;
     if (options.buildDirectory)
@@ -1440,12 +1406,32 @@ int runBootstrap(const int argc, char **argv)
     }
     if (options.listToolchains)
     {
-        const path sourceDirectory = sourceDirectoryForListing(options, diagnostic);
+        std::error_code error;
+        path searchDirectory = std::filesystem::current_path(error);
+        if (error)
+        {
+            return reportError("Could not determine the current directory.\nSystem error: " + error.message());
+        }
+        if (options.sourceDirectory)
+        {
+            searchDirectory = normalizePath(searchDirectory, *options.sourceDirectory, diagnostic);
+        }
         if (!diagnostic.empty())
         {
             return reportError(diagnostic);
         }
-        toolchains.initialize(sourceDirectory);
+        const std::optional<path> sourceDirectory = findParentContaining(searchDirectory, "hmake.cpp");
+        if (!sourceDirectory || (options.sourceDirectory && *sourceDirectory != searchDirectory))
+        {
+            if (options.sourceDirectory)
+            {
+                return reportError("The selected source directory does not contain hmake.cpp.\nDirectory: " +
+                                   searchDirectory.string());
+            }
+            return reportError("Could not find hmake.cpp in the current directory or any parent.\n"
+                               "Use -S <directory> to select the project source directory.");
+        }
+        toolchains.initialize(*sourceDirectory);
         reportMessage(toolchains.toJson());
         reportMessage("\n");
         return 0;
