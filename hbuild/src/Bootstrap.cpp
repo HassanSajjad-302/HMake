@@ -1058,21 +1058,10 @@ struct ProjectContext
     bool nodesCacheExisted = false;
 };
 
-bool resolveProject(const Options &options, ProjectContext &context, ProjectLock &projectLock, string &diagnostic)
+bool resolveProject(const Options &options, const path &invocationDirectory, ProjectContext &context,
+                    ProjectLock &projectLock, string &diagnostic)
 {
     std::error_code error;
-    path invocationDirectory = std::filesystem::current_path(error);
-    if (error)
-    {
-        diagnostic = "Could not determine the current directory.\nSystem error: " + error.message();
-        return false;
-    }
-#ifdef _WIN32
-    string loweredInvocationDirectory = invocationDirectory.string();
-    lowerCaseOnWindows(loweredInvocationDirectory.data(), loweredInvocationDirectory.size());
-    invocationDirectory = path(loweredInvocationDirectory);
-#endif
-
     path buildDirectory;
     if (options.buildDirectory)
     {
@@ -1297,6 +1286,18 @@ int runGeneratedBuild(const Options &options, const path &executable, const path
 
 int runBootstrap(const int argc, char **argv)
 {
+    std::error_code invocationError;
+    path invocationDirectory = std::filesystem::current_path(invocationError);
+    if (invocationError)
+    {
+        printErrorMessage("Could not determine the current directory.\nSystem error: " + invocationError.message());
+    }
+#ifdef _WIN32
+    string loweredInvocationDirectory = invocationDirectory.string();
+    lowerCaseOnWindows(loweredInvocationDirectory.data(), loweredInvocationDirectory.size());
+    invocationDirectory = path(loweredInvocationDirectory);
+#endif
+
     Options options;
     string diagnostic;
     if (!parseOptions(argc, argv, options, diagnostic))
@@ -1310,15 +1311,9 @@ int runBootstrap(const int argc, char **argv)
     }
     if (options.listToolchains)
     {
-        std::error_code error;
-        const path currentDirectory = std::filesystem::current_path(error);
-        if (error)
-        {
-            printErrorMessage("Could not determine the current directory.\nSystem error: " + error.message());
-        }
-
         const std::optional<path> sourceDirectory =
-            resolveSourceDirectory(options.sourceDirectory, nullptr, currentDirectory, currentDirectory, diagnostic);
+            resolveSourceDirectory(options.sourceDirectory, nullptr, invocationDirectory, invocationDirectory,
+                                   diagnostic);
         if (!sourceDirectory)
         {
             printErrorMessage(diagnostic);
@@ -1333,7 +1328,7 @@ int runBootstrap(const int argc, char **argv)
     const int result = [&]() -> int {
         ProjectContext project;
         ProjectLock projectLock;
-        if (!resolveProject(options, project, projectLock, diagnostic))
+        if (!resolveProject(options, invocationDirectory, project, projectLock, diagnostic))
         {
             printErrorMessage(diagnostic);
         }
@@ -1508,10 +1503,10 @@ int runBootstrap(const int argc, char **argv)
         }
 
         const string_view buildDirectory = configureNode->filePath;
-        const string_view invocationDirectory = currentNode->filePath;
+        const string_view invocationPath = currentNode->filePath;
         const bool invocationIsInBuild =
-            invocationDirectory == buildDirectory || isPathInDirectory(invocationDirectory, buildDirectory);
-        const path buildWorkingDirectory = invocationIsInBuild ? path(invocationDirectory) : path(buildDirectory);
+            invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory);
+        const path buildWorkingDirectory = invocationIsInBuild ? path(invocationPath) : path(buildDirectory);
         return runGeneratedBuild(options, buildTask.finalExecutable, buildWorkingDirectory);
     }();
     destructGlobals();
