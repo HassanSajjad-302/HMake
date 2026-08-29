@@ -565,14 +565,13 @@ void IspcHeader::parseDependencyList()
         {
             dependency.erase(escaped, 1);
         }
-        path dependencyPath(dependency);
-        if (dependencyPath.is_relative())
+        if (!Node::isAbsolute(dependency))
         {
             printErrorMessage(FORMAT("ISPC emitted a relative dependency; a full path is required.\n"
                                      "Target: {}\nSource: {}\nDependency: {}",
                                      target->cppTarget->name, sourceNode->filePath, dependency));
         }
-        Node *node = Node::getHalfNode(dependencyPath.string());
+        Node *node = Node::getHalfNodeNonNormalized(dependency);
         if (isPathInDirectory(node->filePath, configureNode->filePath))
         {
             continue;

@@ -1147,6 +1147,10 @@ string getNormalizedPath(path filePath)
         filePath = path(normalizationBasePath) / filePath;
     }
     filePath = filePath.lexically_normal();
+    if (filePath != filePath.root_path() && !filePath.has_filename())
+    {
+        filePath = filePath.parent_path();
+    }
     string result = filePath.string();
     lowerCaseOnWindows(result.data(), result.size());
     return result;
