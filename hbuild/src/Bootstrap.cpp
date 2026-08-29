@@ -17,7 +17,6 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -31,22 +30,6 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
-#endif
-
-#ifndef HCONFIGURE_HEADER
-#define HCONFIGURE_HEADER ""
-#endif
-#ifndef THIRD_PARTY_HEADER
-#define THIRD_PARTY_HEADER ""
-#endif
-#ifndef RAPIDJSON_HEADER
-#define RAPIDJSON_HEADER ""
-#endif
-#ifndef HCONFIGURE_C_STATIC_LIB_PATH
-#define HCONFIGURE_C_STATIC_LIB_PATH ""
-#endif
-#ifndef HCONFIGURE_B_STATIC_LIB_PATH
-#define HCONFIGURE_B_STATIC_LIB_PATH ""
 #endif
 
 namespace
@@ -592,10 +575,6 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
             return false;
         }
         const uint64_t idsSize = static_cast<uint64_t>(count) * sizeof(uint32_t);
-        if (offset > fileSize || idsSize > fileSize - offset)
-        {
-            return false;
-        }
         STACK_PMR_VECTOR(uint32_t, ids, 64)
         ids.reserve(count);
         ids.resize(count);
@@ -623,15 +602,7 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
         recompileNodes.clear();
         reconfigureNodes.clear();
     }
-    errno = 0;
-    if (std::fclose(input) != 0)
-    {
-        const int closeError = errno;
-        diagnostic = "Could not close the build cache after reading: " + fileName +
-                     "\nSystem error: " +
-                     (closeError == 0 ? string("I/O error") : std::strerror(closeError));
-        return false;
-    }
+    std::fclose(input);
     if (!parsed)
     {
         return !inputError;
@@ -656,20 +627,9 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
         return true;
     }
 
-    if (recompileNodes.size() > std::numeric_limits<uint32_t>::max() ||
-        reconfigureNodes.size() > std::numeric_limits<uint32_t>::max())
-    {
-        diagnostic = "The build cache contains too many invalidation nodes.";
-        return false;
-    }
     const uint64_t prefixSize = 4 * sizeof(uint64_t) + 2 * sizeof(uint32_t) +
                                 (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
     const uint64_t tailSize = preserveOrdinaryTail ? prefix.ordinaryTailSize : 0;
-    if (prefixSize + tailSize < prefixSize)
-    {
-        diagnostic = "The build cache exceeds this process's addressable size.";
-        return false;
-    }
     const uint64_t totalSize = prefixSize + tailSize;
     FILE *tailInput = nullptr;
     if (tailSize != 0)
@@ -680,12 +640,6 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
         {
             diagnostic = "Could not open the build cache to preserve its target rows: " + fileName +
                          "\nSystem error: " + std::strerror(errno);
-            return false;
-        }
-        if (prefix.ordinaryTailOffset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-        {
-            std::fclose(tailInput);
-            diagnostic = "The build-cache target rows begin beyond the supported file offset.";
             return false;
         }
         errno = 0;
@@ -752,9 +706,7 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
     {
         const bool readFailed = tailBytesRead != tailSize;
         const bool streamError = std::ferror(tailInput);
-        errno = 0;
-        const bool closeFailed = std::fclose(tailInput) != 0;
-        const int closeError = errno;
+        std::fclose(tailInput);
         if (readFailed)
         {
             diagnostic = "Could not read the complete build-cache target rows: " + file.string() +
@@ -765,13 +717,6 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
                 diagnostic += "\nSystem error: " +
                               (tailReadError == 0 ? string("I/O error") : std::strerror(tailReadError));
             }
-            return false;
-        }
-        if (closeFailed)
-        {
-            diagnostic = "Could not close the build cache after preserving its target rows: " + file.string() +
-                         "\nSystem error: " +
-                         (closeError == 0 ? string("I/O error") : std::strerror(closeError));
             return false;
         }
     }
@@ -857,7 +802,7 @@ const Toolchain *resolveToolchain(const string_view requested, string &diagnosti
 
 Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const path &sourceFile,
                            const path &outputFile, const path &dependencyFile, const path &objectFile,
-                           const path &workingDirectory, string &diagnostic)
+                           const path &workingDirectory)
 {
     Command command;
     command.executable = toolchain.compiler.bTPath;
@@ -866,16 +811,6 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
     command.arguments.insert(command.arguments.end(), toolchain.bootstrapArguments.begin(),
                              toolchain.bootstrapArguments.end());
     const path staticLibrary = configureMode ? path(HCONFIGURE_C_STATIC_LIB_PATH) : path(HCONFIGURE_B_STATIC_LIB_PATH);
-    constexpr string_view requiredPaths[] = {HCONFIGURE_HEADER, THIRD_PARTY_HEADER, RAPIDJSON_HEADER,
-                                             HCONFIGURE_C_STATIC_LIB_PATH, HCONFIGURE_B_STATIC_LIB_PATH};
-    for (const string_view required : requiredPaths)
-    {
-        if (required.empty())
-        {
-            diagnostic = "hbuild was compiled without all required HMake bootstrap paths.";
-            return {};
-        }
-    }
     constexpr string_view includePaths[] = {HCONFIGURE_HEADER, THIRD_PARTY_HEADER, RAPIDJSON_HEADER};
 
     if (toolchain.style == "gnu")
@@ -896,11 +831,8 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
         }
         for (const string_view include : includePaths)
         {
-            if (!include.empty())
-            {
-                command.arguments.emplace_back("-I");
-                command.arguments.emplace_back(include);
-            }
+            command.arguments.emplace_back("-I");
+            command.arguments.emplace_back(include);
         }
         for (const string &include : toolchain.includeDirs)
         {
@@ -942,10 +874,7 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
         }
         for (const string_view include : includePaths)
         {
-            if (!include.empty())
-            {
-                command.arguments.emplace_back("/I" + string(include));
-            }
+            command.arguments.emplace_back("/I" + string(include));
         }
         for (const string &include : toolchain.includeDirs)
         {
@@ -994,7 +923,7 @@ struct CompileTask
 };
 
 CompileTask makeCompileTask(const Toolchain &toolchain, const bool configureMode, const path &sourceFile,
-                            const path &buildDirectory, string &diagnostic)
+                            const path &buildDirectory)
 {
     CompileTask task;
     task.label = configureMode ? "configure" : "build";
@@ -1005,11 +934,7 @@ CompileTask makeCompileTask(const Toolchain &toolchain, const bool configureMode
         dependencyDirectory / (task.label + (toolchain.style == "msvc" ? ".json.tmp" : ".d.tmp"));
     task.temporaryObject = dependencyDirectory / (task.label + ".obj.tmp");
     task.command = makeCompileCommand(toolchain, configureMode, sourceFile, task.temporaryExecutable,
-                                      task.temporaryDependency, task.temporaryObject, buildDirectory, diagnostic);
-    if (!diagnostic.empty())
-    {
-        return task;
-    }
+                                      task.temporaryDependency, task.temporaryObject, buildDirectory);
     task.semanticHash = commandHash(task.command);
     return task;
 }
@@ -1073,27 +998,7 @@ bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildT
     reportMessage(FORMAT("configure compilation time: {:.3f} seconds\n", configureTask.elapsedSeconds));
     reportMessage(FORMAT("build compilation time: {:.3f} seconds\n", buildTask.elapsedSeconds));
 
-    std::error_code dependencyError;
-    const bool configureDependencyExists =
-        std::filesystem::is_regular_file(configureTask.temporaryDependency, dependencyError);
-    if (dependencyError)
-    {
-        diagnostic =
-            "Could not inspect the configure dependency file.\nSystem error: " + dependencyError.message();
-        removeTemporaryTaskFiles(configureTask);
-        removeTemporaryTaskFiles(buildTask);
-        return false;
-    }
-    const bool buildDependencyExists = std::filesystem::is_regular_file(buildTask.temporaryDependency,
-                                                                         dependencyError);
-    if (dependencyError)
-    {
-        diagnostic = "Could not inspect the build dependency file.\nSystem error: " + dependencyError.message();
-        removeTemporaryTaskFiles(configureTask);
-        removeTemporaryTaskFiles(buildTask);
-        return false;
-    }
-    if (!configureDependencyExists || !buildDependencyExists)
+    if (!isRegularFile(configureTask.temporaryDependency) || !isRegularFile(buildTask.temporaryDependency))
     {
         removeTemporaryTaskFiles(configureTask);
         removeTemporaryTaskFiles(buildTask);
@@ -1180,8 +1085,6 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
     path sourceDirectory;
     path hmakeFile;
     const auto resolveSourceDirectory = [&]() {
-        sourceDirectory.clear();
-        hmakeFile.clear();
         if (options.sourceDirectory)
         {
             sourceDirectory = normalizePath(invocationDirectory, *options.sourceDirectory, diagnostic);
@@ -1230,8 +1133,8 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
         return false;
     }
 
-    std::filesystem::create_directories(buildDirectory, error);
-    if (error || !isDirectory(buildDirectory))
+    const bool buildDirectoryCreated = std::filesystem::create_directories(buildDirectory, error);
+    if (error || (!buildDirectoryCreated && !isDirectory(buildDirectory)))
     {
         diagnostic = "Could not create build directory: " + buildDirectory.string();
         if (error)
@@ -1243,8 +1146,8 @@ bool resolveProject(const Options &options, ProjectContext &context, ProjectLock
 
     const path bootstrapDirectory = buildDirectory / ".hbuild";
     error.clear();
-    std::filesystem::create_directories(bootstrapDirectory, error);
-    if (error || !isDirectory(bootstrapDirectory))
+    const bool bootstrapDirectoryCreated = std::filesystem::create_directories(bootstrapDirectory, error);
+    if (error || (!bootstrapDirectoryCreated && !isDirectory(bootstrapDirectory)))
     {
         diagnostic = "Could not create hbuild metadata directory: " + bootstrapDirectory.string();
         if (error)
@@ -1407,31 +1310,37 @@ int runBootstrap(const int argc, char **argv)
     if (options.listToolchains)
     {
         std::error_code error;
-        path searchDirectory = std::filesystem::current_path(error);
+        const path currentDirectory = std::filesystem::current_path(error);
         if (error)
         {
             return reportError("Could not determine the current directory.\nSystem error: " + error.message());
         }
+
+        path sourceDirectory;
         if (options.sourceDirectory)
         {
-            searchDirectory = normalizePath(searchDirectory, *options.sourceDirectory, diagnostic);
-        }
-        if (!diagnostic.empty())
-        {
-            return reportError(diagnostic);
-        }
-        const std::optional<path> sourceDirectory = findParentContaining(searchDirectory, "hmake.cpp");
-        if (!sourceDirectory || (options.sourceDirectory && *sourceDirectory != searchDirectory))
-        {
-            if (options.sourceDirectory)
+            sourceDirectory = normalizePath(currentDirectory, *options.sourceDirectory, diagnostic);
+            if (!diagnostic.empty())
+            {
+                return reportError(diagnostic);
+            }
+            if (!isRegularFile(sourceDirectory / "hmake.cpp"))
             {
                 return reportError("The selected source directory does not contain hmake.cpp.\nDirectory: " +
-                                   searchDirectory.string());
+                                   sourceDirectory.string());
             }
-            return reportError("Could not find hmake.cpp in the current directory or any parent.\n"
-                               "Use -S <directory> to select the project source directory.");
         }
-        toolchains.initialize(*sourceDirectory);
+        else
+        {
+            const std::optional<path> found = findParentContaining(currentDirectory, "hmake.cpp");
+            if (!found)
+            {
+                return reportError("Could not find hmake.cpp in the current directory or any parent.\n"
+                                   "Use -S <directory> to select the project source directory.");
+            }
+            sourceDirectory = *found;
+        }
+        toolchains.initialize(sourceDirectory);
         reportMessage(toolchains.toJson());
         reportMessage("\n");
         return 0;
@@ -1467,13 +1376,9 @@ int runBootstrap(const int argc, char **argv)
         }
 
         CompileTask configureTask = makeCompileTask(*bootstrapToolchain, true, project.hmakeFile->filePath,
-                                                    configureNode->filePath, diagnostic);
+                                                    configureNode->filePath);
         CompileTask buildTask = makeCompileTask(*bootstrapToolchain, false, project.hmakeFile->filePath,
-                                                configureNode->filePath, diagnostic);
-        if (!diagnostic.empty())
-        {
-            return reportError(diagnostic);
-        }
+                                                configureNode->filePath);
 
         const path nodesFile = path(configureNode->filePath) / nodesCacheFileName;
         const path configFile = path(configureNode->filePath) / configCacheFileName;
