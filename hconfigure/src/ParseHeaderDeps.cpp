@@ -6,7 +6,6 @@
 
 #include <rapidjson/document.h>
 
-#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -43,8 +42,9 @@ struct HeaderDepsParser
                 workingDirectoryPath = std::filesystem::path{workingDirectory};
             }
             // Both callers supply an absolute working directory, so dependency normalization stays purely lexical.
-            std::string normalized =
-                (workingDirectoryPath / std::filesystem::path{dependency}).lexically_normal().string();
+            std::filesystem::path dependencyPath = workingDirectoryPath;
+            dependencyPath /= dependency;
+            std::string normalized = dependencyPath.lexically_normal().string();
             lowerCaseOnWindows(normalized.data(), normalized.size());
             node = Node::getHalfNode(normalized);
         }
@@ -121,6 +121,10 @@ struct HeaderDepsParser
 
     void parseMakeDependencies()
     {
+        constexpr auto isWhitespace = [](const char character) {
+            return character == ' ' || character == '\t' || character == '\n' || character == '\r' ||
+                   character == '\f' || character == '\v';
+        };
         STACK_PMR_STRING(contents, 256 * 1024)
         fileToString(dependencyFile, contents);
         uint64_t writeOffset = 0;
@@ -157,8 +161,7 @@ struct HeaderDepsParser
                 continue;
             }
             if (contents[index] == ':' &&
-                (index + 1 == contents.size() ||
-                 std::isspace(static_cast<unsigned char>(contents[index + 1]))))
+                (index + 1 == contents.size() || isWhitespace(contents[index + 1])))
             {
                 colon = index;
                 break;
@@ -198,7 +201,7 @@ struct HeaderDepsParser
                 comment = true;
                 continue;
             }
-            if (std::isspace(static_cast<unsigned char>(character)))
+            if (isWhitespace(character))
             {
                 commit();
                 continue;
@@ -206,7 +209,7 @@ struct HeaderDepsParser
             if (character == '\\' && index + 1 < contents.size())
             {
                 const char next = contents[index + 1];
-                if (std::isspace(static_cast<unsigned char>(next)) || next == '#' || next == ':' || next == '\\')
+                if (isWhitespace(next) || next == '#' || next == ':' || next == '\\')
                 {
                     token.push_back(next);
                     ++index;
