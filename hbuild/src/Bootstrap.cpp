@@ -119,24 +119,6 @@ class ProjectLock
 #endif
 };
 
-int reportError(const string_view message, const int exitCode = 1)
-{
-    std::fwrite("error: ", 1, 7, stderr);
-    std::fwrite(message.data(), 1, message.size(), stderr);
-    if (message.empty() || message.back() != '\n')
-    {
-        std::fputc('\n', stderr);
-    }
-    std::fflush(stderr);
-    return exitCode;
-}
-
-void reportMessage(const string_view message)
-{
-    std::fwrite(message.data(), 1, message.size(), stdout);
-    std::fflush(stdout);
-}
-
 bool parsePositiveInteger(const string_view value, uint16_t &result)
 {
     if (value.empty())
@@ -311,7 +293,7 @@ bool parseOptions(const int argc, char **argv, Options &options, string &diagnos
 
 void printUsage()
 {
-    reportMessage(
+    printMessage(
         "Usage: hbuild [options] [targets...] [-- targets...]\n"
         "\n"
         "Project selection:\n"
@@ -1030,14 +1012,14 @@ bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildT
 
     if (!configureTask.result.output.empty())
     {
-        reportMessage(configureTask.result.output);
+        printMessage(configureTask.result.output);
     }
     if (!buildTask.result.output.empty())
     {
-        reportMessage(buildTask.result.output);
+        printMessage(buildTask.result.output);
     }
-    reportMessage(FORMAT("configure compilation time: {:.3f} seconds\n", configureTask.elapsedSeconds));
-    reportMessage(FORMAT("build compilation time: {:.3f} seconds\n", buildTask.elapsedSeconds));
+    printMessage(FORMAT("configure compilation time: {:.3f} seconds\n", configureTask.elapsedSeconds));
+    printMessage(FORMAT("build compilation time: {:.3f} seconds\n", buildTask.elapsedSeconds));
 
     if (!isRegularFile(configureTask.temporaryDependency) || !isRegularFile(buildTask.temporaryDependency))
     {
@@ -1251,7 +1233,7 @@ bool removeMetadataFile(const path &file, string &diagnostic)
 bool runGeneratedConfigure(const path &executable, const path &buildDirectory, string &diagnostic)
 {
     Command command{executable, {}, buildDirectory};
-    reportMessage("Running configure\n");
+    printMessage("Running configure\n");
     const auto started = std::chrono::steady_clock::now();
     const string rendered = renderCommand(command);
     const RunCommand::OutputAndStatus result = RunCommand::runProcess(rendered);
@@ -1259,9 +1241,9 @@ bool runGeneratedConfigure(const path &executable, const path &buildDirectory, s
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     if (!result.output.empty())
     {
-        reportMessage(result.output);
+        printMessage(result.output);
     }
-    reportMessage(FORMAT("configure execution time: {:.3f} seconds\n", elapsedSeconds));
+    printMessage(FORMAT("configure execution time: {:.3f} seconds\n", elapsedSeconds));
     if (result.exitStatus != 0)
     {
         diagnostic =
@@ -1306,7 +1288,7 @@ int runGeneratedBuild(const Options &options, const path &executable, const path
     const RunCommand::OutputAndStatus result = RunCommand::runProcess(rendered);
     if (!result.output.empty())
     {
-        reportMessage(result.output);
+        printMessage(result.output);
     }
     return result.exitStatus;
 }
@@ -1319,7 +1301,7 @@ int runBootstrap(const int argc, char **argv)
     string diagnostic;
     if (!parseOptions(argc, argv, options, diagnostic))
     {
-        return reportError(diagnostic, 2);
+        printErrorMessage(diagnostic);
     }
     if (options.help)
     {
@@ -1332,18 +1314,18 @@ int runBootstrap(const int argc, char **argv)
         const path currentDirectory = std::filesystem::current_path(error);
         if (error)
         {
-            return reportError("Could not determine the current directory.\nSystem error: " + error.message());
+            printErrorMessage("Could not determine the current directory.\nSystem error: " + error.message());
         }
 
         const std::optional<path> sourceDirectory =
             resolveSourceDirectory(options.sourceDirectory, nullptr, currentDirectory, currentDirectory, diagnostic);
         if (!sourceDirectory)
         {
-            return reportError(diagnostic);
+            printErrorMessage(diagnostic);
         }
         toolchains.initialize(*sourceDirectory);
-        reportMessage(toolchains.toJson());
-        reportMessage("\n");
+        printMessage(toolchains.toJson());
+        printMessage("\n");
         return 0;
     }
 
@@ -1353,14 +1335,14 @@ int runBootstrap(const int argc, char **argv)
         ProjectLock projectLock;
         if (!resolveProject(options, project, projectLock, diagnostic))
         {
-            return reportError(diagnostic);
+            printErrorMessage(diagnostic);
         }
 
         const Toolchain *projectToolchain = resolveToolchain(projectCache.toolchainName, diagnostic);
         const Toolchain *bootstrapToolchain = resolveToolchain({}, diagnostic);
         if (projectToolchain == nullptr || bootstrapToolchain == nullptr)
         {
-            return reportError(diagnostic);
+            printErrorMessage(diagnostic);
         }
         projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain->name;
         projectCache.toolchainName = projectToolchain->name;
@@ -1370,7 +1352,7 @@ int runBootstrap(const int argc, char **argv)
             string cacheError;
             if (!projectCache.serialize(cacheContents, cacheError))
             {
-                return reportError(cacheError);
+                printErrorMessage(cacheError);
             }
             writeCacheFile((path(configureNode->filePath) / projectCacheFileName).string(), cacheContents);
             projectCache.needsWrite = false;
@@ -1388,7 +1370,7 @@ int runBootstrap(const int argc, char **argv)
         if (project.nodesCacheExisted &&
             !loadBuildCachePrefix(buildCacheFile, nodeIndices.size(), prefix, diagnostic))
         {
-            return reportError(diagnostic);
+            printErrorMessage(diagnostic);
         }
 
         const bool nodesMetadataMissing = !project.nodesCacheExisted;
@@ -1443,19 +1425,19 @@ int runBootstrap(const int argc, char **argv)
         {
             if (!removeMetadataFile(configFile, diagnostic))
             {
-                return reportError(diagnostic);
+                printErrorMessage(diagnostic);
             }
         }
 
         if (mustCompile)
         {
             prefixChanged = true;
-            reportMessage("Compiling configure and build executables\n");
+            printMessage("Compiling configure and build executables\n");
             flat_hash_set<Node *> dependencies;
             if (!compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler,
                                              project.hmakeFile, dependencies, diagnostic))
             {
-                return reportError(diagnostic);
+                printErrorMessage(diagnostic);
             }
             dependencies.emplace(project.hmakeFile);
             dependencies.emplace(Node::getNodeNonNormalized(HCONFIGURE_C_STATIC_LIB_PATH, true));
@@ -1498,7 +1480,7 @@ int runBootstrap(const int argc, char **argv)
             configExistsInitially && !options.reconfigure && !nodesMetadataMissing && prefix.valid;
         if (!writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail, prefixChanged, diagnostic))
         {
-            return reportError(diagnostic);
+            printErrorMessage(diagnostic);
         }
 
         if (mustConfigure)
@@ -1511,11 +1493,11 @@ int runBootstrap(const int argc, char **argv)
                 {
                     diagnostic += "\nAdditionally, " + removeDiagnostic;
                 }
-                return reportError(diagnostic);
+                printErrorMessage(diagnostic);
             }
             if (!isRegularFile(configFile) || !isRegularFile(nodesFile) || !isRegularFile(buildCacheFile))
             {
-                return reportError("Generated configure completed without producing all three cache artifacts.");
+                printErrorMessage("Generated configure completed without producing all three cache artifacts.");
             }
 
         }
