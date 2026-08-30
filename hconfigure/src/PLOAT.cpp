@@ -156,7 +156,7 @@ void PLOAT::setUpdateStatus()
     {
         rb.completionTime = artifactTime;
     }
-    else if (rb.completionTime != -1 && artifactTime > rb.completionTime)
+    else if (artifactTime > rb.completionTime)
     {
         // An owned output modified after this process last completed must be regenerated before consumers use it.
         rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
@@ -197,18 +197,15 @@ void PLOAT::completeRoundOne()
     // Outputless producers carry their linked-library interface until a physical output consumes their objects.
     // Materialize that interface here, before flattening PLOAT-to-PLOAT requirements. A shared library absorbs
     // PRIVATE requirements; every other PLOAT kind must continue exporting them.
-    const auto validateDeferredDependency = [this](PLOAT *dependency) {
-        if (dependency == this)
-        {
-            printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
-                                     getPrintName()));
-        }
-    };
     for (ObjectFileProducer *root : rootObjectFileProducers)
     {
         for (const auto &[dependency, dependencyInfo] : root->reqPloatDeps)
         {
-            validateDeferredDependency(dependency);
+            if (dependency == this)
+            {
+                printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
+                                         getPrintName()));
+            }
             mergePloatDependency(reqDeps, dependency, dependencyInfo);
             if (linkTargetType != TargetType::LIBRARY_SHARED)
             {
@@ -217,7 +214,11 @@ void PLOAT::completeRoundOne()
         }
         for (const auto &[dependency, dependencyInfo] : root->useReqPloatDeps)
         {
-            validateDeferredDependency(dependency);
+            if (dependency == this)
+            {
+                printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
+                                         getPrintName()));
+            }
             mergePloatDependency(useReqDeps, dependency, dependencyInfo);
         }
     }
