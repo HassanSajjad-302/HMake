@@ -297,8 +297,8 @@ void printUsage()
         "Usage: hbuild [options] [targets...] [-- targets...]\n"
         "\n"
         "Project selection:\n"
-        "  -S <directory>          Verify the build's nearest hmake.cpp source directory\n"
-        "  -B <directory>          Build directory; must be a strict child of the source directory\n"
+        "  -S <directory>          Source directory; must be the build directory's immediate parent\n"
+        "  -B <directory>          Build directory; must be an immediate child of the source directory\n"
         "  --toolchain <name>      Select the project toolchain\n"
         "  --list-toolchains       List registered toolchains and exit\n"
         "  From the source directory, use: hbuild -B build\n"
@@ -369,37 +369,47 @@ path resolveSourceDirectory(const std::optional<path> &requestedDirectory, const
             return sourceDirectory;
         }
 
-        path sourceDirectory = findParentContaining(invocationDirectory, "hmake.cpp");
-        if (sourceDirectory.empty())
+        if (isRegularFile(invocationDirectory / "hmake.cpp"))
         {
-            diagnostic = "Could not find hmake.cpp in the current directory or any parent.\n"
-                         "Use -S <directory> to select the project source directory.";
+            return invocationDirectory;
         }
-        return sourceDirectory;
-    }
-
-    path sourceDirectory = findParentContaining(*buildDirectory, "hmake.cpp");
-    if (sourceDirectory.empty())
-    {
-        diagnostic = "Could not find hmake.cpp in the build directory or any parent.\n"
-                     "Use -S <directory> and -B <directory> to select the project directories.";
+        const path parentDirectory = invocationDirectory.parent_path();
+        if (parentDirectory != invocationDirectory && isRegularFile(parentDirectory / "hmake.cpp"))
+        {
+            return parentDirectory;
+        }
+        diagnostic = "Could not determine the source directory.\n"
+                     "Run --list-toolchains from the source directory or its immediate child, or use -S <directory>.";
         return {};
     }
-    if (!requestedDirectory)
-    {
-        return sourceDirectory;
-    }
 
-    const path requestedSourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
-    if (!diagnostic.empty())
+    const path sourceDirectory = buildDirectory->parent_path();
+    if (sourceDirectory.empty() || sourceDirectory == *buildDirectory)
     {
+        diagnostic = "The build directory must have a parent source directory.\nBuild directory: " +
+                     buildDirectory->string();
         return {};
     }
-    if (requestedSourceDirectory != sourceDirectory)
+    if (requestedDirectory)
     {
-        diagnostic = "The selected source directory must be the nearest hmake.cpp ancestor of the build directory.\n"
-                     "Selected source directory: " +
-                     requestedSourceDirectory.string() + "\nNearest source directory: " + sourceDirectory.string();
+        const path requestedSourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
+        if (!diagnostic.empty())
+        {
+            return {};
+        }
+        if (requestedSourceDirectory != sourceDirectory)
+        {
+            diagnostic = "The build directory must be an immediate child of the selected source directory.\n"
+                         "Selected source directory: " +
+                         requestedSourceDirectory.string() + "\nBuild directory: " + buildDirectory->string();
+            return {};
+        }
+    }
+    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+    {
+        diagnostic = "The build directory's immediate parent must contain hmake.cpp.\n"
+                     "Source directory: " +
+                     sourceDirectory.string() + "\nBuild directory: " + buildDirectory->string();
         return {};
     }
     return sourceDirectory;
@@ -1062,13 +1072,19 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
     {
         buildDirectory = normalizePath(invocationDirectory, *options.buildDirectory, diagnostic);
     }
-    else if (const path cachedBuild = findParentContaining(invocationDirectory, projectCacheFileName);
-             !cachedBuild.empty())
+    else if (const path cachedBuild = findProjectBuildDirectory(invocationDirectory); !cachedBuild.empty())
     {
         buildDirectory = cachedBuild;
     }
     else
     {
+        if (isRegularFile(invocationDirectory / "hmake.cpp"))
+        {
+            diagnostic = "The current directory is a source directory. Select an immediate-child build directory "
+                         "with -B <directory>.\nSource directory: " +
+                         invocationDirectory.string();
+            return false;
+        }
         buildDirectory = invocationDirectory;
     }
     if (!diagnostic.empty())
@@ -1083,14 +1099,6 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
         return false;
     }
     const path hmakeFile = sourceDirectory / "hmake.cpp";
-    if (!isPathInDirectory(buildDirectory.string(), sourceDirectory.string()))
-    {
-        diagnostic = "The build directory must be a strict lexical child of the source directory.\n"
-                     "Source directory: " +
-                     sourceDirectory.string() + "\nBuild directory: " + buildDirectory.string() +
-                     "\nHint: from the source directory, run hbuild -B build.";
-        return false;
-    }
 
     const bool buildDirectoryCreated = std::filesystem::create_directories(buildDirectory, error);
     if (error || (!buildDirectoryCreated && !isDirectory(buildDirectory)))
