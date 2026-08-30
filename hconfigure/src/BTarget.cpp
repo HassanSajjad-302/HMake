@@ -5,9 +5,6 @@
 #include <filesystem>
 #include <utility>
 
-using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::lock_guard,
-    std::filesystem::create_directory;
-
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
     return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort <
@@ -287,7 +284,7 @@ void BTarget::initializeBTarget(bool makeDirectory)
     {
         if (makeDirectory)
         {
-            create_directory(configureNode->filePath + slashc + name);
+            std::filesystem::create_directory(configureNode->filePath + slashc + name);
         }
     }
 
@@ -466,7 +463,8 @@ void BTarget::setUpdateStatus()
     }
     else
     {
-        highestTime = 0;
+        // Non-process targets may represent a file directly and seed completionTime before entering this function.
+        highestTime = rb.completionTime == -1 ? 0 : rb.completionTime;
     }
 
     for (const RBTWithType &rbt : rb.dependencies)
@@ -508,7 +506,7 @@ void BTarget::setUpdateStatus()
 
     if (!launchesProcess)
     {
-        // Completion time is the newest completion among this aggregate target's dependencies.
+        // Completion time is the newest directly represented file or blocking dependency.
         rb.completionTime = highestTime;
     }
 }

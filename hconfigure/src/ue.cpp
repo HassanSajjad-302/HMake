@@ -1011,8 +1011,8 @@ PLOAT &UeConfiguration::addProducerArchive(const string &logicalName, const UeCo
                                                name + slashc + logicalName + "-producer-archive", false, false);
     ploats.emplace_back(&proxy);
 
-    // Makes dependents create their ordinary round-zero edge to this proxy, which in turn waits for the real archive.
-    // PLIBRARY_STATIC initializes hasObjectFiles in PLOAT itself.
+    // Makes dependents create their ordinary round-zero edge to this physical prebuilt-library proxy, which in turn
+    // waits for the real archive.
     proxy.realBTargets[0].addDep<BTargetType::UNKNOWN>(&archive.realBTargets[0]);
     return proxy;
 }

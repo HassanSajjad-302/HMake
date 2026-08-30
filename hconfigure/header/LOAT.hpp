@@ -7,24 +7,12 @@
 #include "ObjectFile.hpp"
 #include "PLOAT.hpp"
 
-#include <stack>
-
-using std::stack, std::filesystem::create_directories, std::shared_ptr;
-
 /// Link-or-archive target: links object files into an executable or shared library, or archives them into a static lib.
 class LOAT : public PLOAT
 {
-    using BaseType = PLOAT;
-
   public:
-    /// Shared libraries that must be copied beside the executable on Windows (`CopyDLLToExeDirOnNTOs::YES`).
-    vector<PLOAT *> dllsToBeCopied;
-
     /// Build output directory for this target (object files, PDBs, etc.). Created at configure-time if unset.
     Node *myBuildDir = nullptr;
-
-    /// Hash of the link/archive command template without object-file paths (intended for incremental caching).
-    uint64_t commandWithoutTargets;
 
     void makeBuildCacheFilesDirPathAtConfigTime();
     LOAT(Configuration &config_, const string &name_, TargetType targetType);
@@ -39,24 +27,12 @@ class LOAT : public PLOAT
     void populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const;
     void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnWithoutTargets,
                                   span<Node *> objectNodes = {}) const;
-    template <typename T> bool evaluate(T property) const;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view) override;
     void writeConfigCacheAtConfigTime(string &buffer) override;
+
+  private:
+    void copyRuntimeDlls() const;
 };
-
-bool operator<(const LOAT &lhs, const LOAT &rhs);
-
-template <typename T> bool LOAT::evaluate(T property) const
-{
-    if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        return linkTargetType == property;
-    }
-    else
-    {
-        static_assert(false);
-    }
-}
 
 #endif // HMAKE_LOAT_HPP

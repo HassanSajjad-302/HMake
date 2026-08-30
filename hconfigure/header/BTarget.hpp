@@ -227,23 +227,27 @@ class alignas(128) RealBTarget
     /// Content fingerprint for incremental builds when `BTarget::launchesProcess` is true.
     ///
     /// Subclasses (e.g. `CppSrc`, `CppMod`, `HeaderGen`) compute this in `setUpdateStatus()` — typically a rapidhash
-    /// over `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setUpdateStatus()`,
-    /// which compares the live value to the footer stored in `BTargetCache` (loaded by `readBuildCache()` / updated at
-    /// end of build via `getBuildCache()`). A mismatch sets `updateStatus` to `UpdateStatus::UPDATE_NEEDED`.
+    /// over `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setUpdateStatus()`.
+    /// If a process target only needs to observe an input file's `lastWriteTime`, it should include that integer here as
+    /// another hash input. The base compares the live value to the footer stored in `BTargetCache` (loaded by
+    /// `readBuildCache()` / updated at end of build via `getBuildCache()`). A mismatch sets `updateStatus` to
+    /// `UpdateStatus::UPDATE_NEEDED`.
     uint64_t cumulativeHash = 0;
 
     /// Timestamp of the last successful completion, in nanoseconds since the Unix epoch.
     ///
-    /// When `BTarget::launchesProcess` is true:
+    /// For a process-launching target this has one responsibility: recording the last successful observable-output
+    /// change. It is:
     ///   - Set by `Builder::decrementFromDependents()` when updated work completes successfully.
     ///   - Restored from the build-cache footer in `initializeBTarget()`.
     ///   - `BTarget::setUpdateStatus()` marks the target stale if any FULL/WAIT dependency has a greater `completionTime`
     ///     (a dependency was rebuilt after this target last ran).
     ///
-    /// When `BTarget::launchesProcess` is false:
+    /// For a non-process target this has two responsibilities:
     ///   - Not read from the build-cache footer.
-    ///   - After recursively evaluating dependencies, `BTarget::setUpdateStatus()` sets this to the maximum
-    ///     `completionTime` among those dependencies so upstream targets can detect downstream rebuilds.
+    ///   - An override may seed it with the newest directly represented file timestamp before calling
+    ///     `BTarget::setUpdateStatus()`; the base then replaces it with the maximum of that seed and every blocking
+    ///     dependency's `completionTime`, so upstream targets can detect downstream rebuilds.
     uint64_t completionTime = -1;
 
 
@@ -502,7 +506,8 @@ class BTarget // BTarget
     /// build-cache footer — a mismatch immediately sets `UPDATE_NEEDED`. Otherwise, `highestTime` starts at
     /// `realBTargets[0].completionTime` (restored from the footer by `initializeBTarget()`).
     ///
-    /// When `launchesProcess` is false: `highestTime` starts at 0.
+    /// When `launchesProcess` is false: `highestTime` starts at 0 if `completionTime` is the unset `-1` sentinel,
+    /// otherwise at the directly represented file timestamp seeded by the override.
     ///
     /// Recurses over FULL/WAIT dependencies (calling `setUpdateStatus()` on any that are still `UNCHECKED`). For each:
     /// - If the dependency is `UPDATE_NEEDED`, this target is also `UPDATE_NEEDED`.
@@ -511,7 +516,9 @@ class BTarget // BTarget
     /// - Otherwise `highestTime = max(highestTime, depRb->completionTime)`.
     ///
     /// If no dependency triggers a rebuild, sets `UPDATE_NOT_NEEDED`. When `launchesProcess` is false, propagates
-    /// `highestTime` into `realBTargets[0].completionTime` so upstream targets can detect downstream rebuilds.
+    /// `highestTime` into `realBTargets[0].completionTime` so upstream targets can detect downstream rebuilds. A
+    /// process target interested only in an input file's `lastWriteTime` must include it in `cumulativeHash`; it must not
+    /// replace its scheduler-owned `completionTime`.
     ///
     /// A successfully executed process target may change `UPDATE_NEEDED` back to `UPDATE_NOT_NEEDED` after proving that
     /// every observable output is unchanged. That status assignment is the target author's entire cutoff operation;

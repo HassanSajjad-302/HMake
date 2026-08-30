@@ -22,12 +22,24 @@ class PLOAT : public BTarget
   public:
     Configuration &config;
     Node *outputFileNode = nullptr;
+    /// MSVC-style import library produced alongside a Windows runtime DLL.
+    Node *importLibraryNode = nullptr;
     uint64_t configCacheBytesRead = 0;
+    /// True only when this generated target receives object nodes from its producer closure; library dependencies do
+    /// not set it.
     bool hasObjectFiles = false;
 
     string getOutputName() const;
     string getActualOutputName() const;
     string_view getOutputDirectoryV() const;
+    bool suppliesLinkerInput() const
+    {
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            return hasObjectFiles;
+        }
+        return linkTargetType != TargetType::EXECUTABLE && linkTargetType != TargetType::LIBRARY_OBJECT;
+    }
 
     PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_);
     PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
@@ -72,7 +84,5 @@ template <typename T> bool PLOAT::evaluate(T property) const
         static_assert(false);
     }
 }
-
-bool operator<(const PLOAT &lhs, const PLOAT &rhs);
 
 #endif // HMAKE_PLOAT_HPP
