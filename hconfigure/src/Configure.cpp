@@ -31,21 +31,15 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     string configurePathString;
     if constexpr (bsMode != BSMode::CONFIGURE)
     {
-        for (path directory = currentDirectory;; directory = directory.parent_path())
+        const path configurePath = findProjectBuildDirectory(currentDirectory);
+        if (configurePath.empty())
         {
-            if (exists(directory / projectCacheFileName))
-            {
-                configurePathString = directory.string();
-                break;
-            }
-            if (directory == directory.root_path())
-            {
-                printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
-                                         "Current directory: {}\n"
-                                         "Hint: run hbuild from the project's build directory first.",
-                                         currentDirectory.string()));
-            }
+            printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
+                                     "Current directory: {}\n"
+                                     "Hint: run hbuild from the project's build directory first.",
+                                     currentDirectory.string()));
         }
+        configurePathString = configurePath.string();
     }
     else
     {
