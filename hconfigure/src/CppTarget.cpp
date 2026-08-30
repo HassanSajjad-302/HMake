@@ -11,8 +11,8 @@
 #include <regex>
 #include <utility>
 
-using std::filesystem::create_directories, std::filesystem::directory_iterator,
-    std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
+using std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator, std::ifstream,
+    std::ofstream, std::regex, std::regex_error;
 
 namespace
 {
@@ -247,7 +247,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
         {
             myBuildDir = myBuildDir_;
         }
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 
     if constexpr (bsMode == BSMode::BUILD)
