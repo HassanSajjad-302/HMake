@@ -238,7 +238,8 @@ class UeCppTarget : public CppTarget
     // Marks this module's link closure as required. implementationRequested doubles as the recursion guard, so UE's
     // circular module relations terminate even when this target has AddCppSource::NO.
     void requestImplementation();
-    void findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources);
+    void findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *> &sourceNodes,
+                        std::pmr::vector<Node *> &ispcSources);
     void addIspcSource(Node *source);
     void addDefaultIncludePaths(Node *moduleDirectory);
 

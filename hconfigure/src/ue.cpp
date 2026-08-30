@@ -55,8 +55,8 @@ string makeApiMacro(const string_view logicalName)
 
 int compareAsciiCaseInsensitive(const string_view left, const string_view right)
 {
-    const size_t commonSize = std::min(left.size(), right.size());
-    for (size_t i = 0; i < commonSize; ++i)
+    const uint64_t commonSize = std::min(left.size(), right.size());
+    for (uint64_t i = 0; i < commonSize; ++i)
     {
         unsigned char leftChar = left[i];
         unsigned char rightChar = right[i];
@@ -97,7 +97,7 @@ string getNearestPluginRoot(const string &moduleDirectory)
     // Cache the nearest plugin root rather than only whether one directory owns a descriptor. Modules in the same
     // plugin then resolve after one hash lookup, and path compression also makes shared Engine ancestors cheap.
     static flat_hash_map<string, string> cache;
-    vector<string> uncachedDirectories;
+    STACK_PMR_VECTOR(string, uncachedDirectories, 16)
     string directory = moduleDirectory;
     string pluginRoot;
     while (!directory.empty())
@@ -162,10 +162,10 @@ path getModuleGeneratedIncludeRoot(const path &configuredRoot, const Node *modul
     if (inserted)
     {
         const string_view intermediateName = os == OS::NT ? "intermediate" : "Intermediate";
-        for (size_t intermediate = configuredRootString.find(intermediateName); intermediate != string::npos;
+        for (uint64_t intermediate = configuredRootString.find(intermediateName); intermediate != string::npos;
              intermediate = configuredRootString.find(intermediateName, intermediate + 1))
         {
-            const size_t afterIntermediate = intermediate + intermediateName.size();
+            const uint64_t afterIntermediate = intermediate + intermediateName.size();
             const bool startsAtBoundary = intermediate == 0 || configuredRootString[intermediate - 1] == slashc;
             const bool endsAtBoundary = afterIntermediate == configuredRootString.size() ||
                                         configuredRootString[afterIntermediate] == slashc;
@@ -322,7 +322,7 @@ UeCppTarget &UeCppTarget::setShortName(const string_view value)
 bool UeCppTarget::conditionalAddModuleDirectory(const NodeOrStr &directory)
 {
     const string directoryPath =
-        directory.hasNode_ ? directory.node_->filePath : getNormalizedPath(path(directory.str_));
+        directory.node_ != nullptr ? directory.node_->filePath : getNormalizedPath(path(directory.str_));
     if (!std::filesystem::is_directory(directoryPath))
     {
         return false;
@@ -460,8 +460,8 @@ void UeCppTarget::prepareModuleSources()
         // Source scanning must precede generated-code scanning: handwritten sources identify generated .cpp files
         // included inline and therefore excluded from standalone compilation. Gather every module directory before
         // scheduling so platform extensions participate in the same deterministic UBT-compatible ordering.
-        vector<Node *> sourceNodes;
-        vector<Node *> ispcSources;
+        STACK_PMR_VECTOR(Node *, sourceNodes, 128)
+        STACK_PMR_VECTOR(Node *, ispcSources, 16)
         for (Node *moduleDirectory : moduleDirectories)
         {
             findInputFiles(moduleDirectory, sourceNodes, ispcSources);
@@ -487,7 +487,8 @@ void UeCppTarget::prepareModuleSources()
     }
 }
 
-void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources)
+void UeCppTarget::findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *> &sourceNodes,
+                                 std::pmr::vector<Node *> &ispcSources)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -502,26 +503,44 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
         const auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
         const auto shouldSkipDirectory = [&ueConfiguration](const string_view directoryName) {
             if (directoryName == "Android")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Android) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Android);
+            }
             if (directoryName == "Apple")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Apple);
+            }
             if (directoryName == "IOS")
+            {
                 return !ueConfiguration.evaluate(UePlatform::IOS);
+            }
             if (directoryName == "Linux")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Linux) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Linux);
+            }
             if (directoryName == "Mac")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Mac);
+            }
             if (directoryName == "Microsoft")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Microsoft);
+            }
             if (directoryName == "Unix")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Unix);
+            }
             if (directoryName == "Windows" || directoryName == "Win64")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Windows) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Windows);
+            }
             if (directoryName == "Desktop")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Desktop);
+            }
 
             return directoryName == "FreeBSD" || directoryName == "HoloLens" || directoryName == "PS4" ||
                    directoryName == "PS5" || directoryName == "Switch" || directoryName == "TVOS" ||
@@ -560,25 +579,25 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
                         // supplied by its owning handwritten translation unit.
                         constexpr string_view marker = "UE_INLINE_GENERATED_CPP_BY_NAME(";
                         std::ifstream sourceFile(iterator->path());
-                        string line;
+                        STACK_PMR_STRING(line, 4 * 1024)
                         while (std::getline(sourceFile, line))
                         {
-                            const size_t markerPosition = line.find(marker);
+                            const uint64_t markerPosition = line.find(marker);
                             if (markerPosition == string::npos)
                             {
                                 continue;
                             }
 
-                            const size_t hashPosition = line.find('#');
-                            const size_t includePosition = line.find("include", hashPosition);
+                            const uint64_t hashPosition = line.find('#');
+                            const uint64_t includePosition = line.find("include", hashPosition);
                             if (hashPosition == string::npos || includePosition == string::npos ||
                                 includePosition > markerPosition)
                             {
                                 continue;
                             }
 
-                            const size_t nameBegin = markerPosition + marker.size();
-                            const size_t nameEnd = line.find(')', nameBegin);
+                            const uint64_t nameBegin = markerPosition + marker.size();
+                            const uint64_t nameEnd = line.find(')', nameBegin);
                             if (nameEnd == string::npos)
                             {
                                 continue;
@@ -684,7 +703,7 @@ UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        vector<Node *> standaloneGeneratedSources;
+        STACK_PMR_VECTOR(Node *, standaloneGeneratedSources, 64)
         for (const std::filesystem::directory_entry &entry :
              std::filesystem::recursive_directory_iterator(directory->filePath))
         {
@@ -757,15 +776,23 @@ void UeConfiguration::initialize()
     if (buildCommands)
     {
         if (!buildCommands->cppCompileCommand.empty())
+        {
             cppCompileCommand = buildCommands->cppCompileCommand;
+        }
         if (!buildCommands->cCompileCommand.empty())
+        {
             cCompileCommand = buildCommands->cCompileCommand;
+        }
         if (!buildCommands->linkCommand.empty())
+        {
             linkCommand = buildCommands->linkCommand;
+        }
         linkDependenciesPrefix = buildCommands->linkDependenciesPrefix;
         linkCommandSuffix = buildCommands->linkCommandSuffix;
         if (!buildCommands->archiveCommand.empty())
+        {
             archiveCommand = buildCommands->archiveCommand;
+        }
 
         if (!buildCommands->cppCompileCommand.empty())
         {
