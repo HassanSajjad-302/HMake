@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
 #include <string>
 #include <string_view>
 
@@ -51,9 +50,8 @@ struct RunCommand
     /// Runs a shell command synchronously with inherited stdin and separately captured stdout/stderr.
     /// This path does not use any instance or pooled asynchronous state. Call it from one thread at a time.
     /// The command view is copied into the shell wrapper and therefore need not be null-terminated.
-    /// An explicit working directory also owns the capture files; otherwise they use the OS temporary directory.
-    [[nodiscard]] static OutputAndStatus runProcess(
-        string_view command, const std::filesystem::path &workingDirectory = {});
+    /// Captured output is stored temporarily in the operating system's temporary directory.
+    [[nodiscard]] static OutputAndStatus runProcess(string_view command);
 
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing

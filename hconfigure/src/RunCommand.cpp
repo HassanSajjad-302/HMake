@@ -145,37 +145,14 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
-RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command,
-                                                   const std::filesystem::path &workingDirectory)
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command)
 {
     std::error_code error;
-    std::filesystem::path directory =
-        workingDirectory.empty() ? std::filesystem::current_path(error)
-                                 : std::filesystem::absolute(workingDirectory, error);
-    if (error || !std::filesystem::is_directory(directory, error))
+    const std::filesystem::path captureDirectory = std::filesystem::temp_directory_path(error);
+    if (error)
     {
-        printErrorMessage(FORMAT("Could not use the synchronous process working directory.\nDirectory: {}\n"
-                                 "System error: {}",
-                                 directory.string(), error ? error.message() : "not a directory"));
-    }
-    directory = directory.lexically_normal();
-
-    std::filesystem::path captureDirectory = directory;
-    if (workingDirectory.empty())
-    {
-        error.clear();
-        captureDirectory = std::filesystem::temp_directory_path(error);
-        if (!error)
-        {
-            captureDirectory = std::filesystem::absolute(captureDirectory, error);
-        }
-        if (error || !std::filesystem::is_directory(captureDirectory, error))
-        {
-            printErrorMessage(FORMAT("Could not use the synchronous process capture directory.\nDirectory: {}\n"
-                                     "System error: {}",
-                                     captureDirectory.string(), error ? error.message() : "not a directory"));
-        }
-        captureDirectory = captureDirectory.lexically_normal();
+        printErrorMessage(FORMAT("Could not use the synchronous process capture directory.\nSystem error: {}",
+                                 error.message()));
     }
 
 #ifdef _WIN32
@@ -187,13 +164,8 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command,
     const std::filesystem::path stdoutFile = captureDirectory / (uniqueStem + "-stdout.txt");
     const std::filesystem::path stderrFile = captureDirectory / (uniqueStem + "-stderr.txt");
 
-#ifdef _WIN32
-    const string finalCommand = FORMAT("(cd /d {} && ({})) > {} 2> {}", quoteShellPath(directory), command,
-                                       quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
-#else
-    const string finalCommand = FORMAT("(cd {} && ({})) > {} 2> {}", quoteShellPath(directory), command,
-                                       quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
-#endif
+    const string finalCommand =
+        FORMAT("({}) > {} 2> {}", command, quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
 
     const int systemStatus = system(finalCommand.c_str());
     OutputAndStatus result;
