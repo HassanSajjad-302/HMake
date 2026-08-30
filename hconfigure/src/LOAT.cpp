@@ -105,41 +105,6 @@ void LOAT::completeRoundOne()
         linkWithoutTargets += config.linkDependenciesPrefix;
         linkWithoutTargets += config.linkCommandSuffix;
         realBTargets[0].cumulativeHash = rapidhash(linkWithoutTargets.data(), linkWithoutTargets.size());
-
-        if constexpr (os == OS::NT)
-        {
-            if (linkTargetType != TargetType::EXECUTABLE ||
-                config.ploatFeatures.copyToExeDirOnNtOs != CopyDLLToExeDirOnNTOs::YES ||
-                realBTargets[0].updateStatus != UpdateStatus::UPDATE_NEEDED)
-            {
-                return;
-            }
-
-            // cachedReqDeps is already the unique, flattened PLOAT closure; another graph traversal is redundant.
-            dllsToBeCopied.reserve(cachedReqDeps.size());
-            const string_view outputDirectory = getOutputDirectoryV();
-            STACK_PMR_STRING(copiedDllPath, 1024)
-            copiedDllPath.reserve(outputDirectory.size() + 64);
-            for (const uint32_t packedDependency : cachedReqDeps)
-            {
-                PLOAT *dependency = static_cast<PLOAT *>(
-                    bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
-                if (!dependency->evaluate(TargetType::LIBRARY_SHARED))
-                {
-                    continue;
-                }
-
-                copiedDllPath.assign(outputDirectory);
-                copiedDllPath += slashc;
-                copiedDllPath += dependency->getActualOutputName();
-                const Node *copiedDll = Node::getNode(copiedDllPath, true, true);
-                if (copiedDll->fileType == file_type::not_found ||
-                    copiedDll->lastWriteTime < dependency->outputFileNode->lastWriteTime)
-                {
-                    dllsToBeCopied.emplace_back(dependency);
-                }
-            }
-        }
     }
 }
 
