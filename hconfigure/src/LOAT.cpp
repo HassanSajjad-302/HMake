@@ -259,7 +259,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     for (const uint32_t packedDependency : cachedReqDeps)
     {
         PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
-        if (reqDep->bTargetType == BTargetType::LOAT && !reqDep->hasObjectFiles)
+        if (!reqDep->suppliesLinkerInput())
         {
             continue;
         }
