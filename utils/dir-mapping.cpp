@@ -40,7 +40,7 @@ void populateRecursiveDirectoryMap(const string &rootPath, map<string, vector<st
 
 bool replace(std::string &str, const std::string &from, const std::string &to)
 {
-    const size_t start_pos = str.find(from);
+    const uint64_t start_pos = str.find(from);
     if (start_pos == std::string::npos)
     {
         return false;
@@ -223,7 +223,7 @@ void replaceInSingleFile(const string &relativePath, const string &from, const s
     }
 
     // Replace all occurrences in one pass
-    size_t pos = 0;
+    uint64_t pos = 0;
     while ((pos = fileText.find(from, pos)) != string::npos)
     {
         fileText.replace(pos, from.length(), to);

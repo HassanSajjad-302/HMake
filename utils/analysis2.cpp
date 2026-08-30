@@ -9,7 +9,7 @@
 
 bool replace(std::string &str, const std::string &from, const std::string &to)
 {
-    size_t start_pos = str.find(from);
+    uint64_t start_pos = str.find(from);
     if (start_pos == std::string::npos)
     {
         printErrorMessage("Replace Failed\n");
@@ -21,7 +21,7 @@ bool replace(std::string &str, const std::string &from, const std::string &to)
 
 bool replaceNoError(std::string &str, const std::string &from, const std::string &to)
 {
-    size_t start_pos = str.find(from);
+    uint64_t start_pos = str.find(from);
     if (start_pos == std::string::npos)
     {
         return false;
@@ -54,11 +54,11 @@ int main()
         std::vector<std::string> dependencies;
 
         // Parse dependencies by splitting on "LLVM" prefix
-        size_t pos = 0;
+        uint64_t pos = 0;
         while ((pos = line.find("LLVM", pos)) != std::string::npos)
         {
             // Find the next occurrence of "LLVM"
-            size_t nextPos = line.find("LLVM", pos + 4);
+            uint64_t nextPos = line.find("LLVM", pos + 4);
 
             std::string dep;
             if (nextPos != std::string::npos)
