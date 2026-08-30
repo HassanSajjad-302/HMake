@@ -114,7 +114,7 @@ void LOAT::completeRoundOne()
             // cachedReqDeps is already the unique, flattened PLOAT closure; another graph traversal is redundant.
             dllsToBeCopied.reserve(cachedReqDeps.size());
             const string_view outputDirectory = getOutputDirectoryV();
-            string copiedDllPath;
+            STACK_PMR_STRING(copiedDllPath, 1024)
             copiedDllPath.reserve(outputDirectory.size() + 64);
             for (const uint32_t packedDependency : cachedReqDeps)
             {
@@ -159,7 +159,7 @@ string LOAT::getPrintName() const
 
 void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
 {
-    STACK_PMR_VECTOR(const ObjectFileProducer *, producers, 16 * 1024);
+    STACK_PMR_VECTOR(const ObjectFileProducer *, producers, 4 * 1024);
     for (const ObjectFileProducer *root : rootObjectFileProducers)
     {
         producers.emplace_back(root);
@@ -397,8 +397,11 @@ bool LOAT::isEventRegistered(Builder &builder)
 
     if (config.responseFileThreshold != 0 && linkWithTargets.size() > config.responseFileThreshold)
     {
-        commandWithResponseFile(linkWithTargets, myBuildDir->filePath + slashc + outputFileNode->getFileName() + ".rsp",
-                                config.responseFileThreshold);
+        string responseFile = myBuildDir->filePath;
+        responseFile += slashc;
+        responseFile += outputFileNode->getFileName();
+        responseFile += ".rsp";
+        commandWithResponseFile(linkWithTargets, responseFile, config.responseFileThreshold);
     }
     run.startAsyncProcess(linkWithTargets.data(), builder, this, false);
     return true;
@@ -440,7 +443,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    string outputStr;
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         if (linkTargetType == TargetType::LIBRARY_STATIC)
