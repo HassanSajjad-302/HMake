@@ -241,19 +241,26 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (const LibDirNode &libDirNode : reqLibraryDirs)
-        {
+        const auto appendLibraryDirectory = [&](const Node *libraryDirectory) {
             if (linkerFamily == BTFamily::MSVC)
             {
                 linkWithTargets += "/LIBPATH:\"";
             }
             else if (linkerFamily == BTFamily::GCC)
             {
-
                 linkWithTargets += "-L\"";
             }
-            linkWithTargets += libDirNode.node->filePath;
+            linkWithTargets += libraryDirectory->filePath;
             linkWithTargets += "\" ";
+        };
+
+        for (const Node *libraryDirectory : config.toolchainLibraryDirs)
+        {
+            appendLibraryDirectory(libraryDirectory);
+        }
+        for (const LibDirNode &libDirNode : reqLibraryDirs)
+        {
+            appendLibraryDirectory(libDirNode.node);
         }
     }
 
