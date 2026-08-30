@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.28.0)
 
-project(HMake)
+project(HMake LANGUAGES CXX)
+
+# HMake uses explicit 64-bit sizes and offsets throughout its runtime and cache handling.
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "HMake requires a 64-bit host toolchain")
+endif ()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
