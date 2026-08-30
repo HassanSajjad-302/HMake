@@ -414,7 +414,7 @@ TEST(StageTests, Test2)
         cacheJson.Accept(writer);
         ofs << buffer.GetString();
     }
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib2-cpp");
 
     // The following 2 tests are failing on Windows and I think that is due to incremental linking. Same command
@@ -429,7 +429,7 @@ TEST(StageTests, Test2)
     // Adding a public compile definition for lib4 target. this is tested as compile-definition and compile-flags are
     // not cached like include-dirs and others.
     copyFilePath(testSourcePath / "Version/hmakev4.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
@@ -472,7 +472,7 @@ TEST(StageTests, Test3)
 
     // Making public-lib3.hpp a header-unit
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib4-cpp");
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
@@ -511,7 +511,7 @@ TEST(StageTests, Test3)
 
     // Adding private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/hmakev3.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib4-cpp");
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
@@ -519,27 +519,27 @@ TEST(StageTests, Test3)
 
     // Removing private compile-definition lib3.cpp.
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib4-cpp");
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Just an extra re-configuration test.
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib4-cpp");
 
     // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
     BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-files.
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
@@ -547,7 +547,7 @@ TEST(StageTests, Test3)
 
     // Making public-lib4.hpp and private-lib4.hpp header-units again. Should not be recompiled.
     copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
     BALANCES(Updates{}, "Debug/app-cpp");
     BALANCES(Updates{}, "Debug/lib1");
@@ -585,7 +585,7 @@ TEST(StageTests, Test4)
 
     // Making public-lib3.hpp a header-unit
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
@@ -624,7 +624,7 @@ TEST(StageTests, Test4)
 
     // Adding private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/hmakev3.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
@@ -632,27 +632,27 @@ TEST(StageTests, Test4)
 
     // Removing private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
     BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Just an extra re-configuration test.
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib4-cpp");
 
     // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
     BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-files.
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
@@ -660,7 +660,7 @@ TEST(StageTests, Test4)
 
     // Making public-lib4.hpp and private-lib4.hpp header-units again. Should not be recompiled.
     copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
     BALANCES(Updates{}, "Debug/app-cpp");
     BALANCES(Updates{}, "Debug/lib1");
@@ -822,12 +822,12 @@ TEST(StageTests, Test6)
     // be rebuilt even though it never included the output.h header-file.
 
     copyFilePath(hmakeVersion1, testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Release/tool-cpp");
     BALANCES(Updates{.moduleFiles = 1, .linkTargetsDebug = 1});
 
     copyFilePath(hmakeVersion0, testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Release/tool-cpp");
     BALANCES(Updates{.moduleFiles = 1, .linkTargetsDebug = 1});
 
