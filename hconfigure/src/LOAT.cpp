@@ -501,14 +501,10 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
             config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
             realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
-            for (const PLOAT *ploat : dllsToBeCopied)
-            {
-                copy_file(ploat->outputFileNode->filePath,
-                          string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(),
-                          std::filesystem::copy_options::overwrite_existing);
-            }
+            copyRuntimeDlls();
         }
     }
+
     return false;
 }
 
