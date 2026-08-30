@@ -30,7 +30,7 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
         {
             myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
         }
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 }
 
