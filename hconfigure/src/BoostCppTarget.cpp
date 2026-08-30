@@ -18,7 +18,7 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
     {
         const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
         myBuildDir = Node::getHalfNode(buildCacheFilesDirPath);
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 
     DSC<CppTarget> *t = nullptr;
