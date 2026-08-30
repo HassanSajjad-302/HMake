@@ -301,8 +301,8 @@ class Configuration : public BTarget
     StandAloneCommand standAloneCommand = StandAloneCommand::NO;
     DuplicationWarning duplicationWarning = DuplicationWarning::NO;
 
-    /// Node form of the resolved toolchain's global library search paths, constructed once per configuration.
-    /// Every physical link target consumes these directly; they are not exported through target dependencies.
+    /// Configuration-wide library search paths supplied by the toolchain and platform SDK integrations.
+    /// Every physical link target consumes these directly; concrete project/vendor libraries remain PLOAT dependencies.
     vector<Node *> toolchainLibraryDirs;
 
     // todo
