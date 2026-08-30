@@ -8,19 +8,7 @@
 
 #include <filesystem>
 #include <memory_resource>
-#include <stack>
 #include <utility>
-
-#ifndef _WIN32
-#include <sys/wait.h>
-#endif
-
-using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard;
-
-bool operator<(const LOAT &lhs, const LOAT &rhs)
-{
-    return lhs.name < rhs.name;
-}
 
 void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
 {
