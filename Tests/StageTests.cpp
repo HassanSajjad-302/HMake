@@ -8,9 +8,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::create_directories,
     std::filesystem::path, std::cout, std::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
@@ -170,12 +167,12 @@ TEST(StageTests, Test1)
     // Deleting app-cpp dir
     const path appCppDirectory = testSourcePath / "Build/Release/app-cpp/";
     removeDirectory(appCppDirectory);
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Deleting app-cpp dir but executing hbuild in app
     removeDirectory(appCppDirectory);
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting main.cpp.o
@@ -189,17 +186,17 @@ TEST(StageTests, Test1)
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Updating compiler-flags but executing in app
     copyFilePath(testSourcePath / "Version/hmakev0.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Updating compiler-flags but executing in app-cpp
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Executing in Build. Only app to be updated.
@@ -272,7 +269,7 @@ TEST(StageTests, Test2)
     // Deleting lib3-cpp dir
     path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
     removeDirectory(lib3CppDirectory);
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Deleting lib4 and lib2-cpp dir
@@ -281,7 +278,7 @@ TEST(StageTests, Test2)
     path lib2CppDirectory = testSourcePath / "Build/Debug/lib2-cpp/";
     removeFilePath(lib4);
     removeDirectory(lib2CppDirectory);
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
@@ -339,7 +336,7 @@ TEST(StageTests, Test2)
     // Removing all libraries, making main simple and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/mainv2.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/hmakev1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
 
     BALANCES(Updates{.nodesFile = true}, "Debug/lib2-cpp");
     BALANCES(Updates{.sourceFiles = 1}, "Debug/app-cpp");
@@ -348,7 +345,7 @@ TEST(StageTests, Test2)
     // Resorting to the old-main and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/mainv0.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/hmakev0.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
 
     BALANCES(Updates{.nodesFile = true}, "Debug/lib2-cpp");
     BALANCES(Updates{}, "Debug/lib4");
@@ -356,7 +353,7 @@ TEST(StageTests, Test2)
     // Moving lib4.cpp code to temp.cpp in lib4/
     removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/tempv0.cpp", testSourcePath / "lib4/private/temp.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib2-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsDebug = 1});
@@ -366,7 +363,7 @@ TEST(StageTests, Test2)
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /
                    getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib3"));
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     ERROR_BALANCES(Updates{.errorFiles = 1, .sourceFiles = 1, .linkTargetsNoDebug = 1, .nodesFile = true});
     ERROR_BALANCES(Updates{.errorFiles = 1});
     ERROR_BALANCES(Updates{.errorFiles = 1}, "Debug/lib3");
@@ -379,7 +376,7 @@ TEST(StageTests, Test2)
     // Copying Erroneous lib4.cpp to lib4/private and changing the hmake.cpp and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/lib4v1.cpp", testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/hmakev2.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
 
     create_directories("Release/lib3/");
     create_directories("Release/lib4/");
@@ -397,7 +394,7 @@ TEST(StageTests, Test2)
     // variable use-lib4.cpp value
     copyFilePath(testSourcePath / "Version/hmakev3.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/lib4v0.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib2-cpp");
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsDebug = 1});
