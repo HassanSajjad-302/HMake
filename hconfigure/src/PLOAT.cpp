@@ -284,7 +284,8 @@ void PLOAT::populateReqAndUseReqDeps()
     const auto populate = [this](PloatDepInfoMap &dependencies) {
         // PLOAT cycle edges intentionally omit scheduler ordering. Walk the already-declared exported relationships
         // to a fixed point so the cached link closure is independent of round-one completion order.
-        STACK_PMR_VECTOR(PLOAT *, pending, dependencies.size() + 1)
+        STACK_PMR_VECTOR(PLOAT *, pending, 1024)
+        pending.reserve(dependencies.size() + 1);
         for (const auto &entry : dependencies)
         {
             if (entry.first != this)
