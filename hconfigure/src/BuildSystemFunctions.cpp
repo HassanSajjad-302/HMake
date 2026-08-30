@@ -65,47 +65,39 @@ string cachePath(const string_view fileName)
 
 } // namespace
 
+path findProjectBuildDirectory(const path &start)
+{
+    path candidate = start;
+    const path cacheFileName(projectCacheFileName);
+    std::error_code error;
+    while (!candidate.empty())
+    {
+        if (std::filesystem::is_regular_file(candidate / cacheFileName, error))
+        {
+            return candidate;
+        }
+
+        const path parent = candidate.parent_path();
+        if (parent == candidate)
+        {
+            break;
+        }
+        candidate = parent;
+    }
+    return {};
+}
+
 void initializeCache()
 {
     const string projectCachePath = cachePath(projectCacheFileName);
-    std::error_code projectCacheSystemError;
-    const bool projectCacheExists = std::filesystem::exists(projectCachePath, projectCacheSystemError);
-    if (projectCacheSystemError)
+    const string contents = fileToString(projectCachePath);
+    string error;
+    if (!projectCache.parse(contents, error))
     {
-        printErrorMessage(FORMAT("Could not inspect the project cache.\nFile: {}\nSystem error: {}", projectCachePath,
-                                 projectCacheSystemError.message()));
+        printErrorMessage(FORMAT("Invalid project cache.\nFile: {}\n{}", projectCachePath, error));
     }
-    if (projectCacheExists)
-    {
-        const string contents = fileToString(projectCachePath);
-        string error;
-        if (!projectCache.parse(contents, error))
-        {
-            printErrorMessage(FORMAT("Invalid project cache.\nFile: {}\n{}", projectCachePath, error));
-        }
-    }
-
-    path sourcePath(projectCache.sourceDirectoryPath);
-    if (sourcePath.is_relative())
-    {
-        sourcePath = path(configureNode->filePath) / sourcePath;
-    }
-    sourcePath = sourcePath.lexically_normal();
-    srcNode = Node::getHalfNodeNonNormalized(sourcePath.string());
-    if (!isPathInDirectory(configureNode->filePath, srcNode->filePath))
-    {
-        printErrorMessage(FORMAT("The configure directory must be a strict lexical child of the source directory.\n"
-                                 "Source directory: {}\nConfigure directory: {}\n"
-                                 "Hint: from the source directory, run hbuild -B build.",
-                                 srcNode->filePath, configureNode->filePath));
-    }
-    normalizationBasePath = srcNode->filePath;
 
     toolchains.initialize(srcNode->filePath);
-    if (projectCache.toolchainName.empty())
-    {
-        projectCache.toolchainName = toolchains.defaultName();
-    }
 
     currentNode = Node::getHalfNode(current_path().string());
     if (currentNode->filePath.size() < configureNode->filePath.size())
@@ -749,6 +741,11 @@ void loadNodesCache(const path &fileName)
         memcpy(&node->contentHash, bytes + offset, sizeof(node->contentHash));
         offset += sizeof(node->contentHash);
     }
+
+    assert(nodeIndices.size() >= 2);
+    srcNode = nodeIndices[0];
+    configureNode = nodeIndices[1];
+    normalizationBasePath = srcNode->filePath;
 }
 
 namespace
@@ -843,11 +840,15 @@ void readBuildCache()
 void writeNodesCache()
 {
     const uint32_t nodeCount = Node::idCount;
+    assert(nodeCount >= 2);
+    assert(nodeIndices[0] == srcNode);
+    assert(nodeIndices[1] == configureNode);
 
     uint64_t fileSize = 0;
     for (uint32_t id = 0; id < nodeCount; ++id)
     {
         const Node &node = *nodeIndices[id];
+        assert(!node.filePath.empty());
         constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 2 * sizeof(uint64_t);
         fileSize += fixedRecordSize + node.filePath.size();
     }
@@ -862,6 +863,11 @@ void writeNodesCache()
             const uint16_t pathSize = static_cast<uint16_t>(node.filePath.size());
             memcpy(bytes + offset, &pathSize, sizeof(pathSize));
             offset += sizeof(pathSize);
+            if (node.filePath.ends_with(slashc))
+            {
+                printErrorMessage(
+                    FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
+            }
             memcpy(bytes + offset, node.filePath.data(), pathSize);
             offset += pathSize;
             memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));

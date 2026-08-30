@@ -91,7 +91,7 @@ extern uint64_t projectCacheContentCache;
 extern flat_hash_set<Node *> recompileNodes;
 extern flat_hash_set<Node *> reconfigureNodes;
 
-/// Node representing the project source directory.
+/// Node representing the project source directory. It always has node ID 0.
 inline class Node *srcNode;
 
 // Base directory used by getNormalizedPath() for relative paths. It normally
@@ -99,7 +99,7 @@ inline class Node *srcNode;
 // at the directory containing the active specification file.
 inline string_view normalizationBasePath;
 
-/// Node representing the active configure/build directory.
+/// Node representing the active configure/build directory. It always has node ID 1.
 inline Node *configureNode;
 
 /// Directory context currently used while reading a decentralized specification.
@@ -461,6 +461,10 @@ bool compareStringsFromEnd(string_view lhs, string_view rhs);
 /// parentDirectory must be nonempty and must not end in slashc.
 bool isPathInDirectory(string_view childPath, string_view parentDirectory);
 
+/// Returns the nearest directory at or above start containing cache.txt, or an empty path.
+/// This locates an existing build root; the source root is always that build root's immediate parent.
+path findProjectBuildDirectory(const path &start);
+
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);
 
@@ -488,7 +492,8 @@ void fileToString(const string &fileName, std::pmr::string &buffer);
 void commandWithResponseFile(std::pmr::string &command, const string &responseFile, uint64_t threshold);
 void commandWithResponseFile(string &command, const string &responseFile, uint64_t threshold);
 
-/// Reads `[u64 payload-hash][u16 path-size][path][u64 mtime][u64 content-hash]...` from `nodes-cache.bin`.
+/// Reads `[u64 payload-hash][u16 path-size][path][u64 mtime][u64 content-hash]...` from `nodes-cache.bin` and restores
+/// node IDs 0 and 1 as `srcNode` and `configureNode`.
 void loadNodesCache(const path &fileName);
 
 /// Atomically writes the same hash-prefixed repeated-record representation to `nodes-cache.bin`.

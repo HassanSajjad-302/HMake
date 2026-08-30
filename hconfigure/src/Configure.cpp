@@ -47,11 +47,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 
     lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
-    if (const path nodesCachePath = path(configurePathString) / string(nodesCacheFileName); exists(nodesCachePath))
-    {
-        loadNodesCache(nodesCachePath);
-    }
-    configureNode = Node::getHalfNode(configurePathString);
+    loadNodesCache(path(configurePathString) / string(nodesCacheFileName));
 
     if constexpr (bsMode != BSMode::BUILD)
     {
