@@ -114,6 +114,13 @@ enum class JumboBuild : bool
     YES,
 };
 
+/// Selects how MSVC-style compilers report included headers for ordinary source compilation.
+enum class MSVCHeaderDependencyMode : bool
+{
+    DEPENDENCY_FILE,
+    SHOW_INCLUDES,
+};
+
 /// Source-control query used by adaptive jumbo builds to keep locally edited files standalone.
 enum class WorkingSetProvider : uint8_t
 {
@@ -282,6 +289,7 @@ class Configuration : public BTarget
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
     JumboBuild jumboBuild = JumboBuild::NO;
+    MSVCHeaderDependencyMode msvcHeaderDependencyMode = MSVCHeaderDependencyMode::DEPENDENCY_FILE;
     /// Approximate source-byte budget for each generated jumbo translation unit.
     uint64_t jumboFileSize = 384 * 1024;
     AddCppSource addCppSource = AddCppSource::YES;
@@ -292,6 +300,10 @@ class Configuration : public BTarget
     AlwaysConfigureThis alwaysConfigureThis = AlwaysConfigureThis::NO;
     StandAloneCommand standAloneCommand = StandAloneCommand::NO;
     DuplicationWarning duplicationWarning = DuplicationWarning::NO;
+
+    /// Node form of the resolved toolchain's global library search paths, constructed once per configuration.
+    /// Every physical link target consumes these directly; they are not exported through target dependencies.
+    vector<Node *> toolchainLibraryDirs;
 
     // todo
     // add CppTarget::imodNames map here as-well.
@@ -442,6 +454,8 @@ class Configuration : public BTarget
 
     /// Internal round-one hook; users normally declare work in `configurationSpecification()`.
     void completeRoundOne() override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
+    void readConfigCacheAtBuildTime();
 
     /// Constructs a named configuration. Prefer `getConfiguration()` in build specifications.
     explicit Configuration(const string &name_);
@@ -527,6 +541,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
     {
         return jumboBuild == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), MSVCHeaderDependencyMode>)
+    {
+        return msvcHeaderDependencyMode == property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
     {

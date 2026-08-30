@@ -1,11 +1,12 @@
 
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "Cache.hpp"
 #include "ConfigurationAssign.hpp"
 #include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "LOAT.hpp"
-#include "ToolsCache.hpp"
+#include "Toolchains.hpp"
 
 vector<Configuration *> allConfigurations;
 
@@ -71,6 +72,7 @@ void Configuration::copySettingsFrom(const Configuration &other)
     stdAsHeaderUnit = other.stdAsHeaderUnit;
     bigHeaderUnit = other.bigHeaderUnit;
     jumboBuild = other.jumboBuild;
+    msvcHeaderDependencyMode = other.msvcHeaderDependencyMode;
     jumboFileSize = other.jumboFileSize;
     addCppSource = other.addCppSource;
     treatHuAsHeaderFile = other.treatHuAsHeaderFile;
@@ -80,19 +82,79 @@ void Configuration::copySettingsFrom(const Configuration &other)
     alwaysConfigureThis = other.alwaysConfigureThis;
     standAloneCommand = other.standAloneCommand;
     duplicationWarning = other.duplicationWarning;
+    toolchainLibraryDirs.clear();
 }
 
 void Configuration::initialize()
 {
+    if (projectCache.toolchainName.empty())
+    {
+        printErrorMessage("No project toolchain is selected.");
+    }
+    const Toolchain *toolchain = toolchains.find(projectCache.toolchainName);
+    if (toolchain == nullptr)
+    {
+        printErrorMessage(FORMAT("The selected project toolchain does not exist.\nToolchain: {}",
+                                 projectCache.toolchainName));
+    }
+
+    if (compilerFeatures.targetOs == TargetOS::NONE)
+    {
+        compilerFeatures.targetOs = toolchain->targetOs;
+    }
+    if (compilerFeatures.arch == Arch::NONE)
+    {
+        compilerFeatures.arch = toolchain->targetArch;
+    }
+    if (compilerFeatures.addModel == AddressModel::NONE)
+    {
+        compilerFeatures.addModel = toolchain->targetAddressModel;
+    }
+    if (toolchain->targetOs != compilerFeatures.targetOs || toolchain->targetArch != compilerFeatures.arch ||
+        toolchain->targetAddressModel != compilerFeatures.addModel)
+    {
+        printErrorMessage(FORMAT("The selected toolchain target is incompatible with the configuration.\n"
+                                 "Configuration: {}\nToolchain: {}\nTarget: {}\nRequested OS: {}\n"
+                                 "Requested architecture: {}\nRequested address model: {}",
+                                 name, toolchain->name, toolchain->target,
+                                 static_cast<uint8_t>(compilerFeatures.targetOs),
+                                 static_cast<uint8_t>(compilerFeatures.arch),
+                                 static_cast<uint8_t>(compilerFeatures.addModel)));
+    }
+
+    linkerFeatures.targetOs = compilerFeatures.targetOs;
+    linkerFeatures.arch = compilerFeatures.arch;
+    linkerFeatures.addModel = compilerFeatures.addModel;
+
+    if (compilerFeatures.compiler.bTPath.empty())
+    {
+        compilerFeatures.compiler = toolchain->compiler;
+    }
+    if (linkerFeatures.linker.bTPath.empty())
+    {
+        linkerFeatures.linker = toolchain->linker;
+    }
+    if (linkerFeatures.archiver.bTPath.empty())
+    {
+        linkerFeatures.archiver = toolchain->archiver;
+    }
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        toolchainLibraryDirs.clear();
+        toolchainLibraryDirs.reserve(toolchain->libraryDirs.size());
+        for (const string &directory : toolchain->libraryDirs)
+        {
+            toolchainLibraryDirs.emplace_back(Node::getNodeNonNormalized(directory, false));
+        }
+    }
+    else
+    {
+        readConfigCacheAtBuildTime();
+    }
     cppCompileCommand = compilerFeatures.getCompileCommand();
     ispcCompilerFeatures.initialize(compilerFeatures);
     ispcCompileCommand = ispcCompilerFeatures.getCompileCommand();
     ispcObjectCommandSuffix = ispcCompilerFeatures.getObjectFlags();
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        // Making sure that Custom Clang fork exists.
-        Node::getNodeNonNormalized(compilerFeatures.compiler.bTPath, true);
-    }
     linkCommand = linkerFeatures.getLinkCommand();
     archiveCommand = linkerFeatures.getArchiveCommand();
     if (!stdCppTarget)
@@ -107,64 +169,26 @@ void Configuration::initialize()
         stdCppTarget = &getCppObjectDSC("std");
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            if (cache.isCompilerInToolsArray)
+            CppTarget *c = stdCppTarget->getSourceTargetPointer();
+            for (const string &str : toolchain->includeDirs)
             {
-                CppTarget *c = stdCppTarget->getSourceTargetPointer();
-                vector<string> *includeDirs;
+                const Node *inclNode = Node::getNodeNonNormalized(str, false);
+                // In Module compilation mode, we only add include dirs for our own target but not as interface
+                // includes.
+                c->actuallyAddInclude(true, inclNode, true, evaluate(IsCppMod::NO));
+            }
+
+            if (evaluate(IsCppMod::YES))
+            {
                 if constexpr (os == OS::NT)
                 {
-                    includeDirs = &toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
+                    // 2 big-hu are being added. One with c++ standard headers and one with windows.h
+                    c->addComposingHeadersMSVC();
                 }
                 else
                 {
-
-                    includeDirs = &toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs;
+                    c->addComposingHeadersLinux();
                 }
-
-                for (const string &str : *includeDirs)
-                {
-                    const Node *inclNode = Node::getNodeNonNormalized(str, false);
-                    // In Module compilation mode, we only add include dirs for our own target but not as interface
-                    // includes.
-                    c->actuallyAddInclude(true, inclNode, true, evaluate(IsCppMod::NO));
-                }
-
-                if (evaluate(IsCppMod::YES))
-                {
-                    if constexpr (os == OS::NT)
-                    {
-                        // 2 big-hu are being added. One with c++ standard headers and one with windows.h
-                        c->addComposingHeadersMSVC();
-                    }
-                    else
-                    {
-                        c->addComposingHeadersLinux();
-                    }
-                }
-            }
-
-            if (cache.isLinkerInToolsArray)
-            {
-                const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
-                for (const string &str : vsTools.libraryDirs)
-                {
-                    Node *node = Node::getNodeNonNormalized(str, false);
-                    bool found = false;
-                    for (const LibDirNode &libDirNode : stdCppTarget->getLOAT().reqLibraryDirs)
-                    {
-                        if (libDirNode.node == node)
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found)
-                    {
-                        stdCppTarget->getLOAT().reqLibraryDirs.emplace_back(node);
-                    }
-                }
-
-                stdCppTarget->getLOAT().useReqLibraryDirs = stdCppTarget->getLOAT().reqLibraryDirs;
             }
         }
 
@@ -178,7 +202,7 @@ void Configuration::markArchivePoint()
 {
     // TODO
     // This functions marks the archive point i.e. the targets before this function should be archived upon
-    // successful build. i.e. some extra info will be saved in build-cache.json file of these targets. The goal is
+    // successful build. i.e. some extra info will be saved in build-cache.bin file of these targets. The goal is
     // that next time when hbuild is invoked, archived targets source-files won't be checked for existence/rebuilt.
     // Neither the header-files coming from such targets includes will be stored in cache. The use-case is when e.g.
     // a target A dependens on targets B and C, such that these targets source is never meant to be changed e.g. fmt
@@ -729,6 +753,33 @@ void Configuration::completeRoundOne()
                 t->setHeaderFileStatusChanged(true);
             }
         }
+    }
+}
+
+void Configuration::writeConfigCacheAtConfigTime(string &buffer)
+{
+    writeUint32(buffer, toolchainLibraryDirs.size());
+    for (const Node *libraryDirectory : toolchainLibraryDirs)
+    {
+        writeNode(buffer, libraryDirectory);
+    }
+}
+
+void Configuration::readConfigCacheAtBuildTime()
+{
+    const string_view configCache = bTargetCaches[cacheIndex].configCache;
+    const char *bytes = configCache.data();
+    uint64_t bytesRead = 0;
+    const uint32_t directoryCount = readUint32(bytes, bytesRead);
+    toolchainLibraryDirs.clear();
+    toolchainLibraryDirs.reserve(directoryCount);
+    for (uint32_t index = 0; index < directoryCount; ++index)
+    {
+        toolchainLibraryDirs.emplace_back(readHalfNode(bytes, bytesRead));
+    }
+    if (bytesRead != configCache.size())
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
     }
 }
 
