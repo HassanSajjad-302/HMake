@@ -68,23 +68,6 @@ void LOAT::setOutputName(string str)
 #endif
 }
 
-void LOAT::setUpdateStatus()
-{
-    RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus != UpdateStatus::UNCHECKED)
-    {
-        return;
-    }
-
-    if (outputFileNode->fileType == file_type::not_found)
-    {
-        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
-        return;
-    }
-
-    PLOAT::setUpdateStatus();
-}
-
 void LOAT::completeRoundOne()
 {
     PLOAT::completeRoundOne();
@@ -241,7 +224,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        const auto appendLibraryDirectory = [&](const Node *libraryDirectory) {
+        for (const Node *libraryDirectory : config.toolchainLibraryDirs)
+        {
             if (linkerFamily == BTFamily::MSVC)
             {
                 linkWithTargets += "/LIBPATH:\"";
@@ -252,15 +236,6 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
             }
             linkWithTargets += libraryDirectory->filePath;
             linkWithTargets += "\" ";
-        };
-
-        for (const Node *libraryDirectory : config.toolchainLibraryDirs)
-        {
-            appendLibraryDirectory(libraryDirectory);
-        }
-        for (const LibDirNode &libDirNode : reqLibraryDirs)
-        {
-            appendLibraryDirectory(libDirNode.node);
         }
     }
 

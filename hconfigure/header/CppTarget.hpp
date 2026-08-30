@@ -9,6 +9,7 @@
 #include "CppMod.hpp"
 #include "DSC.hpp"
 #include "ObjectFileProducer.hpp"
+#include "SpecialNodes.hpp"
 #include <concepts>
 
 using std::same_as;
