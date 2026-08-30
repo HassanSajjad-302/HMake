@@ -91,10 +91,9 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     Snapshot snapshot(p);
 
     {
-        RunCommand r;
-        r.runProcess(hbuildBuildStr.c_str());
-        printMessage(*r.output);
-        ASSERT_EQ(r.exitStatus, 0) << hbuildBuildStr + " command failed.";
+        const auto result = RunCommand::runProcess(hbuildBuildStr);
+        printMessage(result.output);
+        ASSERT_EQ(result.exitStatus, 0) << hbuildBuildStr + " command failed.";
     }
 
     snapshot.after(p);
