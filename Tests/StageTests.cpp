@@ -399,20 +399,13 @@ TEST(StageTests, Test2)
     BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     BALANCES(Updates{.linkTargetsDebug = 1});
 
-    path cacheFile = testSourcePath / "Build/cache.json";
+    path cacheFile = testSourcePath / "Build/cache.txt";
     ifstream ifs(cacheFile);
     string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    rapidjson::Document cacheJson;
-    cacheJson.Parse(content.c_str());
-    ASSERT_FALSE(cacheJson.HasParseError());
-    ASSERT_TRUE(cacheJson.HasMember("cache-variables"));
-    ASSERT_TRUE(cacheJson["cache-variables"].HasMember("use-lib4.cpp"));
+    ASSERT_NE(content.find("use-lib4.cpp=true"), string::npos);
     {
         ofstream ofs(cacheFile);
-        rapidjson::StringBuffer buffer;
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        cacheJson.Accept(writer);
-        ofs << buffer.GetString();
+        ofs << content;
     }
     ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     BALANCES(Updates{}, "Debug/lib2-cpp");
@@ -705,11 +698,10 @@ TEST(StageTests, Test5)
         string tenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm")).string();
 
         current_path(example8Path / "Build");
-        RunCommand r;
-        r.runProcess("hbuild");
-        erase_if(*r.output, [](const char c) { return c == '\r'; });
-        int exitStatus = r.exitStatus;
-        string output = std::move(*r.output);
+        auto processResult = RunCommand::runProcess("hbuild");
+        erase_if(processResult.output, [](const char c) { return c == '\r'; });
+        const int exitStatus = processResult.exitStatus;
+        string output = std::move(processResult.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str1 =
             "error: Dependency graph contains a cycle.\nCycle: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
@@ -735,11 +727,10 @@ TEST(StageTests, Test5)
         string fifteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm")).string();
 
         current_path(example8Path / "Build");
-        RunCommand r;
-        r.runProcess("hbuild");
-        erase_if(*r.output, [](const char c) { return c == '\r'; });
-        int exitStatus = r.exitStatus;
-        string output = std::move(*r.output);
+        auto processResult = RunCommand::runProcess("hbuild");
+        erase_if(processResult.output, [](const char c) { return c == '\r'; });
+        const int exitStatus = processResult.exitStatus;
+        string output = std::move(processResult.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str = "error: Dependency graph contains a cycle.\nCycle: " + sevenPath + " -> " + fourteenPath +
                            " -> " + fifteenPath + " -> " + sevenPath + "\n";
