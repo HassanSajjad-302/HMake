@@ -2332,7 +2332,7 @@ void AdaptiveManager::completeRoundOne()
         if (const string &generatedPath = generatedNode->filePath;
             !std::filesystem::exists(generatedPath) || fileToString(generatedPath) != contents)
         {
-            create_directories(path(generatedPath).parent_path());
+            std::filesystem::create_directories(path(generatedPath).parent_path());
             std::ofstream(generatedPath, std::ios::binary) << contents;
         }
         scheduleCompileUnit(createCompileUnit(generatedNode, true));
