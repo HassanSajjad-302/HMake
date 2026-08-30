@@ -82,13 +82,6 @@ void PLOAT::initializePLOAT()
 {
     const char *ptr = bTargetCaches[cacheIndex].configCache.data();
     outputFileNode = readHalfNode(ptr, configCacheBytesRead);
-    const uint32_t size = readUint32(ptr, configCacheBytesRead);
-    useReqLibraryDirs.reserve(size);
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        Node *node = readHalfNode(ptr, configCacheBytesRead);
-        useReqLibraryDirs.emplace_back(node);
-    }
 }
 
 #else
@@ -130,6 +123,28 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
 }
 
 #endif
+
+void PLOAT::setUpdateStatus()
+{
+    RealBTarget &rb = realBTargets[0];
+    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    {
+        return;
+    }
+    rb.reasonForUpdate = nullptr;
+    if (outputFileNode->fileType != file_type::regular)
+    {
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+        return;
+    }
+
+    BTarget::setUpdateStatus();
+    // Prebuilt PLOATs have no process footer; consumers use the artifact timestamp as their completion time.
+    if (!launchesProcess && rb.updateStatus == UpdateStatus::UPDATE_NOT_NEEDED)
+    {
+        rb.completionTime = std::max(rb.completionTime, outputFileNode->lastWriteTime);
+    }
+}
 
 void PLOAT::completeRoundOne()
 {
@@ -223,23 +238,22 @@ void PLOAT::completeRoundOne()
         if (reqDep->hasObjectFiles)
         {
             hasObjectFiles = true;
-            if constexpr (bsMode == BSMode::BUILD)
+        }
+        if constexpr (bsMode == BSMode::BUILD)
+        {
+            const bool suppliesLinkerInput = reqDep->bTargetType == BTargetType::PLOAT || reqDep->hasObjectFiles;
+            if (suppliesLinkerInput && dependencyInfo.isAcyclicDependency())
             {
-                if (dependencyInfo.isAcyclicDependency())
+                if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
-                    if (linkTargetType == TargetType::LIBRARY_STATIC)
-                    {
-                        realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
-                    }
-                    else
-                    {
-                        realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
-                    }
+                    realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
+                }
+                else
+                {
+                    realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
                 }
             }
         }
-
-        reqLibraryDirs.insert(reqLibraryDirs.end(), reqDep->useReqLibraryDirs.begin(), reqDep->useReqLibraryDirs.end());
     };
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -269,13 +283,6 @@ void PLOAT::readCacheAtBuildTime()
     for (uint32_t i = 0; i < reqVecSize; ++i)
     {
         cachedReqDeps.emplace_back(readUint32(ptr, configCacheBytesRead));
-    }
-    uint32_t size = readUint32(ptr, configCacheBytesRead);
-    reqLibraryDirs.reserve(size);
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        Node *node = readHalfNode(ptr, configCacheBytesRead);
-        reqLibraryDirs.emplace_back(node);
     }
 }
 
@@ -331,12 +338,6 @@ void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
 {
     writeNode(buffer, outputFileNode);
 
-    writeUint32(buffer, useReqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : useReqLibraryDirs)
-    {
-        writeNode(buffer, libDirNode.node);
-    }
-
     STACK_PMR_VECTOR(PLOAT *, sortedReqDeps, 1024)
     sortedReqDeps.reserve(reqDeps.size());
     for (const auto &[dependency, dependencyInfo] : reqDeps)
@@ -349,12 +350,6 @@ void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
     for (PLOAT *dependency : sortedReqDeps)
     {
         writeUint32(buffer, packPloatDependency(dependency, reqDeps.find(dependency)->second));
-    }
-
-    writeUint32(buffer, reqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : reqLibraryDirs)
-    {
-        writeNode(buffer, libDirNode.node);
     }
 }
 

@@ -5,7 +5,6 @@
 #include "BTarget.hpp"
 #include "Features.hpp"
 #include "ObjectFileProducer.hpp"
-#include "SpecialNodes.hpp"
 
 class Configuration;
 
@@ -36,6 +35,7 @@ class PLOAT : public BTarget
 
     void initializePLOAT();
     template <typename T> bool evaluate(T property) const;
+    void setUpdateStatus() override;
     void completeRoundOne() override;
 
   private:
@@ -53,9 +53,6 @@ class PLOAT : public BTarget
     /// Producers paired directly with this link target by DSC. After their round-one completion, PLOAT inspects each
     /// root's cached semantic closure and creates the required round-zero linker-input dependencies.
     flat_hash_set<class ObjectFileProducer *> rootObjectFileProducers;
-
-    vector<LibDirNode> reqLibraryDirs;
-    vector<LibDirNode> useReqLibraryDirs;
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 
