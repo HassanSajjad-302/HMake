@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <filesystem>
 #include <cstdlib>
+#include <cstdint>
 
 namespace fs = std::filesystem;
 
@@ -40,7 +41,7 @@ BenchmarkResult calculate_statistics(const std::vector<double>& timings) {
 
     std::vector<double> sorted = timings;
     std::sort(sorted.begin(), sorted.end());
-    size_t mid = sorted.size() / 2;
+    uint64_t mid = sorted.size() / 2;
     if (sorted.size() % 2 == 0) {
         result.median = (sorted[mid - 1] + sorted[mid]) / 2.0;
     } else {
@@ -81,8 +82,7 @@ BenchmarkResult build_hmake_performance(int n) {
         std::cout << "HMake iteration " << (i + 1) << "/" << n << "..." << std::endl;
 
         run_command("rm -r *");
-        run_command("hhelper");
-        run_command("hhelper");
+        run_command("hbuild --configure-only");
 
         fs::current_path("Release/LLVMMinTableGen");
 

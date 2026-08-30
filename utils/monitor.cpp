@@ -6,8 +6,6 @@
 #include <vector>
 #include <windows.h>
 
-#pragma comment(lib, "psapi.lib")
-
 void GetAllChildProcesses(DWORD parentPid, std::set<DWORD> &pids)
 {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
