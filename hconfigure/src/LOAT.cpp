@@ -447,6 +447,16 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
+        if constexpr (os == OS::NT)
+        {
+            if (linkTargetType == TargetType::LIBRARY_SHARED && importLibraryNode &&
+                !std::filesystem::is_regular_file(importLibraryNode->filePath))
+            {
+                printErrorMessage(FORMAT("The shared-library linker did not create its import library.\n"
+                                         "Target: {}\nImport library: {}",
+                                         name, importLibraryNode->filePath));
+            }
+        }
         buildFooterUpdated = true;
     }
 
