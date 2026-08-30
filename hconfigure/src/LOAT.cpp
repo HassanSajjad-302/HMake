@@ -330,9 +330,23 @@ bool LOAT::isEventRegistered(Builder &builder)
             realBTargets[0].updateStatus = UpdateStatus::UPDATE_NOT_NEEDED;
             return false;
         }
-        // An executable/shared library may intentionally obtain every object through required static archives.
-        // PLOAT::completeRoundOne() has already folded that closure into hasObjectFiles.
-        if (!hasObjectFiles)
+        bool hasLinkerInput = false;
+        // Executables and shared libraries may obtain every object through required libraries. Empty generated static
+        // wrappers remain transparent because their flattened dependencies are checked independently.
+        if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            for (const uint32_t packedDependency : cachedReqDeps)
+            {
+                const PLOAT *dependency = static_cast<PLOAT *>(
+                    bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+                if (dependency->suppliesLinkerInput())
+                {
+                    hasLinkerInput = true;
+                    break;
+                }
+            }
+        }
+        if (!hasLinkerInput)
         {
             printErrorMessage(FORMAT("Link target has no object files.\nTarget: {}\n"
                                      "Hint: add sources or object-producing dependencies before linking.",
