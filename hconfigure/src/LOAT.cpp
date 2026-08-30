@@ -394,6 +394,22 @@ bool LOAT::isEventRegistered(Builder &builder)
         responseFile += ".rsp";
         commandWithResponseFile(linkWithTargets, responseFile, config.responseFileThreshold);
     }
+    if constexpr (os == OS::NT)
+    {
+        if (linkTargetType == TargetType::LIBRARY_SHARED && importLibraryNode)
+        {
+            // LINK may succeed without emitting an import library when the DLL exports no symbols. Removing the old
+            // file prevents a stale import library from making that invocation look successful.
+            std::error_code removeError;
+            std::filesystem::remove(importLibraryNode->filePath, removeError);
+            if (removeError)
+            {
+                printErrorMessage(FORMAT("Could not remove the previous import library.\n"
+                                         "Import library: {}\nError: {}",
+                                         importLibraryNode->filePath, removeError.message()));
+            }
+        }
+    }
     run.startAsyncProcess(linkWithTargets.data(), builder, this, false);
     return true;
 }
