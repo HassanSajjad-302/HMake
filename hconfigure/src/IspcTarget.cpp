@@ -33,7 +33,7 @@ IspcTarget::IspcTarget(CppTarget *cppTarget_)
     validate();
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
     else
     {
