@@ -5,6 +5,7 @@
 #include "Configuration.hpp"
 #include "LOAT.hpp"
 #include "ObjectFileProducer.hpp"
+#include <algorithm>
 #include <utility>
 
 namespace
@@ -61,8 +62,7 @@ static BTargetType getBTargetTypePloat(const TargetType t)
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, const TargetType linkTargetType_)
     : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
               false),
-      config(config_), hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC),
-      linkTargetType{linkTargetType_}
+      config(config_), linkTargetType{linkTargetType_}
 {
     initializePLOAT();
 }
@@ -71,8 +71,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
               makeDirectory),
-      config(config_), hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC),
-      linkTargetType(linkTargetType_)
+      config(config_), linkTargetType(linkTargetType_)
 
 {
     initializePLOAT();
@@ -82,6 +81,14 @@ void PLOAT::initializePLOAT()
 {
     const char *ptr = bTargetCaches[cacheIndex].configCache.data();
     outputFileNode = readHalfNode(ptr, configCacheBytesRead);
+    if constexpr (os == OS::NT)
+    {
+        if (config.linkerFeatures.linker.bTFamily == BTFamily::MSVC &&
+            (linkTargetType == TargetType::LIBRARY_SHARED || linkTargetType == TargetType::PLIBRARY_SHARED))
+        {
+            importLibraryNode = readHalfNode(ptr, configCacheBytesRead);
+        }
+    }
 }
 
 #else
@@ -90,7 +97,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
     : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
               false),
       outputDirectory(myBuildDir_), outputName{getLastNameAfterSlash(outputName_)}, config(config_),
-      hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC), linkTargetType{linkTargetType_}
+      linkTargetType{linkTargetType_}
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
     {
@@ -107,8 +114,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
               makeDirectory),
-      outputDirectory(myBuildDir_), outputName(outputName_), config(config_),
-      hasObjectFiles(linkTargetType_ == TargetType::PLIBRARY_STATIC), linkTargetType(linkTargetType_)
+      outputDirectory(myBuildDir_), outputName(outputName_), config(config_), linkTargetType(linkTargetType_)
 
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
@@ -132,75 +138,92 @@ void PLOAT::setUpdateStatus()
         return;
     }
     rb.reasonForUpdate = nullptr;
-    if (outputFileNode->fileType != file_type::regular)
+    if (outputFileNode->fileType != file_type::regular ||
+        (importLibraryNode && importLibraryNode->fileType != file_type::regular))
     {
         rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
         return;
     }
 
-    BTarget::setUpdateStatus();
-    // Prebuilt PLOATs have no process footer; consumers use the artifact timestamp as their completion time.
-    if (!launchesProcess && rb.updateStatus == UpdateStatus::UPDATE_NOT_NEEDED)
+    uint64_t artifactTime = outputFileNode->lastWriteTime;
+    if (importLibraryNode)
     {
-        rb.completionTime = std::max(rb.completionTime, outputFileNode->lastWriteTime);
+        artifactTime = std::max(artifactTime, importLibraryNode->lastWriteTime);
     }
+
+    // Prebuilt PLOATs have no process footer; consumers use the newest artifact timestamp as their completion time.
+    if (!launchesProcess)
+    {
+        rb.completionTime = artifactTime;
+    }
+    else if (rb.completionTime != -1 && artifactTime > rb.completionTime)
+    {
+        // An owned output modified after this process last completed must be regenerated before consumers use it.
+        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
+        return;
+    }
+    BTarget::setUpdateStatus();
 }
 
 void PLOAT::completeRoundOne()
 {
-    if constexpr (bsMode == BSMode::BUILD)
+    // actualOutputName, outputDirectory, and outputName do not exist in the build-mode PLOAT layout, so this phase
+    // split must happen in the preprocessor rather than a non-template discarded statement.
+#ifdef BUILD_MODE
+    readCacheAtBuildTime();
+    outputFileNode->doStatFile = true;
+    if (importLibraryNode)
     {
-        readCacheAtBuildTime();
-        outputFileNode->doStatFile = true;
+        importLibraryNode->doStatFile = true;
     }
-    else
+#else
+    actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
+
+    // A prebuilt library requires outputDirectory at construction; a generated LOAT defaults to its build directory.
+    if (!outputDirectory)
     {
-
-#ifndef BUILD_MODE
-        actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
-
-        // In case of prebuilt library not having a valid outputDirectory at constructor time is an error. While in
-        // case of LOAT, if no other outputDirectory is assigned, then we use the LOAT::myBuildDir as
-        // outputDirectory.
-        if (!outputDirectory)
+        outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
+    }
+    outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
+    if constexpr (os == OS::NT)
+    {
+        if (config.linkerFeatures.linker.bTFamily == BTFamily::MSVC &&
+            (linkTargetType == TargetType::LIBRARY_SHARED || linkTargetType == TargetType::PLIBRARY_SHARED))
         {
-            outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
+            importLibraryNode = Node::getNode(outputDirectory->filePath + slashc + outputName + ".lib", true, true);
         }
-        outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
+    }
 
-#endif
-
-        // Outputless producers carry their linked-library interface until a physical output consumes their objects.
-        // Materialize that interface here, before flattening PLOAT-to-PLOAT requirements. A shared library absorbs
-        // PRIVATE requirements; every other PLOAT kind must continue exporting them.
-        for (ObjectFileProducer *root : rootObjectFileProducers)
+    // Outputless producers carry their linked-library interface until a physical output consumes their objects.
+    // Materialize that interface here, before flattening PLOAT-to-PLOAT requirements. A shared library absorbs
+    // PRIVATE requirements; every other PLOAT kind must continue exporting them.
+    const auto validateDeferredDependency = [this](PLOAT *dependency) {
+        if (dependency == this)
         {
-            const auto validateDeferredDependency = [this](PLOAT *dependency) {
-                if (dependency == this)
-                {
-                    printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
-                                             getPrintName()));
-                }
-            };
-
-            for (const auto &[dependency, dependencyInfo] : root->reqPloatDeps)
+            printErrorMessage(FORMAT("A deferred link dependency resolves to its consuming PLOAT.\nTarget: {}",
+                                     getPrintName()));
+        }
+    };
+    for (ObjectFileProducer *root : rootObjectFileProducers)
+    {
+        for (const auto &[dependency, dependencyInfo] : root->reqPloatDeps)
+        {
+            validateDeferredDependency(dependency);
+            mergePloatDependency(reqDeps, dependency, dependencyInfo);
+            if (linkTargetType != TargetType::LIBRARY_SHARED)
             {
-                validateDeferredDependency(dependency);
-                mergePloatDependency(reqDeps, dependency, dependencyInfo);
-                if (linkTargetType != TargetType::LIBRARY_SHARED)
-                {
-                    mergePloatDependency(useReqDeps, dependency, dependencyInfo);
-                }
-            }
-            for (const auto &[dependency, dependencyInfo] : root->useReqPloatDeps)
-            {
-                validateDeferredDependency(dependency);
                 mergePloatDependency(useReqDeps, dependency, dependencyInfo);
             }
         }
-
-        populateReqAndUseReqDeps();
+        for (const auto &[dependency, dependencyInfo] : root->useReqPloatDeps)
+        {
+            validateDeferredDependency(dependency);
+            mergePloatDependency(useReqDeps, dependency, dependencyInfo);
+        }
     }
+
+    populateReqAndUseReqDeps();
+#endif
 
     // Root producers have completed round one, so their object availability is final. PLOAT owns every blocking
     // round-zero relation needed to materialize its linker inputs. Every link path contributes objects, while only an
@@ -234,44 +257,25 @@ void PLOAT::completeRoundOne()
         }
     }
 
-    const auto consumePloatDependency = [this](PLOAT *reqDep, const PloatDepInfo dependencyInfo) {
-        if (reqDep->hasObjectFiles)
+#ifdef BUILD_MODE
+    for (const uint32_t packedDependency : cachedReqDeps)
+    {
+        PLOAT *reqDep = static_cast<PLOAT *>(
+            bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+        const PloatDepInfo dependencyInfo = PloatDepInfo::fromCache(packedDependency);
+        if (reqDep->suppliesLinkerInput() && dependencyInfo.isAcyclicDependency())
         {
-            hasObjectFiles = true;
-        }
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            const bool suppliesLinkerInput = reqDep->bTargetType == BTargetType::PLOAT || reqDep->hasObjectFiles;
-            if (suppliesLinkerInput && dependencyInfo.isAcyclicDependency())
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                if (linkTargetType == TargetType::LIBRARY_STATIC)
-                {
-                    realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
-                }
-                else
-                {
-                    realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
-                }
+                realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
+            }
+            else
+            {
+                realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
             }
         }
-    };
-
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        for (const uint32_t packedDependency : cachedReqDeps)
-        {
-            consumePloatDependency(
-                static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget),
-                PloatDepInfo::fromCache(packedDependency));
-        }
     }
-    else
-    {
-        for (const auto &[reqDep, dependencyInfo] : reqDeps)
-        {
-            consumePloatDependency(reqDep, dependencyInfo);
-        }
-    }
+#endif
 }
 
 void PLOAT::readCacheAtBuildTime()
@@ -337,6 +341,14 @@ string PLOAT::getPrintName() const
 void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
 {
     writeNode(buffer, outputFileNode);
+    if constexpr (os == OS::NT)
+    {
+        if (config.linkerFeatures.linker.bTFamily == BTFamily::MSVC &&
+            (linkTargetType == TargetType::LIBRARY_SHARED || linkTargetType == TargetType::PLIBRARY_SHARED))
+        {
+            writeNode(buffer, importLibraryNode);
+        }
+    }
 
     STACK_PMR_VECTOR(PLOAT *, sortedReqDeps, 1024)
     sortedReqDeps.reserve(reqDeps.size());
@@ -351,9 +363,4 @@ void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
     {
         writeUint32(buffer, packPloatDependency(dependency, reqDeps.find(dependency)->second));
     }
-}
-
-bool operator<(const PLOAT &lhs, const PLOAT &rhs)
-{
-    return lhs.id < rhs.id;
 }
