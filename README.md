@@ -8,6 +8,10 @@ Support for additional programming languages and API bindings is planned.
 HMake features a novel build algorithm with dynamic nodes, dynamic edges, and advanced dependency specification.
 Its core is approximately 17,000 lines of C++ — significantly smaller than CMake + Ninja combined.
 
+HMake requires a 64-bit host toolchain. Runtime buffer sizes, byte offsets, and capacities use explicit
+`uint64_t`/`int64_t` values; narrower integer fields are retained only where an external API, serialized format, or
+deliberately compact data structure requires them.
+
 ## Architecture
 
 HMake separates concerns cleanly into two layers:
@@ -46,22 +50,25 @@ filesystem path. This ID remains stable across rebuilds and reconfigurations, al
 to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
 size of UE5 — and near-instant build startup even for very large projects.
 
-`initializeCache()` loads path strings from the `nodes` cache file without stating or hashing them yet. Before round 0,
-`Builder::checkNodes(true)` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
+`initializeCache()` loads path strings and their cached filesystem snapshots from `nodes-cache.bin` without stating or
+hashing them yet. Before round 0, `Builder::checkNodes()` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
 `doStatFile` / `doHashFile`. Skip/rebuild decisions use `Node::contentHash` (rapidhash of file contents) inside
 `setUpdateStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
 nodes that were flagged during compilation (for example headers discovered from compiler output).
 
 ### BTargetCache
 
-Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache` and `build-cache` files under the
+Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache.bin` and `build-cache.bin` files under the
 configure directory (see `initializeCache()` / `configureOrBuild()` in `BuildSystemFunctions.cpp`).
+
+Each binary cache starts with a 64-bit hash of the remaining payload. HMake uses this hash to avoid replacing an
+unchanged file; it does not change the payload layout.
 
 | File | When written | Contents |
 |------|----------------|----------|
-| `nodes` | Configure or build (if new paths appeared) | Interned path strings keyed by `Node::myId` |
-| `config-cache` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
-| `build-cache` | End of configure; updated after build | Per target: inline dependency list + sized body; optional 16-byte footer (`cumulativeHash`, `completionTime`) for process targets |
+| `nodes-cache.bin` | Configure or build | Repeated path, modification-time, and content-hash records in `Node::myId` order |
+| `config-cache.bin` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
+| `build-cache.bin` | HMake take-off, configure, or build | Four take-off caches, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
 
 At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
 live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
@@ -225,11 +232,6 @@ ninja clang
 cd ../..
 ```
 
-On Linux, edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang
-binary:
-`llvm-project/my-fork/bin/clang`.
-On Windows, edit last line in `CppCompilerFeatures::initialize`.
-
 **Clone and build HMake:**
 
 ```bash
@@ -247,26 +249,14 @@ cd ../..
 export PATH=$PATH:/path/to/HMake/build
 ```
 
-**Detect and cache installed tools — run once, not per project:**
-
-On Windows you would need administrative permissions for that.
-
-```bash
-htools
-```
-
 **Build an example:**
 
-The two `hhelper` invocations are intentional: the first creates `cache.json`; the second
-compiles the generated `configure` and `build` programs and runs the configure phase.
-`hbuild` then executes the cached build graph.
+`hbuild` owns the complete take-off. It creates project metadata, compiles the generated
+configure/build executables when necessary, configures, and then builds.
 
 ```bash
 cd HMake/Examples/Example1
-mkdir build && cd build
-hhelper
-hhelper
-hbuild
+hbuild -S . -B build
 ```
 
 For Example 1, the resulting executable is `build/Release/app/app` on Linux
@@ -310,35 +300,57 @@ getConfiguration("Debug").assign(ConfigType::DEBUG, Warnings::EXTRA, WarningsAsE
 <details>
 <summary> Step-by-Step Explanation </summary>
 
-Unlike few other build-systems, HMake does not
-detect the tools installed every time you configure a project but
-is instead done only when you run ```htools``` and the result is cached to
-```C:\Program Files (x86)\HMake\toolsCache.json```
-on Windows and ```/home/toolsCache.json``` in Linux.
-Currently, it is just a stud.
-HMake is more ```make``` like in this aspect:).
-It writes in ```toolsCache.json```
-whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
+HMake installs a named default toolchain matching the compiler used to build HMake. Additional
+toolchains live in `~/.hmake/toolchains.json` on Linux or `%LOCALAPPDATA%\HMake\toolchains.json`
+on Windows, and optionally beside `hmake.cpp`. Select one with `hbuild --toolchain <name>` and print the fully
+resolved registry with `hbuild --list-toolchains`.
 
-First hhelper will create the cache.json file.
-cache.json file provides an opportunity to select a different toolset.
-It has array indices to the arrays of different tools in toolsCache.json.
-cache.json file also has the commands
-that will be used to build ```configure``` and ```build``` executables.
-build executable is built with ```BUILD_MODE``` macro defined.
-Running hhelper second time will create these executables,
-linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
-Only difference is that ```hconfigure-b``` is compiled with
-```BUILD_MODE``` macro.
-If the compilation of these executables succeed,
-hhelper will run the ```configure``` exe in the build-dir
-completing the configure stage.
-Now running hbuild will run the ```build``` exe.
-This will create the app executable in ```{buildDir}/release/app```.
+`toolchains.json` is a top-level object keyed by unique toolchain names. A complete entry has the following form. A
+derived entry can use `extends` and override only the fields it changes; its base must appear earlier.
 
-CMakeLists.txt builds with address sanitizer,
-so you need to copy the respective dll
-in cmake build-dir for debugging on Windows.
+```json
+{
+    "llvm-18": {
+        "compiler": "/opt/llvm/bin/clang++",
+        "linker": "/opt/llvm/bin/clang++",
+        "archiver": "/opt/llvm/bin/llvm-ar",
+        "family": "clang",
+        "style": "gnu",
+        "version": "18",
+        "target": "x86_64-linux-gnu",
+        "include-dirs": ["/opt/llvm/include/c++/v1", "/opt/llvm/lib/clang/18/include", "/usr/include"],
+        "library-dirs": ["/opt/llvm/lib", "/usr/lib"],
+        "bootstrap-arguments": []
+    },
+    "my-clang": {
+        "extends": "llvm-18",
+        "bootstrap-arguments": ["-fuse-ld=lld"]
+    }
+}
+```
+
+The built-in toolchain embeds the standard include and library directories detected while HMake is compiled. HMake
+disables the compiler's default header search with `-nostdinc -nostdinc++` or `/X`, so a complete custom toolchain must
+likewise provide its full standard include search path. Derived toolchains inherit these directory lists unless they
+replace them.
+
+The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
+Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
+is invalid. The first two values are positional; later values use `name=value` syntax. The source directory is exactly
+the build directory's immediate parent and must contain `hmake.cpp`; an explicit `-S` must select that directory.
+Generated commands are
+structured internally rather than stored as editable shell strings. Cache variables are edited in this file; `hbuild`
+does not provide `-D` command-line overrides.
+
+On each invocation, `hbuild` checks `configure`, `build`, `nodes-cache.bin`, `config-cache.bin`,
+and `build-cache.bin`. Missing or stale take-off inputs cause the minimum required recompile or
+reconfigure work before the generated build executable runs. `--recompile`, `--reconfigure`, and
+`--configure-only` provide explicit control when needed.
+
+The hmake source filename selects the HMake API generation instead of storing a schema field in local caches.
+The current library pair uses `hmake.cpp`; future generation-specific installations use names such as
+`hmakev1.cpp` with their matching configure/build libraries.
+
 It has targets for all the Examples.
 You need to run these targets in the respective ```Build``` dir.
 E.g. for `Example1`, there is `Example1Build` and `Example1Config`.
@@ -442,8 +454,8 @@ So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
 `isEventRegistered` should return `true` if it launched a subprocess via `run.startAsyncProcess`, and `false` if it
 completed synchronously. When a subprocess writes an IPC message to stdout, or exits, HMake calls `isEventCompleted`. An
 empty `message` parameter means the process exited; `*run.output` contains its full output.
-When a callback returns `true`, it must select how processing continues: call `run.startRead()` to wait for more output,
-call `run.writeReadExpected()` to reply and then wait for more output, or call neither to leave the child paused.
+When `isEventCompleted` returns `true`, it must select how processing continues: call `run.startRead()` to wait for more
+output, call `run.writeReadExpected()` to reply and then wait for more output, or call neither to leave the child paused.
 
 IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
 is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.
@@ -948,7 +960,8 @@ active configuration without running the others.
 `CppTarget` to which source files, include directories, and module files are attached.
 
 Every `Configuration` creates a `stdCppTarget` by default, which carries the standard include directories from
-`toolsCache.json`. All targets created via `get*` functions receive this as a private dependency automatically.
+the selected named toolchain. All targets created via `get*` functions receive this as a private dependency
+automatically.
 
 ### Example 2 — Multiple configurations and source filtering
 
@@ -995,10 +1008,8 @@ void configurationSpecification(Configuration &config)
     CppTarget &app = config.getCppExeDSC("app").getSourceTarget();
     app.sourceFiles("main.cpp");
 
-    // Change the value of "FILE1" in cache.hmake to false and then run configure again.
-    // Then run hbuild. Now file2.cpp will be used.
-    // CacheVariable is template. So you can use any type with it. However, conversions from and to json should
-    // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
+    // Change FILE1=true to FILE1=false in cache.txt, then run hbuild. HMake detects the
+    // graph-affecting cache change, reconfigures, and selects file2.cpp.
     if (CacheVariable("FILE1", true).value)
     {
         app.sourceFiles("file1.cpp");
@@ -1020,8 +1031,18 @@ MAIN_FUNCTION
 
 </details>
 
-`CacheVariable` persists a typed value in `cache.hmake`. Edit the value and re-run configure to change which branch is
-taken without modifying source. Any type with nlohmann/json serialization support can be used.
+`CacheVariable` supports `bool`, `int`, and `string` values. Names must match `[A-Za-z_][A-Za-z0-9_]*`; booleans use
+`true` or `false`, integers use decimal syntax, and strings require outermost double quotes:
+
+```text
+SDK_ROOT="C:\Program Files\Microsoft Visual Studio"
+MESSAGE="first\nsecond"
+```
+
+The outermost quotes delimit a string; backslashes and any interior quotes are literal. Thus `\n` above is two
+characters. Call `decodeBackslashEscapes()` explicitly to decode `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and
+fixed-width `\xHH`. Actual CR, LF, and NUL characters cannot be represented in a cache value. A missing variable is
+appended to `cache.txt` with its default value; an existing value with a different type is an error.
 
 ### Example 4 — Static and shared libraries
 

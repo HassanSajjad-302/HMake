@@ -1,6 +1,5 @@
 #include "Configure.hpp"
 
-bool smallFile = true;
 void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSourceTarget().publicIncludesSource("3rdParty");
@@ -18,10 +17,6 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &hconfigure = config.getCppObjectDSC("hconfigure").publicDeps(rapidJson, phmap, fmt);
     hconfigure.getSourceTarget().moduleDirs("hconfigure/src").publicHUIncludes("hconfigure/header");
 
-    if (smallFile)
-    {
-        hconfigure.getSourceTarget().publicCompileDefines("USE_FILE_COMPRESSION", "");
-    }
 }
 
 void buildSpecification()
