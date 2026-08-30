@@ -1153,16 +1153,31 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
     toolchains.initialize(sourceDirectory);
     const path nodesFile = buildDirectory / nodesCacheFileName;
     context.nodesCacheExisted = isRegularFile(nodesFile);
+    const string sourcePath = sourceDirectory.string();
+    const string configurePath = buildDirectory.string();
     if (context.nodesCacheExisted)
     {
         loadNodesCache(nodesFile);
+        if (srcNode->filePath != sourcePath || configureNode->filePath != configurePath)
+        {
+            normalizationBasePath = {};
+            srcNode = nullptr;
+            configureNode = nullptr;
+            nodeAllFiles.clear();
+            nodeIndices.clear();
+            Node::idCount = 0;
+            context.nodesCacheExisted = false;
+        }
+    }
+    if (!context.nodesCacheExisted)
+    {
+        srcNode = Node::getHalfNode(sourcePath);
+        configureNode = Node::getHalfNode(configurePath);
+        normalizationBasePath = srcNode->filePath;
     }
 
     currentNode = Node::getHalfNode(invocationDirectory.string());
-    srcNode = Node::getHalfNode(sourceDirectory.string());
-    configureNode = Node::getHalfNode(buildDirectory.string());
     context.hmakeFile = Node::getNode(hmakeFile.string(), true);
-    normalizationBasePath = srcNode->filePath;
     return true;
 }
 
