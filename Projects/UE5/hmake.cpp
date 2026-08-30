@@ -2531,7 +2531,7 @@ void configurationSpecification(Configuration &config)
         configuration.getOrAddTarget(target);
     }
 
-    // Dynamically created producers do not receive this callback, so finalize them after expansion.
+    // configurationSpecification() is not invoked for dynamically created producers; finalize them here.
     configuration.finalizeProducerConfigurations();
 }
 
@@ -2541,7 +2541,7 @@ void buildSpecification()
     adaptiveBuildWorkingSetProvider = WorkingSetProvider::GIT;
 
     // A full UnrealServer build can otherwise exhaust Linux memory.
-    cache.numberOfBuildProcesses = 28;
+    projectCache.defaultJobs = 28;
 
     registerGeneratedUeSpecifyFuncs(generatedUeFiles);
 

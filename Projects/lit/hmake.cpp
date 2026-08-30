@@ -248,7 +248,7 @@ class LitProcess : public BTarget
 
         LitResponse litResponse;
 
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         litResponse.output = readStringView(message.data(), bytesRead);
         litResponse.status = static_cast<LitSuccessStatus>(readUint8(message.data(), bytesRead));
 
@@ -298,7 +298,7 @@ class LitManager : public BTarget
 
     bool isEventRegistered(Builder &builder) override
     {
-        uint32_t count = std::max<uint32_t>(tests.size(), cache.numberOfBuildProcesses);
+        uint32_t count = std::max<uint32_t>(tests.size(), projectCache.defaultJobs);
 
         for (uint32_t litExeType = 0; litExeType < litExeTypeEnumSize; ++litExeType)
         {

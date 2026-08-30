@@ -32,7 +32,7 @@ python3 /home/hassan/Projects/HMake/Projects/UE5/scanner.py \
 
 By default this writes `/home/hassan/Projects/UnrealEngine/hmake.cpp`. Use
 `--output` to select another file. The checkout-root file is the input consumed
-when `hhelper` runs from `/home/hassan/Projects/UnrealEngine/uebuild`; it does not
+when `hbuild` runs from `/home/hassan/Projects/UnrealEngine/uebuild`; it does not
 need to be copied from `Projects/UE5`. The `Projects/UE5/hmake.cpp` copy exists so
 the repository's `UE5` CMake target can compile the same generated entry point.
 Keep `scanner.py`, its tests, and this documentation in HMake; do not duplicate the
@@ -48,14 +48,12 @@ the export is stored elsewhere. Because the scanner resolves paths from the
 selected `--ue-root` and that checkout's UBT artifacts, rerun it on each system
 instead of copying a generated command row between machines.
 
-For a fresh build directory, run `hhelper` once to create `uebuild/cache.json`
-and a second time to compile and execute the generated configure program:
+For a fresh build directory, let `hbuild` perform the complete take-off:
 
 ```sh
 mkdir -p /home/hassan/Projects/UnrealEngine/uebuild
 cd /home/hassan/Projects/UnrealEngine/uebuild
-hhelper
-hhelper
+hbuild -S .. -B .
 ```
 
 ## File metadata and selection
@@ -229,7 +227,7 @@ RTTI, exception, and `PLATFORM_EXCEPTIONS_DISABLED` arguments are deliberately
 removed from the shared UBT command row. `UeConfiguration::initialize()` appends
 them from typed HMake properties. `buildSpecification()` declares only
 `UnrealServerLinuxDebug`, with RTTI and exceptions disabled. When that
-configuration is active, its configuration callback creates
+configuration is active, `configurationSpecification()` creates
 `UnrealServerLinuxDebugRttiExcept` with copied settings plus RTTI and exceptions
 enabled, then expands the requested UE roots.
 
