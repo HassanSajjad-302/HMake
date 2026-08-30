@@ -460,8 +460,8 @@ void UeCppTarget::prepareModuleSources()
         // Source scanning must precede generated-code scanning: handwritten sources identify generated .cpp files
         // included inline and therefore excluded from standalone compilation. Gather every module directory before
         // scheduling so platform extensions participate in the same deterministic UBT-compatible ordering.
-        STACK_PMR_VECTOR(Node *, sourceNodes, 128)
-        STACK_PMR_VECTOR(Node *, ispcSources, 16)
+        STACK_PMR_VECTOR(Node *, sourceNodes, 256)
+        STACK_PMR_VECTOR(Node *, ispcSources, 64)
         for (Node *moduleDirectory : moduleDirectories)
         {
             findInputFiles(moduleDirectory, sourceNodes, ispcSources);
