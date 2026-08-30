@@ -208,6 +208,15 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     linkWithTargets += "\" ";
 
     const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
+    if constexpr (os == OS::NT)
+    {
+        if (linkTargetType == TargetType::LIBRARY_SHARED && linkerFamily == BTFamily::MSVC)
+        {
+            linkWithTargets += "/IMPLIB:\"";
+            linkWithTargets += importLibraryNode->filePath;
+            linkWithTargets += "\" ";
+        }
+    }
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
         for (const Node *libraryDirectory : config.toolchainLibraryDirs)
