@@ -12,31 +12,111 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
-set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 
-    if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
-        add_link_options(-fsanitize=address -fno-omit-frame-pointer)
-        add_compile_options(-fsanitize=address)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(HMAKE_DEFAULT_TOOLCHAIN_FAMILY "clang")
+    if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        set(HMAKE_DEFAULT_TOOLCHAIN_NAME "clang-cl")
+        set(HMAKE_DEFAULT_TOOLCHAIN_STYLE "msvc")
+    else ()
+        set(HMAKE_DEFAULT_TOOLCHAIN_NAME "clang")
+        set(HMAKE_DEFAULT_TOOLCHAIN_STYLE "gnu")
     endif ()
-
-    add_compile_options(-fno-exceptions -fno-rtti)
-elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
-
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
-    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-        add_compile_options(/fsanitize=address)
-    endif ()
-
-    string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    add_definitions(-D_HAS_EXCEPTIONS=0) # for STL
-
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(HMAKE_DEFAULT_TOOLCHAIN_NAME "msvc")
+    set(HMAKE_DEFAULT_TOOLCHAIN_FAMILY "msvc")
+    set(HMAKE_DEFAULT_TOOLCHAIN_STYLE "msvc")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(HMAKE_DEFAULT_TOOLCHAIN_NAME "gcc")
+    set(HMAKE_DEFAULT_TOOLCHAIN_FAMILY "gcc")
+    set(HMAKE_DEFAULT_TOOLCHAIN_STYLE "gnu")
+else ()
+    message(FATAL_ERROR "HMake requires Clang, GCC, or MSVC to define its built-in toolchain")
 endif ()
 
-set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
+if (CMAKE_CXX_COMPILER_TARGET)
+    set(HMAKE_DEFAULT_TARGET "${CMAKE_CXX_COMPILER_TARGET}")
+else ()
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}-${CMAKE_SYSTEM_NAME}" HMAKE_DEFAULT_TARGET)
+endif ()
+
+set(HMAKE_DEFAULT_COMPILER "${CMAKE_CXX_COMPILER}")
+set(HMAKE_DEFAULT_LINKER "${CMAKE_CXX_COMPILER}")
+set(HMAKE_DEFAULT_ARCHIVER "${CMAKE_AR}")
+set(HMAKE_DEFAULT_TOOLCHAIN_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
+set(HMAKE_DEFAULT_INCLUDE_DIRS
+        ${CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES}
+        ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+set(HMAKE_DEFAULT_LIBRARY_DIRS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES})
+
+if (HMAKE_DEFAULT_TOOLCHAIN_STYLE STREQUAL "msvc")
+    cmake_path(CONVERT "$ENV{INCLUDE}" TO_CMAKE_PATH_LIST HMAKE_MSVC_INCLUDE_DIRS NORMALIZE)
+    cmake_path(CONVERT "$ENV{LIB}" TO_CMAKE_PATH_LIST HMAKE_MSVC_LIBRARY_DIRS NORMALIZE)
+    list(APPEND HMAKE_DEFAULT_INCLUDE_DIRS ${HMAKE_MSVC_INCLUDE_DIRS})
+    list(APPEND HMAKE_DEFAULT_LIBRARY_DIRS ${HMAKE_MSVC_LIBRARY_DIRS})
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif ()
+
+list(FILTER HMAKE_DEFAULT_INCLUDE_DIRS EXCLUDE REGEX "^$")
+list(FILTER HMAKE_DEFAULT_LIBRARY_DIRS EXCLUDE REGEX "^$")
+list(REMOVE_DUPLICATES HMAKE_DEFAULT_INCLUDE_DIRS)
+list(REMOVE_DUPLICATES HMAKE_DEFAULT_LIBRARY_DIRS)
+
+foreach (variable IN ITEMS
+        HMAKE_DEFAULT_TOOLCHAIN_NAME
+        HMAKE_DEFAULT_COMPILER
+        HMAKE_DEFAULT_LINKER
+        HMAKE_DEFAULT_ARCHIVER
+        HMAKE_DEFAULT_TOOLCHAIN_FAMILY
+        HMAKE_DEFAULT_TOOLCHAIN_STYLE
+        HMAKE_DEFAULT_TOOLCHAIN_VERSION
+        HMAKE_DEFAULT_TARGET)
+    set(escaped "${${variable}}")
+    string(REPLACE "\\" "\\\\" escaped "${escaped}")
+    string(REPLACE "\"" "\\\"" escaped "${escaped}")
+    string(REPLACE "\n" "\\n" escaped "${escaped}")
+    string(REPLACE "\r" "\\r" escaped "${escaped}")
+    set(${variable}_CPP "\"${escaped}\"")
+endforeach ()
+
+foreach (directoryList IN ITEMS HMAKE_DEFAULT_INCLUDE_DIRS HMAKE_DEFAULT_LIBRARY_DIRS)
+    set(initializer "{")
+    set(separator "")
+    foreach (directory IN LISTS ${directoryList})
+        set(escaped "${directory}")
+        string(REPLACE "\\" "\\\\" escaped "${escaped}")
+        string(REPLACE "\"" "\\\"" escaped "${escaped}")
+        string(REPLACE "\n" "\\n" escaped "${escaped}")
+        string(REPLACE "\r" "\\r" escaped "${escaped}")
+        string(APPEND initializer "${separator}\"${escaped}\"")
+        set(separator ", ")
+    endforeach ()
+    string(APPEND initializer "}")
+    set(${directoryList}_CPP "${initializer}")
+endforeach ()
+
+set(HMAKE_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${HMAKE_GENERATED_INCLUDE_DIR}")
+file(CONFIGURE
+        OUTPUT "${HMAKE_GENERATED_INCLUDE_DIR}/BuiltinToolchain.hpp"
+        CONTENT [=[#ifndef HMAKE_BUILTIN_TOOLCHAIN_HPP
+#define HMAKE_BUILTIN_TOOLCHAIN_HPP
+
+#define HMAKE_DEFAULT_TOOLCHAIN_NAME @HMAKE_DEFAULT_TOOLCHAIN_NAME_CPP@
+#define HMAKE_DEFAULT_COMPILER @HMAKE_DEFAULT_COMPILER_CPP@
+#define HMAKE_DEFAULT_LINKER @HMAKE_DEFAULT_LINKER_CPP@
+#define HMAKE_DEFAULT_ARCHIVER @HMAKE_DEFAULT_ARCHIVER_CPP@
+#define HMAKE_DEFAULT_TOOLCHAIN_FAMILY @HMAKE_DEFAULT_TOOLCHAIN_FAMILY_CPP@
+#define HMAKE_DEFAULT_TOOLCHAIN_STYLE @HMAKE_DEFAULT_TOOLCHAIN_STYLE_CPP@
+#define HMAKE_DEFAULT_TOOLCHAIN_VERSION @HMAKE_DEFAULT_TOOLCHAIN_VERSION_CPP@
+#define HMAKE_DEFAULT_TARGET @HMAKE_DEFAULT_TARGET_CPP@
+#define HMAKE_DEFAULT_INCLUDE_DIRS @HMAKE_DEFAULT_INCLUDE_DIRS_CPP@
+#define HMAKE_DEFAULT_LIBRARY_DIRS @HMAKE_DEFAULT_LIBRARY_DIRS_CPP@
+
+#endif // HMAKE_BUILTIN_TOOLCHAIN_HPP
+]=]
+        @ONLY
+        NEWLINE_STYLE LF)
 
 set(HCONFIGURE_SOURCES
         hconfigure/src/Features.cpp
@@ -45,20 +125,19 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
         hconfigure/src/CppMod.cpp
+        hconfigure/src/ParseHeaderDeps.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppTarget.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/IspcTarget.cpp
         hconfigure/src/LOAT.cpp
         hconfigure/src/BuildTools.cpp
-        hconfigure/src/ToolsCache.cpp
+        hconfigure/src/Toolchains.cpp
         hconfigure/src/RunCommand.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/PLOAT.cpp
         hconfigure/src/Node.cpp
-        3rdParty/lz4/lib/lz4.c
         hconfigure/src/HashValues.cpp
-        hconfigure/src/TargetCache.cpp
         hconfigure/src/IPCManagerBS.cpp
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
@@ -67,142 +146,73 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ue.cpp
         hconfigure/src/CustomAllocator.cpp)
 
-set(INCLUDE_BUILD ON)
-set(INCLUDE_CONFIGURE ON)
-set(HMAKE_USE_SMALL_FILE ON BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
-set(HelperSource Projects/Boost/hmake.cpp)
+set_source_files_properties(hconfigure/src/Toolchains.cpp PROPERTIES
+        INCLUDE_DIRECTORIES "${HMAKE_GENERATED_INCLUDE_DIR}")
 
-if (${INCLUDE_CONFIGURE})
+find_package(Threads REQUIRED)
 
-    add_library(hconfigure-c STATIC ${HCONFIGURE_SOURCES})
-    target_compile_features(hconfigure-c PUBLIC cxx_std_23)
+foreach (target IN ITEMS hconfigure-c hconfigure-b)
+    add_library(${target} STATIC ${HCONFIGURE_SOURCES})
+    target_include_directories(${target}
+            PUBLIC
+            "${PROJECT_SOURCE_DIR}/hconfigure/header"
+            "${PROJECT_SOURCE_DIR}/3rdParty"
+            PRIVATE
+            "${PROJECT_SOURCE_DIR}/3rdParty/rapidjson/include")
+    target_link_libraries(${target} PUBLIC Threads::Threads)
 
-    if (UNIX)
-        target_compile_options(hconfigure-c PRIVATE -fPIC)
+    if (HMAKE_DEFAULT_TOOLCHAIN_STYLE STREQUAL "msvc")
+        target_compile_options(${target} PUBLIC /GR- /EHs-c-)
+        target_compile_definitions(${target} PUBLIC _HAS_EXCEPTIONS=0)
+    else ()
+        target_compile_options(${target} PUBLIC -fno-exceptions -fno-rtti -fvisibility=hidden)
     endif ()
+endforeach ()
 
-    target_include_directories(hconfigure-c
-            PUBLIC hconfigure/header
-            PUBLIC 3rdParty
-            PUBLIC 3rdParty/rapidjson/include
-    )
+target_compile_definitions(hconfigure-b PUBLIC BUILD_MODE)
 
-    add_executable(htools htools/main.cpp)
-    target_link_libraries(htools PRIVATE hconfigure-c)
+add_executable(hbuild hbuild/src/main.cpp hbuild/src/Bootstrap.cpp)
+target_link_libraries(hbuild PRIVATE hconfigure-c)
+add_dependencies(hbuild hconfigure-b)
+target_compile_definitions(hbuild PRIVATE
+        THIRD_PARTY_HEADER="${PROJECT_SOURCE_DIR}/3rdParty/"
+        RAPIDJSON_HEADER="${PROJECT_SOURCE_DIR}/3rdParty/rapidjson/include/"
+        HCONFIGURE_HEADER="${PROJECT_SOURCE_DIR}/hconfigure/header/"
+        HCONFIGURE_C_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-c>"
+        HCONFIGURE_B_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-b>")
 
-    if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
-        message("HMAKE_USE_SMALL_FILE set")
+set(BUILD_GMOCK OFF)
+set(INSTALL_GTEST OFF)
+set(gtest_force_shared_crt OFF)
+add_subdirectory(googletest EXCLUDE_FROM_ALL)
 
-        # Comment out the following to switch from binary cache files stored as compressed vs stored as-it-is
-        # target_compile_definitions(hconfigure-c PUBLIC USE_FILE_COMPRESSION)
-
-    endif ()
-
-    if (UNIX)
-        target_compile_options(hconfigure-c PRIVATE -fvisibility=hidden)
-    endif ()
-
-    #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-
-    add_executable(ConfigureHelper ${HelperSource})
-    target_link_libraries(ConfigureHelper PRIVATE hconfigure-c)
-
-endif ()
-
-if (${INCLUDE_BUILD})
-
-    add_library(hconfigure-b STATIC ${HCONFIGURE_SOURCES})
-    target_compile_features(hconfigure-b PUBLIC cxx_std_23)
-
-
-    target_compile_definitions(hconfigure-b PUBLIC BUILD_MODE)
-
-    if (UNIX)
-        target_compile_options(hconfigure-b PRIVATE -fPIC)
-    endif ()
-
-    target_include_directories(hconfigure-b
-            PUBLIC hconfigure/header
-            PUBLIC 3rdParty
-            PUBLIC 3rdParty/rapidjson/include
-    )
-
-    if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
-        message("HMAKE_USE_SMALL_FILE set")
-        #target_compile_definitions(hconfigure-b PUBLIC USE_FILE_COMPRESSION)
-
-    endif ()
-
-    if (UNIX)
-        target_compile_options(hconfigure-b PRIVATE -fvisibility=hidden)
-    endif ()
-
-    add_executable(BuildHelper ${HelperSource})
-    target_link_libraries(BuildHelper PRIVATE hconfigure-b)
-
-endif ()
-
-if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
-
-
-    add_executable(hhelper hhelper/src/main.cpp)
-    target_link_libraries(hhelper PRIVATE hconfigure-c)
-
-    target_compile_definitions(hhelper PRIVATE THIRD_PARTY_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/")
-    target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/json/include/")
-    target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidjson/include/")
-    target_compile_definitions(hhelper PRIVATE LZ4_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/lz4/lib")
-    target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
-    target_compile_definitions(hhelper PRIVATE HCONFIGURE_C_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure-c>")
-    target_compile_definitions(hhelper PRIVATE HCONFIGURE_C_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-c>")
-    target_compile_definitions(hhelper PRIVATE HCONFIGURE_B_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-b>")
-    target_compile_definitions(hhelper PRIVATE HCONFIGURE_B_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure-b>")
-
-    if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
-        target_compile_definitions(hhelper PRIVATE USE_THREAD_SANITIZER)
-    endif ()
-
-    add_executable(hbuild hbuild/src/main.cpp)
-    target_link_libraries(hbuild PRIVATE hconfigure-c)
-
-
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    add_subdirectory(googletest)
-
-    add_executable(Tests Tests/main.cpp
-            Tests/ExamplesTestHelper.cpp
-            Tests/Test_Examples.cpp
-            Tests/Test_hconfigure.cpp
-            Tests/StageTests.cpp
-            Tests/Snapshot.cpp)
-    target_link_libraries(Tests PRIVATE gtest gtest_main)
-    target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
-    target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")
-    target_link_libraries(Tests PRIVATE hconfigure-b)
-    target_link_libraries(Tests PRIVATE hconfigure-c)
-
-    add_dependencies(Tests hhelper)
-    add_dependencies(Tests hbuild)
-
-    add_executable(hwrite hwrite/main.cpp)
-    target_link_libraries(hwrite PRIVATE hconfigure-c)
-
-endif ()
+add_executable(Tests Tests/main.cpp
+        Tests/ExamplesTestHelper.cpp
+        Tests/Test_Examples.cpp
+        Tests/StageTests.cpp
+        Tests/Snapshot.cpp)
+target_link_libraries(Tests PRIVATE GTest::gtest hconfigure-b)
+target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${PROJECT_SOURCE_DIR}/")
+add_dependencies(Tests hbuild)
 
 add_executable(copy utils/copy.cpp)
-add_executable(monitor utils/monitor.cpp)
 add_executable(CmdAnalysis utils/cmd-analysis.cpp)
 add_executable(Analysis2 utils/analysis2.cpp)
 add_executable(Dir-Mapping utils/dir-mapping.cpp)
 add_executable(PerfTest utils/perf-test.cpp)
 
-target_link_libraries(copy PRIVATE hconfigure-c)
 target_link_libraries(CmdAnalysis PRIVATE hconfigure-c)
-target_link_libraries(PerfTest PRIVATE hconfigure-c)
 target_link_libraries(Analysis2 PRIVATE hconfigure-c)
 target_link_libraries(Dir-Mapping PRIVATE hconfigure-c)
 
-add_executable(benchmark Examples/benchmark/benchmark.cpp)
+if (WIN32)
+    add_executable(monitor utils/monitor.cpp)
+    target_link_libraries(monitor PRIVATE Psapi)
+endif ()
+
+if (HMAKE_DEFAULT_TOOLCHAIN_STYLE STREQUAL "msvc")
+    add_executable(benchmark Examples/benchmark/benchmark.cpp)
+endif ()
 
 function(add_dual_executables)
     set(entries ${ARGN})
