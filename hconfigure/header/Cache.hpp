@@ -11,13 +11,12 @@ inline constexpr string_view projectCacheFileName = "cache.txt";
 
 /// Parsed, order-preserving representation of the user-editable project cache.
 ///
-/// Lines must begin at column zero; `#` starts a comment and only empty lines are blank. The first three non-comment
-/// lines are the source directory, toolchain, and default job count. Remaining value lines are uniquely named
+/// Lines must begin at column zero; `#` starts a comment and only empty lines are blank. The first two non-comment
+/// lines are the toolchain and default job count. Remaining value lines are uniquely named
 /// `name=value` cache variables. String values use outermost double quotes, but their contents remain literal.
 /// Comments, blank lines, and variable order are retained when the file is rewritten.
 struct ProjectCache
 {
-    string sourceDirectoryPath;
     /// Project toolchain selected by hbuild.
     string toolchainName;
     uint16_t defaultJobs;
@@ -40,7 +39,6 @@ struct ProjectCache
     enum class LineKind : uint8_t
     {
         BLANK_OR_COMMENT,
-        SOURCE_DIRECTORY,
         TOOLCHAIN,
         DEFAULT_JOBS,
         VARIABLE,

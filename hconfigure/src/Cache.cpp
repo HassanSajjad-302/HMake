@@ -8,15 +8,10 @@
 
 ProjectCache::ProjectCache()
 {
-    sourceDirectoryPath = "..";
     const unsigned hardwareJobs = std::thread::hardware_concurrency();
     defaultJobs = static_cast<uint16_t>(std::clamp(hardwareJobs == 0 ? 1U : hardwareJobs, 1U, 65535U));
 
-    lines_.reserve(8);
-    lines_.push_back({LineKind::BLANK_OR_COMMENT,
-                      "# Project source directory. Relative paths are resolved from the build directory."});
-    lines_.push_back({LineKind::SOURCE_DIRECTORY, {}});
-    lines_.push_back({LineKind::BLANK_OR_COMMENT, {}});
+    lines_.reserve(5);
     lines_.push_back({LineKind::BLANK_OR_COMMENT, "# Selected toolchain name."});
     lines_.push_back({LineKind::TOOLCHAIN, {}});
     lines_.push_back({LineKind::BLANK_OR_COMMENT, {}});
@@ -59,7 +54,6 @@ bool ProjectCache::parse(string_view contents, string &error)
     parsedLines.reserve(lines_.size());
     gtl::flat_hash_map<string, uint64_t> parsedVariableLines;
     parsedVariableLines.reserve(variableLines_.size());
-    string parsedSourceDirectory;
     string parsedToolchain;
     uint16_t parsedDefaultJobs = 0;
     uint8_t positionalValueCount = 0;
@@ -91,19 +85,12 @@ bool ProjectCache::parse(string_view contents, string &error)
         }
         if (positionalValueCount == 0)
         {
-            parsedSourceDirectory = line;
-            parsedLines.push_back({LineKind::SOURCE_DIRECTORY, {}});
-            ++positionalValueCount;
-            continue;
-        }
-        if (positionalValueCount == 1)
-        {
             parsedToolchain = line;
             parsedLines.push_back({LineKind::TOOLCHAIN, {}});
             ++positionalValueCount;
             continue;
         }
-        if (positionalValueCount == 2)
+        if (positionalValueCount == 1)
         {
             const auto [end, parseError] =
                 std::from_chars(line.data(), line.data() + line.size(), parsedDefaultJobs, 10);
@@ -136,14 +123,13 @@ bool ProjectCache::parse(string_view contents, string &error)
         parsedLines.push_back({LineKind::VARIABLE, string(line)});
     }
 
-    if (positionalValueCount != 3)
+    if (positionalValueCount != 2)
     {
-        error = FORMAT("The project cache requires source-directory, toolchain, and default-jobs values.\n"
+        error = FORMAT("The project cache requires toolchain and default-jobs values.\n"
                        "Values found: {}",
                        positionalValueCount);
         return false;
     }
-    sourceDirectoryPath = std::move(parsedSourceDirectory);
     toolchainName = std::move(parsedToolchain);
     defaultJobs = parsedDefaultJobs;
     lines_ = std::move(parsedLines);
@@ -155,31 +141,24 @@ bool ProjectCache::parse(string_view contents, string &error)
 bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
 {
     error.clear();
-    const auto validatePlainValue = [&error](const string_view value, const string_view field) {
-        if (value.empty())
-        {
-            error = FORMAT("The {} value must not be empty.", field);
-            return false;
-        }
-        if (value.front() == '#')
-        {
-            error = FORMAT("The {} value must not start with '#', which denotes a comment.", field);
-            return false;
-        }
-        if (value.front() == ' ' || value.front() == '\t')
-        {
-            error = FORMAT("The {} value must not have leading whitespace.", field);
-            return false;
-        }
-        if (value.find_first_of("\r\n") != string_view::npos || value.find('\0') != string_view::npos)
-        {
-            error = FORMAT("The {} value contains a character that cannot be represented on one line.", field);
-            return false;
-        }
-        return true;
-    };
-    if (!validatePlainValue(sourceDirectoryPath, "source-directory") || !validatePlainValue(toolchainName, "toolchain"))
+    if (toolchainName.empty())
     {
+        error = "The toolchain value must not be empty.";
+        return false;
+    }
+    if (toolchainName.front() == '#')
+    {
+        error = "The toolchain value must not start with '#', which denotes a comment.";
+        return false;
+    }
+    if (toolchainName.front() == ' ' || toolchainName.front() == '\t')
+    {
+        error = "The toolchain value must not have leading whitespace.";
+        return false;
+    }
+    if (toolchainName.find_first_of("\r\n") != string::npos || toolchainName.find('\0') != string::npos)
+    {
+        error = "The toolchain value contains a character that cannot be represented on one line.";
         return false;
     }
     if (defaultJobs == 0)
@@ -189,7 +168,7 @@ bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
     }
 
     contents.clear();
-    uint64_t estimatedSize = sourceDirectoryPath.size() + toolchainName.size() + 32;
+    uint64_t estimatedSize = toolchainName.size() + 32;
     for (const Line &line : lines_)
     {
         estimatedSize += line.text.size() + 1;
@@ -202,9 +181,6 @@ bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
         {
         case LineKind::BLANK_OR_COMMENT:
             contents += line.text;
-            break;
-        case LineKind::SOURCE_DIRECTORY:
-            contents += sourceDirectoryPath;
             break;
         case LineKind::TOOLCHAIN:
             contents += toolchainName;
@@ -223,7 +199,7 @@ bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
 
 uint64_t ProjectCache::contentCache() const
 {
-    uint64_t semanticSize = sourceDirectoryPath.size() + toolchainName.size() + 18;
+    uint64_t semanticSize = toolchainName.size() + 10;
     for (const Line &line : lines_)
     {
         if (line.kind == LineKind::VARIABLE)
@@ -234,10 +210,6 @@ uint64_t ProjectCache::contentCache() const
 
     STACK_PMR_STRING(semantic, 4 * 1024)
     semantic.reserve(semanticSize);
-    semantic += "source";
-    semantic.push_back('\0');
-    semantic.append(sourceDirectoryPath);
-    semantic.push_back('\0');
     semantic += "toolchain";
     semantic.push_back('\0');
     semantic.append(toolchainName);
