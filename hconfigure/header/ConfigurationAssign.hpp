@@ -107,6 +107,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         jumboBuild = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), MSVCHeaderDependencyMode>)
+    {
+        msvcHeaderDependencyMode = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
     {
         addCppSource = property;
@@ -229,17 +233,28 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.compiler = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), Linker>)
+    {
+        linkerFeatures.linker = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Archiver>)
+    {
+        linkerFeatures.archiver = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), Threading>)
     {
         compilerFeatures.threading = property;
+        linkerFeatures.threading = property;
     }
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
     {
         compilerFeatures.cxxStd = property;
+        linkerFeatures.cxxStd = property;
     }
     else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
     {
         compilerFeatures.cxxStdDialect = property;
+        linkerFeatures.cxxStdDialect = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Optimization>)
     {
@@ -281,10 +296,12 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
     {
         compilerFeatures.instructionSet = property;
+        linkerFeatures.instructionSet = property;
     }
     else if constexpr (std::is_same_v<decltype(property), CpuType>)
     {
         compilerFeatures.cpuType = property;
+        linkerFeatures.cpuType = property;
     }
     else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
