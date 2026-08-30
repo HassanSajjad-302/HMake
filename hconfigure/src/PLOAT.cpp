@@ -336,7 +336,8 @@ void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
         writeNode(buffer, libDirNode.node);
     }
 
-    STACK_PMR_VECTOR(PLOAT *, sortedReqDeps, reqDeps.size())
+    STACK_PMR_VECTOR(PLOAT *, sortedReqDeps, 1024)
+    sortedReqDeps.reserve(reqDeps.size());
     for (const auto &[dependency, dependencyInfo] : reqDeps)
     {
         sortedReqDeps.emplace_back(dependency);
