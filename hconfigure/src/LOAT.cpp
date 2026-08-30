@@ -267,9 +267,9 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         if (linkerFamily == BTFamily::MSVC)
         {
             linkWithTargets += '\"';
-            linkWithTargets += string(reqDep->getOutputDirectoryV());
-            linkWithTargets += slashc;
-            linkWithTargets += reqDep->getOutputName() + ".lib\" ";
+            linkWithTargets += reqDep->importLibraryNode ? reqDep->importLibraryNode->filePath
+                                                        : reqDep->outputFileNode->filePath;
+            linkWithTargets += "\" ";
         }
         else
         {
