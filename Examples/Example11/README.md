@@ -10,16 +10,11 @@ From this `Examples/Example11` directory, clone the dependency beside `hmake.cpp
 git clone https://github.com/cdacamar/ball_pit --recursive --shallow-submodules
 ```
 
-Then configure and build it in an out-of-source directory:
+Then configure and build it in one command:
 
 ```bash
-mkdir Build
-cd Build
-hhelper
-hhelper
-hbuild
+hbuild -S . -B Build
 ```
 
-The repeated `hhelper` command is expected: the first run creates `cache.json`, while the
-second compiles and runs HMake's configure program. This specification enables
-`IsCppMod::YES`, so use a compiler/tool cache compatible with HMake's module support.
+This specification enables `IsCppMod::YES`, so select a named toolchain compatible with
+HMake's module support.
