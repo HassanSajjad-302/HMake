@@ -11,7 +11,7 @@
 using std::string;
 
 static string hbuildBuildStr = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "hbuild");
-static string hhelperStr = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "hhelper");
+static string hconfigureOnlyStr = hbuildBuildStr + " --reconfigure --configure-only";
 
 struct ExamplesTestHelper
 {
