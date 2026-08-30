@@ -65,7 +65,7 @@ class Node
     /// Total number of `Node` instances constructed so far (next id to assign).
     inline static uint32_t idCount = 0;
 
-    /// Stable index in `nodeIndices`.
+    /// Stable index in `nodeIndices`; IDs 0 and 1 are reserved for `srcNode` and `configureNode`.
     uint32_t myId;
 
     /// Cached filesystem type, assigned by `performSystemCheck()`.
