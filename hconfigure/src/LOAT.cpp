@@ -56,6 +56,39 @@ void LOAT::setOutputName(string str)
 #endif
 }
 
+void LOAT::copyRuntimeDlls() const
+{
+    const uint64_t previousCompletionTime = realBTargets[0].completionTime;
+    const bool copyAll = previousCompletionTime == -1 || outputFileNode->fileType != file_type::regular;
+    const string_view outputDirectory = getOutputDirectoryV();
+    STACK_PMR_STRING(copiedDllPath, 1024)
+    copiedDllPath.reserve(outputDirectory.size() + 64);
+    for (const uint32_t packedDependency : cachedReqDeps)
+    {
+        const PLOAT *dependency =
+            static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+        if (!dependency->evaluate(TargetType::LIBRARY_SHARED) &&
+            !dependency->evaluate(TargetType::PLIBRARY_SHARED))
+        {
+            continue;
+        }
+        if (!copyAll && dependency->realBTargets[0].completionTime <= previousCompletionTime)
+        {
+            continue;
+        }
+
+        copiedDllPath.assign(outputDirectory);
+        copiedDllPath += slashc;
+        copiedDllPath += dependency->getActualOutputName();
+        if (string_view(copiedDllPath.data(), copiedDllPath.size()) !=
+            string_view(dependency->outputFileNode->filePath))
+        {
+            copy_file(dependency->outputFileNode->filePath, copiedDllPath,
+                      std::filesystem::copy_options::overwrite_existing);
+        }
+    }
+}
+
 void LOAT::completeRoundOne()
 {
     PLOAT::completeRoundOne();
