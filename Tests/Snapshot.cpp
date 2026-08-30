@@ -104,7 +104,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     if (updates.sourceFiles || updates.moduleFiles || updates.imodFiles || updates.headerUnits ||
         updates.linkTargetsNoDebug || updates.linkTargetsDebug || updates.buildCache || updates.generatedHeaders)
     {
-        expected += 1; // build-cache.json
+        expected += 1; // build-cache.bin
     }
 
     if (actual.size() != expected)
