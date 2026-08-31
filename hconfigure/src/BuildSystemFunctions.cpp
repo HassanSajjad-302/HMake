@@ -843,18 +843,6 @@ void writeNodesCache()
     constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 1 + 2 * sizeof(uint64_t);
     const uint64_t cachedSize = nodesCountBefore == 0 ? 0 : nodesCacheGlobal.size();
     const bool hasNewNodes = nodeCount != nodesCountBefore;
-    uint64_t appendedSize = 0;
-    for (uint32_t id = nodesCountBefore; id < nodeCount; ++id)
-    {
-        const Node &node = *nodeIndices[id];
-        assert(!node.filePath.empty());
-        if (node.filePath.ends_with(slashc))
-        {
-            printErrorMessage(
-                FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
-        }
-        appendedSize += fixedRecordSize + node.filePath.size();
-    }
 
     uint64_t cachedOffset = 0;
     bool cachedMetadataChanged = false;
@@ -896,6 +884,19 @@ void writeNodesCache()
             writeCacheFile(cachePath(nodesCacheFileName), nodesCacheGlobal);
         }
         return;
+    }
+
+    uint64_t appendedSize = 0;
+    for (uint32_t id = nodesCountBefore; id < nodeCount; ++id)
+    {
+        const Node &node = *nodeIndices[id];
+        assert(!node.filePath.empty());
+        if (node.filePath.ends_with(slashc))
+        {
+            printErrorMessage(
+                FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
+        }
+        appendedSize += fixedRecordSize + node.filePath.size();
     }
 
     const uint64_t fileSize = cachedSize + appendedSize;
