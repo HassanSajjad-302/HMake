@@ -18,7 +18,7 @@ void configurationSpecification(Configuration &config)
         else
         {
             Node *outputDir = bsMode == BSMode::CONFIGURE
-                                  ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
+                                  ? Node::getNode<PathType::NEITHER>("../Example4/Build/Release/Cat" + str, false, false)
                                   : nullptr;
             cat = &config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
             cat->getSourceTarget().interfaceIncludes("../Example4/Cat/header");
