@@ -92,13 +92,13 @@ bool ueSourceLess(const Node *left, const Node *right, const uint64_t jumboFileS
     return left->filePath < right->filePath;
 }
 
-string getNearestPluginRoot(const string &moduleDirectory)
+string getNearestPluginRoot(const string_view moduleDirectory)
 {
     // Cache the nearest plugin root rather than only whether one directory owns a descriptor. Modules in the same
     // plugin then resolve after one hash lookup, and path compression also makes shared Engine ancestors cheap.
     static flat_hash_map<string, string> cache;
     STACK_PMR_VECTOR(string, uncachedDirectories, 16)
-    string directory = moduleDirectory;
+    string directory(moduleDirectory);
     string pluginRoot;
     while (!directory.empty())
     {
@@ -321,16 +321,16 @@ UeCppTarget &UeCppTarget::setShortName(const string_view value)
 
 bool UeCppTarget::conditionalAddModuleDirectory(const NodeOrStr &directory)
 {
-    const string directoryPath =
-        directory.node_ != nullptr ? directory.node_->filePath : getNormalizedPath(path(directory.str_));
-    if (!std::filesystem::is_directory(directoryPath))
+    Node *const directoryNode = directory.node_ != nullptr
+                                    ? directory.node_
+                                    : Node::getNode<PathType::NEITHER>(directory.str_, false, true);
+    if (directoryNode->fileType != file_type::directory)
     {
         return false;
     }
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *directoryNode = Node::getNode(directoryPath, false);
         if (std::ranges::find(moduleDirectories, directoryNode) == moduleDirectories.end())
         {
             moduleDirectories.emplace_back(directoryNode);
