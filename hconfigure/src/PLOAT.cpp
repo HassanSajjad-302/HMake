@@ -184,13 +184,21 @@ void PLOAT::completeRoundOne()
     {
         outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
     }
-    outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
+    string outputPath(outputDirectory->filePath);
+    outputPath += slashc;
+    outputPath += actualOutputName;
+    outputFileNode = Node::getNode<PathType::NORMAL_ABSOLUTE>(std::move(outputPath), true, true);
     if constexpr (os == OS::NT)
     {
         if (config.linkerFeatures.linker.bTFamily == BTFamily::MSVC &&
             (linkTargetType == TargetType::LIBRARY_SHARED || linkTargetType == TargetType::PLIBRARY_SHARED))
         {
-            importLibraryNode = Node::getNode(outputDirectory->filePath + slashc + outputName + ".lib", true, true);
+            string importLibraryPath(outputDirectory->filePath);
+            importLibraryPath += slashc;
+            importLibraryPath += outputName;
+            importLibraryPath += ".lib";
+            importLibraryNode =
+                Node::getNode<PathType::NORMAL_ABSOLUTE>(std::move(importLibraryPath), true, true);
         }
     }
 
