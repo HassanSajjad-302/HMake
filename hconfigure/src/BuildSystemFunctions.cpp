@@ -932,7 +932,7 @@ void writeNodesCache()
             }
             offset += 2 * sizeof(uint64_t);
         }
-        assert(offset == fileSize);
+        assert(offset == cachedSize + appendedSize);
         return offset;
     });
 
