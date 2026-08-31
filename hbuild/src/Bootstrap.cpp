@@ -137,8 +137,8 @@ bool parsePositiveInteger(const string_view value, uint16_t &result)
 
 struct Options
 {
-    std::optional<path> sourceDirectory;
-    std::optional<path> buildDirectory;
+    std::optional<string> sourceDirectory;
+    std::optional<string> buildDirectory;
     std::optional<string> toolchain;
     std::optional<uint16_t> defaultJobs;
     std::optional<uint16_t> jobs;
@@ -206,11 +206,11 @@ bool parseOptions(const int argc, char **argv, Options &options, string &diagnos
             }
             if (argument == "-S")
             {
-                options.sourceDirectory = path(value);
+                options.sourceDirectory = std::move(value);
             }
             else if (argument == "-B")
             {
-                options.buildDirectory = path(value);
+                options.buildDirectory = std::move(value);
             }
             else if (argument == "--toolchain")
             {
@@ -316,30 +316,12 @@ void printUsage()
         "  --target <name>         Add a target (repeatable)\n");
 }
 
-path normalizePath(const path &base, const path &input, string &diagnostic)
+string normalizePath(const string_view input)
 {
-    path result = input.is_relative() ? base / input : input;
-    if (result.is_relative())
-    {
-        std::error_code error;
-        result = std::filesystem::absolute(result, error);
-        if (error)
-        {
-            diagnostic = "Could not make path absolute: " + input.string() + "\nSystem error: " + error.message();
-            return {};
-        }
-    }
-    result = result.lexically_normal();
-    if (result != result.root_path() && !result.has_filename())
-    {
-        result = result.parent_path();
-    }
-#ifdef _WIN32
-    string lowered = result.string();
-    lowerCaseOnWindows(lowered.data(), lowered.size());
-    result = path(lowered);
-#endif
-    return result;
+    STACK_PMR_STRING(result, 4 * 1024)
+    result.assign(input);
+    Node::normalize<PathType::NEITHER>(result);
+    return string(result);
 }
 
 bool isRegularFile(const path &file)
@@ -348,18 +330,14 @@ bool isRegularFile(const path &file)
     return std::filesystem::is_regular_file(file, error) && !error;
 }
 
-path resolveSourceDirectory(const std::optional<path> &requestedDirectory, const path &invocationDirectory,
+path resolveSourceDirectory(const std::optional<string> &requestedDirectory, const path &invocationDirectory,
                             const path *buildDirectory, string &diagnostic)
 {
     if (buildDirectory == nullptr)
     {
         if (requestedDirectory)
         {
-            path sourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
-            if (!diagnostic.empty())
-            {
-                return {};
-            }
+            path sourceDirectory = normalizePath(*requestedDirectory);
             if (!isRegularFile(sourceDirectory / "hmake.cpp"))
             {
                 diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
@@ -392,11 +370,7 @@ path resolveSourceDirectory(const std::optional<path> &requestedDirectory, const
     }
     if (requestedDirectory)
     {
-        const path requestedSourceDirectory = normalizePath(invocationDirectory, *requestedDirectory, diagnostic);
-        if (!diagnostic.empty())
-        {
-            return {};
-        }
+        const path requestedSourceDirectory = normalizePath(*requestedDirectory);
         if (requestedSourceDirectory != sourceDirectory)
         {
             diagnostic = "The build directory must be an immediate child of the selected source directory.\n"
@@ -531,9 +505,9 @@ uint64_t commandHash(const Command &command)
 
 struct BuildCachePrefix
 {
+    string bytes;
     uint64_t ordinaryTailOffset = 0;
     uint64_t ordinaryTailSize = 0;
-    bool valid = false;
 };
 
 bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCachePrefix &prefix, string &diagnostic)
@@ -572,6 +546,8 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
     }
 
     uint64_t offset = 0;
+    string prefixBytes;
+    prefixBytes.reserve(4 * 1024);
     bool inputError = false;
     auto readBytes = [&](void *const destination, const uint64_t size) {
         if (offset > fileSize || size > fileSize - offset)
@@ -592,10 +568,14 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
             return false;
         }
         offset += size;
+        if (size != 0)
+        {
+            prefixBytes.append(static_cast<const char *>(destination), size);
+        }
         return true;
     };
 
-    uint64_t fixedPrefix[5];
+    uint64_t fixedPrefix[4];
     bool parsed = readBytes(fixedPrefix, sizeof(fixedPrefix));
     auto readIds = [&](flat_hash_set<Node *> &nodes) {
         uint32_t count = 0;
@@ -637,29 +617,66 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
         return !inputError;
     }
 
-    buildCacheContentHash = fixedPrefix[0];
-    buildExeCommandHash = fixedPrefix[1];
-    configureExeCommandHash = fixedPrefix[2];
-    selectedToolchainCommandCache = fixedPrefix[3];
-    projectCacheContentCache = fixedPrefix[4];
+    buildExeCommandHash = fixedPrefix[0];
+    configureExeCommandHash = fixedPrefix[1];
+    selectedToolchainCommandCache = fixedPrefix[2];
+    projectCacheContentCache = fixedPrefix[3];
+    prefix.bytes = std::move(prefixBytes);
     prefix.ordinaryTailOffset = offset;
     prefix.ordinaryTailSize = fileSize - offset;
-    prefix.valid = true;
     return true;
 }
 
 bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const bool preserveOrdinaryTail,
-                           const bool changed, string &diagnostic)
+                           string &diagnostic)
 {
-    if (!changed && (preserveOrdinaryTail || prefix.ordinaryTailSize == 0))
+    const uint64_t prefixSize = 4 * sizeof(uint64_t) + 2 * sizeof(uint32_t) +
+                                (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
+    const uint64_t tailSize = preserveOrdinaryTail ? prefix.ordinaryTailSize : 0;
+    string fileBuffer;
+    fileBuffer.reserve(prefixSize + tailSize);
+    writeUint64(fileBuffer, buildExeCommandHash);
+    writeUint64(fileBuffer, configureExeCommandHash);
+    writeUint64(fileBuffer, selectedToolchainCommandCache);
+    writeUint64(fileBuffer, projectCacheContentCache);
+    uint64_t cachedNodeOffset = 4 * sizeof(uint64_t);
+    const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
+        if (!prefix.bytes.empty())
+        {
+            const uint64_t recordStart = cachedNodeOffset;
+            uint32_t cachedCount;
+            memcpy(&cachedCount, prefix.bytes.data() + cachedNodeOffset, sizeof(cachedCount));
+            cachedNodeOffset += sizeof(cachedCount);
+            bool sameNodes = cachedCount == nodes.size();
+            for (uint32_t index = 0; index < cachedCount; ++index)
+            {
+                uint32_t nodeId;
+                memcpy(&nodeId, prefix.bytes.data() + cachedNodeOffset, sizeof(nodeId));
+                cachedNodeOffset += sizeof(nodeId);
+                sameNodes = sameNodes && nodes.contains(nodeIndices[nodeId]);
+            }
+            if (sameNodes)
+            {
+                fileBuffer.append(prefix.bytes.data() + recordStart, cachedNodeOffset - recordStart);
+                return;
+            }
+        }
+        writeUint32(fileBuffer, static_cast<uint32_t>(nodes.size()));
+        for (const Node *node : nodes)
+        {
+            assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
+            writeUint32(fileBuffer, node->myId);
+        }
+    };
+    writeNodes(recompileNodes);
+    writeNodes(reconfigureNodes);
+    assert(fileBuffer.size() == prefixSize);
+
+    if (fileBuffer == prefix.bytes && (preserveOrdinaryTail || prefix.ordinaryTailSize == 0))
     {
         return true;
     }
 
-    const uint64_t prefixSize = 4 * sizeof(uint64_t) + 2 * sizeof(uint32_t) +
-                                (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
-    const uint64_t tailSize = preserveOrdinaryTail ? prefix.ordinaryTailSize : 0;
-    const uint64_t totalSize = prefixSize + tailSize;
     FILE *tailInput = nullptr;
     if (tailSize != 0)
     {
@@ -688,48 +705,16 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
         }
     }
 
+    const uint64_t prefixBytes = fileBuffer.size();
+    fileBuffer.resize(prefixBytes + tailSize);
     uint64_t tailBytesRead = 0;
     int tailReadError = 0;
-    string fileBuffer;
-    fileBuffer.resize_and_overwrite(totalSize, [&](char *bytes, const uint64_t bufferSize) {
-        uint64_t offset = 0;
-        auto writeUint32 = [&](const uint32_t value) {
-            std::memcpy(bytes + offset, &value, sizeof(value));
-            offset += sizeof(value);
-        };
-        const auto writeUint64 = [&](const uint64_t value) {
-            std::memcpy(bytes + offset, &value, sizeof(value));
-            offset += sizeof(value);
-        };
-        writeUint64(buildExeCommandHash);
-        writeUint64(configureExeCommandHash);
-        writeUint64(selectedToolchainCommandCache);
-        writeUint64(projectCacheContentCache);
-        writeUint32(static_cast<uint32_t>(recompileNodes.size()));
-        for (const Node *node : recompileNodes)
-        {
-            assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
-            writeUint32(node->myId);
-        }
-        writeUint32(static_cast<uint32_t>(reconfigureNodes.size()));
-        for (const Node *node : reconfigureNodes)
-        {
-            assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
-            writeUint32(node->myId);
-        }
-        if (tailInput != nullptr)
-        {
-            errno = 0;
-            tailBytesRead = std::fread(bytes + offset, 1, tailSize, tailInput);
-            tailReadError = errno;
-            offset += tailBytesRead;
-        }
-        if (tailBytesRead == tailSize)
-        {
-            assert(offset == bufferSize);
-        }
-        return offset;
-    });
+    if (tailInput != nullptr)
+    {
+        errno = 0;
+        tailBytesRead = std::fread(fileBuffer.data() + prefixBytes, 1, tailSize, tailInput);
+        tailReadError = errno;
+    }
 
     if (tailInput != nullptr)
     {
@@ -749,11 +734,10 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
             return false;
         }
     }
-    assert(fileBuffer.size() == totalSize);
-    writeCacheFile(file.string(), fileBuffer, &buildCacheContentHash);
-    prefix.ordinaryTailOffset = sizeof(buildCacheContentHash) + prefixSize;
+    writeCacheFile(file.string(), fileBuffer);
+    prefix.bytes.assign(fileBuffer.data(), prefixSize);
+    prefix.ordinaryTailOffset = prefixSize;
     prefix.ordinaryTailSize = tailSize;
-    prefix.valid = true;
     return true;
 }
 
@@ -1070,7 +1054,7 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
     path buildDirectory;
     if (options.buildDirectory)
     {
-        buildDirectory = normalizePath(invocationDirectory, *options.buildDirectory, diagnostic);
+        buildDirectory = normalizePath(*options.buildDirectory);
     }
     else if (const path cachedBuild = findProjectBuildDirectory(invocationDirectory); !cachedBuild.empty())
     {
@@ -1087,11 +1071,6 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
         }
         buildDirectory = invocationDirectory;
     }
-    if (!diagnostic.empty())
-    {
-        return false;
-    }
-
     const path sourceDirectory =
         resolveSourceDirectory(options.sourceDirectory, invocationDirectory, &buildDirectory, diagnostic);
     if (sourceDirectory.empty())
@@ -1165,19 +1144,20 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
             configureNode = nullptr;
             nodeAllFiles.clear();
             nodeIndices.clear();
+            nodeStrings.clear();
             Node::idCount = 0;
             context.nodesCacheExisted = false;
         }
     }
     if (!context.nodesCacheExisted)
     {
-        srcNode = Node::getHalfNode(sourcePath);
-        configureNode = Node::getHalfNode(configurePath);
+        srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(sourcePath);
+        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(configurePath);
         normalizationBasePath = srcNode->filePath;
     }
 
-    currentNode = Node::getHalfNode(invocationDirectory.string());
-    context.hmakeFile = Node::getNode(hmakeFile.string(), true);
+    currentNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(invocationDirectory.string());
+    context.hmakeFile = Node::getNode<PathType::NORMAL_ABSOLUTE>(hmakeFile.string(), true);
     return true;
 }
 
@@ -1262,16 +1242,14 @@ int runGeneratedBuild(const Options &options, const path &executable, const path
 int runBootstrap(const int argc, char **argv)
 {
     std::error_code invocationError;
-    path invocationDirectory = std::filesystem::current_path(invocationError);
+    string invocationPath = std::filesystem::current_path(invocationError).string();
     if (invocationError)
     {
         printErrorMessage("Could not determine the current directory.\nSystem error: " + invocationError.message());
     }
-#ifdef _WIN32
-    string loweredInvocationDirectory = invocationDirectory.string();
-    lowerCaseOnWindows(loweredInvocationDirectory.data(), loweredInvocationDirectory.size());
-    invocationDirectory = path(loweredInvocationDirectory);
-#endif
+    lowerCaseOnWindows(invocationPath.data(), invocationPath.size());
+    normalizationBasePath = invocationPath;
+    const path invocationDirectory(invocationPath);
 
     Options options;
     string diagnostic;
@@ -1343,8 +1321,7 @@ int runBootstrap(const int argc, char **argv)
         }
 
         const bool nodesMetadataMissing = !project.nodesCacheExisted;
-        const bool buildMetadataMissing = !prefix.valid;
-        bool prefixChanged = buildMetadataMissing;
+        const bool buildMetadataMissing = prefix.bytes.empty();
         const bool configExistsInitially = isRegularFile(configFile);
         const uint64_t selectedToolchainCache = toolchainCommandCache(*projectToolchain);
         const uint64_t projectContentCache = projectCache.contentCache();
@@ -1352,7 +1329,7 @@ int runBootstrap(const int argc, char **argv)
                            !isRegularFile(buildTask.finalExecutable) || nodesMetadataMissing || buildMetadataMissing;
         bool mustConfigure = options.reconfigure || mustCompile || !configExistsInitially;
 
-        if (prefix.valid)
+        if (!prefix.bytes.empty())
         {
             STACK_PMR_VECTOR(uint64_t, cachedRecompileSnapshots, 64)
             cachedRecompileSnapshots.reserve(recompileNodes.size() * 2);
@@ -1400,7 +1377,6 @@ int runBootstrap(const int argc, char **argv)
 
         if (mustCompile)
         {
-            prefixChanged = true;
             printMessage("Compiling configure and build executables\n");
             flat_hash_set<Node *> dependencies;
             if (!compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler,
@@ -1409,19 +1385,15 @@ int runBootstrap(const int argc, char **argv)
                 printErrorMessage(diagnostic);
             }
             dependencies.emplace(project.hmakeFile);
-            dependencies.emplace(Node::getNodeNonNormalized(HCONFIGURE_C_STATIC_LIB_PATH, true));
-            dependencies.emplace(Node::getNodeNonNormalized(HCONFIGURE_B_STATIC_LIB_PATH, true));
+            dependencies.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
+            dependencies.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
             if (isRegularFile(bootstrapToolchain->compiler.bTPath))
             {
-                dependencies.emplace(Node::getNodeNonNormalized(bootstrapToolchain->compiler.bTPath, true));
+                dependencies.emplace(Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true));
             }
             recompileNodes = std::move(dependencies);
         }
 
-        prefixChanged = prefixChanged || buildExeCommandHash != buildTask.semanticHash ||
-                        configureExeCommandHash != configureTask.semanticHash ||
-                        selectedToolchainCommandCache != selectedToolchainCache ||
-                        projectCacheContentCache != projectContentCache;
         buildExeCommandHash = buildTask.semanticHash;
         configureExeCommandHash = configureTask.semanticHash;
         selectedToolchainCommandCache = selectedToolchainCache;
@@ -1431,7 +1403,6 @@ int runBootstrap(const int argc, char **argv)
         // snapshot only after hbuild has used it for the take-off decision, so removed entries do not live forever.
         if (mustConfigure)
         {
-            prefixChanged = prefixChanged || !reconfigureNodes.empty();
             reconfigureNodes.clear();
         }
 
@@ -1446,8 +1417,8 @@ int runBootstrap(const int argc, char **argv)
         }
         writeNodesCache();
         const bool preserveOrdinaryTail =
-            configExistsInitially && !options.reconfigure && !nodesMetadataMissing && prefix.valid;
-        if (!writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail, prefixChanged, diagnostic))
+            configExistsInitially && !options.reconfigure && !nodesMetadataMissing && !prefix.bytes.empty();
+        if (!writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail, diagnostic))
         {
             printErrorMessage(diagnostic);
         }
