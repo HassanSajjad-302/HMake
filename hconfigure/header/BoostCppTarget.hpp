@@ -388,9 +388,11 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     Node *myBuildDir = nullptr;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
-                                     target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::getHalfNode(myBuildDirStr);
+        string myBuildDirStr(configureNode->filePath);
+        myBuildDirStr += slashc;
+        myBuildDirStr += configurationNamePlusTargetName;
+        myBuildDirStr += target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(myBuildDirStr));
     }
     const string *pushName =
         new string(target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName));
@@ -411,9 +413,11 @@ void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_
     Node *myBuildDir = nullptr;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
-                                     target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::getHalfNode(myBuildDirStr);
+        string myBuildDirStr(configureNode->filePath);
+        myBuildDirStr += slashc;
+        myBuildDirStr += configurationNamePlusTargetName;
+        myBuildDirStr += target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(myBuildDirStr));
     }
 
     const string pushName =
@@ -433,9 +437,11 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     Node *myBuildDir = nullptr;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
-                                     target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::getHalfNode(myBuildDirStr);
+        string myBuildDirStr(configureNode->filePath);
+        myBuildDirStr += slashc;
+        myBuildDirStr += configurationNamePlusTargetName;
+        myBuildDirStr += target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(myBuildDirStr));
     }
     const string *pushName = new string(target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc +
                                         getNameBeforeLastPeriod(fileName));
@@ -457,9 +463,11 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
     Node *myBuildDir = nullptr;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
-                                     target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::getHalfNode(myBuildDirStr);
+        string myBuildDirStr(configureNode->filePath);
+        myBuildDirStr += slashc;
+        myBuildDirStr += configurationNamePlusTargetName;
+        myBuildDirStr += target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(myBuildDirStr));
     }
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
@@ -653,7 +661,7 @@ template <BoostExampleOrTestType EOT> BoostCppTarget &BoostCppTarget::addDir(str
     {
         if (configuration->evaluate(BuildTests::YES))
         {
-            for (const auto &k : directory_iterator(path(srcNode->filePath + string(sourceDir))))
+            for (const auto &k : directory_iterator(path(srcNode->filePath) / path(sourceDir)))
             {
                 if (k.path().extension() == ".cpp")
                 {
@@ -672,7 +680,7 @@ BoostCppTarget &BoostCppTarget::addDirEndsWith(string_view sourceDir, string_vie
     {
         if (configuration->evaluate(BuildTests::YES))
         {
-            for (const auto &k : directory_iterator(path(srcNode->filePath + string(sourceDir))))
+            for (const auto &k : directory_iterator(path(srcNode->filePath) / path(sourceDir)))
             {
                 if (k.path().extension() == ".cpp")
                 {
