@@ -11,10 +11,10 @@ void editOutFilesRecursive(CppTarget *t, string directory, string extension, set
         set<Node *> noInclude;
         for (const string &str : doNotInclude)
         {
-            noInclude.emplace(Node::getNodeNonNormalized(directory + slashc + str, true));
+            noInclude.emplace(Node::getNode<PathType::NEITHER>(directory + slashc + str, true));
         }
 
-        for (const auto &f : recursive_directory_iterator(srcNode->filePath / path(directory)))
+        for (const auto &f : recursive_directory_iterator(path(srcNode->filePath) / directory))
         {
             if (f.is_regular_file() && f.path().extension() == extension)
             {
@@ -177,8 +177,9 @@ void configurationSpecification(Configuration &config)
         PLOAT &llvmSupportCPloat = config.getStaticPLOAT(
             "LLVMSupportC",
             bsMode == BSMode::CONFIGURE
-                ? Node::getNodeNonNormalized(
-                      configureNode->filePath + string{slashc} + "standard" + string{slashc} + "LLVMSupportC", false)
+                ? Node::getNode<PathType::NORMAL_ABSOLUTE>(string(configureNode->filePath) + slashc + "standard" +
+                                                              slashc + "LLVMSupportC",
+                                                          false)
                 : nullptr);
         llvmSupportCPloatPointer = &llvmSupportCPloat;
     }

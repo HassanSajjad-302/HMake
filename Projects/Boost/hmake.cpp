@@ -87,23 +87,28 @@ void configurationSpecification(Configuration &config)
         {
             containerHash.testReqHeaderFiles.erase("config.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./config.hpp", Node::getNodeNonNormalized("libs/container_hash/test/config.hpp", true));
+                "./config.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/config.hpp", true));
             containerHash.testReqHeaderFiles.erase("compile_time.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./compile_time.hpp", Node::getNodeNonNormalized("libs/container_hash/test/compile_time.hpp", true));
+                "./compile_time.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/compile_time.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_set_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_set_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_set_test.hpp", true));
+                "./hash_set_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_set_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_map_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_map_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_map_test.hpp", true));
+                "./hash_map_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_map_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_sequence_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
                 "./hash_sequence_test.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/hash_sequence_test.hpp", true));
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_sequence_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_fwd_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_fwd_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_fwd_test.hpp", true));
+                "./hash_fwd_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_fwd_test.hpp", true));
         }
     }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);
