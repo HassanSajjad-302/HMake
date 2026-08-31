@@ -84,6 +84,10 @@ extern uint64_t configureExeCommandHash;
 extern uint64_t selectedToolchainCommandCache;
 extern uint64_t projectCacheContentCache;
 
+/// Number of Nodes backed by the immutable nodes-cache buffer loaded at process start. This remains fixed after a
+/// write because cached Node path views continue to borrow from that original buffer.
+extern uint32_t nodesCountBefore;
+
 /// Files whose content changes require rebuilding the generated executables or rerunning configuration.
 extern flat_hash_set<Node *> recompileNodes;
 extern flat_hash_set<Node *> reconfigureNodes;
@@ -487,7 +491,9 @@ void commandWithResponseFile(string &command, const string &responseFile, uint64
 /// and 1 as `srcNode` and `configureNode`. The retained file buffer owns the path views for the process lifetime.
 void loadNodesCache(const path &fileName);
 
-/// Atomically writes the same repeated-record representation to `nodes-cache.bin` when its bytes changed.
+/// Atomically writes the same repeated-record representation to `nodes-cache.bin` when its bytes changed. Existing
+/// path records are retained from the loaded cache; only their resolved metadata and newly discovered Nodes are
+/// serialized.
 void writeNodesCache();
 string getBuildCache();
 string getThreadId();

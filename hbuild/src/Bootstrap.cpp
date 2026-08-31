@@ -1146,6 +1146,7 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
             nodeIndices.clear();
             nodeStrings.clear();
             Node::idCount = 0;
+            nodesCountBefore = 0;
             context.nodesCacheExisted = false;
         }
     }

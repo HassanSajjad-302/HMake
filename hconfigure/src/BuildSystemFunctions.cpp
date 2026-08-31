@@ -38,6 +38,7 @@ uint64_t buildExeCommandHash = 0;
 uint64_t configureExeCommandHash = 0;
 uint64_t selectedToolchainCommandCache = 0;
 uint64_t projectCacheContentCache = 0;
+uint32_t nodesCountBefore = 0;
 flat_hash_set<Node *> recompileNodes;
 flat_hash_set<Node *> reconfigureNodes;
 
@@ -267,6 +268,7 @@ void constructGlobals()
     configureExeCommandHash = 0;
     selectedToolchainCommandCache = 0;
     projectCacheContentCache = 0;
+    nodesCountBefore = 0;
     buildJobsOverride = 0;
 #ifdef _WIN32
     currentIndex = 0;
@@ -742,6 +744,7 @@ void loadNodesCache(const path &fileName)
     srcNode = nodeIndices[0];
     configureNode = nodeIndices[1];
     normalizationBasePath = srcNode->filePath;
+    nodesCountBefore = Node::idCount;
 }
 
 namespace
@@ -832,62 +835,90 @@ void writeNodesCache()
 {
     const uint32_t nodeCount = Node::idCount;
     assert(nodeCount >= 2);
+    assert(nodesCountBefore <= nodeCount);
     assert(nodeIndices[0] == srcNode);
     assert(nodeIndices[1] == configureNode);
 
-    uint64_t fileSize = 0;
-    for (uint32_t id = 0; id < nodeCount; ++id)
+    constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 1 + 2 * sizeof(uint64_t);
+    const uint64_t cachedSize = nodesCountBefore == 0 ? 0 : nodesCacheGlobal.size();
+    uint64_t appendedSize = 0;
+    for (uint32_t id = nodesCountBefore; id < nodeCount; ++id)
     {
         const Node &node = *nodeIndices[id];
         assert(!node.filePath.empty());
-        constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 1 + 2 * sizeof(uint64_t);
-        fileSize += fixedRecordSize + node.filePath.size();
+        if (node.filePath.ends_with(slashc))
+        {
+            printErrorMessage(
+                FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
+        }
+        appendedSize += fixedRecordSize + node.filePath.size();
     }
 
-    const string destination = cachePath(nodesCacheFileName);
-    string fileBuffer;
-    fileBuffer.resize_and_overwrite(fileSize, [nodeCount](char *bytes, const uint64_t) {
+    const auto scanCachedNodes = [&](char *destination) {
         uint64_t offset = 0;
-        uint64_t previousOffset = 0;
-        for (uint32_t id = 0; id < nodeCount; ++id)
+        bool metadataChanged = false;
+        for (uint32_t id = 0; id < nodesCountBefore; ++id)
         {
             const Node &node = *nodeIndices[id];
-            const uint16_t pathSize = static_cast<uint16_t>(node.filePath.size());
-            memcpy(bytes + offset, &pathSize, sizeof(pathSize));
-            offset += sizeof(pathSize);
             if (node.filePath.ends_with(slashc))
             {
                 printErrorMessage(
                     FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
             }
+
+            offset += sizeof(uint16_t) + node.filePath.size() + 1;
+            if (node.hashCompleted)
+            {
+                uint64_t cachedLastWriteTime;
+                uint64_t cachedContentHash;
+                memcpy(&cachedLastWriteTime, nodesCacheGlobal.data() + offset, sizeof(cachedLastWriteTime));
+                memcpy(&cachedContentHash, nodesCacheGlobal.data() + offset + sizeof(cachedLastWriteTime),
+                       sizeof(cachedContentHash));
+                const bool nodeMetadataChanged = cachedLastWriteTime != node.lastWriteTime ||
+                                                 cachedContentHash != node.contentHash;
+                metadataChanged = metadataChanged || nodeMetadataChanged;
+                if (destination != nullptr && nodeMetadataChanged)
+                {
+                    memcpy(destination + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
+                    memcpy(destination + offset + sizeof(node.lastWriteTime), &node.contentHash,
+                           sizeof(node.contentHash));
+                }
+            }
+            offset += 2 * sizeof(uint64_t);
+        }
+        assert(offset == cachedSize);
+        return metadataChanged;
+    };
+
+    if (nodeCount == nodesCountBefore && !scanCachedNodes(nullptr))
+    {
+        return;
+    }
+
+    const uint64_t fileSize = cachedSize + appendedSize;
+    string fileBuffer;
+    fileBuffer.resize_and_overwrite(fileSize, [&](char *bytes, const uint64_t) {
+        if (cachedSize != 0)
+        {
+            memcpy(bytes, nodesCacheGlobal.data(), cachedSize);
+            scanCachedNodes(bytes);
+        }
+
+        uint64_t offset = cachedSize;
+        for (uint32_t id = nodesCountBefore; id < nodeCount; ++id)
+        {
+            const Node &node = *nodeIndices[id];
+            const uint16_t pathSize = static_cast<uint16_t>(node.filePath.size());
+            memcpy(bytes + offset, &pathSize, sizeof(pathSize));
+            offset += sizeof(pathSize);
             memcpy(bytes + offset, node.filePath.data(), pathSize);
             offset += pathSize;
             bytes[offset++] = '\0';
-
-            const char *previousMetadata = nullptr;
-            if (previousOffset < nodesCacheGlobal.size())
-            {
-                uint16_t previousPathSize;
-                memcpy(&previousPathSize, nodesCacheGlobal.data() + previousOffset, sizeof(previousPathSize));
-                previousOffset += sizeof(previousPathSize);
-                const char *previousPath = nodesCacheGlobal.data() + previousOffset;
-                previousOffset += previousPathSize + 1;
-                if (!node.hashCompleted && previousPathSize == pathSize &&
-                    memcmp(previousPath, node.filePath.data(), pathSize) == 0)
-                {
-                    previousMetadata = nodesCacheGlobal.data() + previousOffset;
-                }
-                previousOffset += 2 * sizeof(uint64_t);
-            }
 
             if (node.hashCompleted)
             {
                 memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
                 memcpy(bytes + offset + sizeof(node.lastWriteTime), &node.contentHash, sizeof(node.contentHash));
-            }
-            else if (previousMetadata != nullptr)
-            {
-                memcpy(bytes + offset, previousMetadata, 2 * sizeof(uint64_t));
             }
             else
             {
@@ -899,13 +930,11 @@ void writeNodesCache()
             }
             offset += 2 * sizeof(uint64_t);
         }
+        assert(offset == fileSize);
         return offset;
     });
 
-    if (fileBuffer != nodesCacheGlobal)
-    {
-        writeCacheFile(destination, fileBuffer);
-    }
+    writeCacheFile(cachePath(nodesCacheFileName), fileBuffer);
 }
 
 namespace
