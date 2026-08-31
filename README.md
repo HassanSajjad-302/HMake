@@ -50,8 +50,9 @@ filesystem path. This ID remains stable across rebuilds and reconfigurations, al
 to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
 size of UE5 — and near-instant build startup even for very large projects.
 
-`initializeCache()` loads path strings and their cached filesystem snapshots from `nodes-cache.bin` without stating or
-hashing them yet. Before round 0, `Builder::checkNodes()` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
+`initializeCache()` retains `nodes-cache.bin`; loaded nodes refer directly to its NUL-terminated path bytes, while newly
+interned paths use stable process-owned strings. It restores filesystem snapshots without stating or hashing them yet.
+Before round 0, `Builder::checkNodes()` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
 `doStatFile` / `doHashFile`. Skip/rebuild decisions use `Node::contentHash` (rapidhash of file contents) inside
 `setUpdateStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
 nodes that were flagged during compilation (for example headers discovered from compiler output).
@@ -61,12 +62,12 @@ nodes that were flagged during compilation (for example headers discovered from 
 Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache.bin` and `build-cache.bin` files under the
 configure directory (see `initializeCache()` / `configureOrBuild()` in `BuildSystemFunctions.cpp`).
 
-Each binary cache starts with a 64-bit hash of the remaining payload. HMake uses this hash to avoid replacing an
-unchanged file; it does not change the payload layout.
+The binary files contain only their payloads. HMake retains the previously read bytes and compares a newly serialized
+payload directly, avoiding a temporary write and atomic replacement when the cache is unchanged.
 
 | File | When written | Contents |
 |------|----------------|----------|
-| `nodes-cache.bin` | Configure or build | Repeated path, modification-time, and content-hash records in `Node::myId` order |
+| `nodes-cache.bin` | Configure or build | Repeated `[u16 path size][path][NUL][u64 modification time][u64 content hash]` records in `Node::myId` order |
 | `config-cache.bin` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
 | `build-cache.bin` | HMake take-off, configure, or build | Four take-off caches, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
 
@@ -1097,7 +1098,7 @@ void configurationSpecification(Configuration &config)
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         Node *outputDir = bsMode == BSMode::CONFIGURE
-                              ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
+                              ? Node::getNode<PathType::NEITHER>("../Example4/Build/Release/Cat" + str, false, false)
                               : nullptr;
         DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
@@ -1139,8 +1140,7 @@ MAIN_FUNCTION
 order is correct for linkers that require it.
 
 `getCppTargetDSC_P` accepts an output directory `Node*`, allowing consumption of a prebuilt library from another build
-tree. Pass `nullptr` at build time (only needed at configure time. why do an extra `Node::getNodeNonNormalized` function
-call).
+tree. Pass `nullptr` at build time because the output-directory lookup is needed only while configuring.
 
 ### Example 7 — C++20 modules and header units
 
