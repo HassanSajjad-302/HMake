@@ -13,7 +13,8 @@ struct Compiler;
 
 /// Parses compiler dependencies and removes MSVC showIncludes records from output.
 /// MSVC uses showIncludes when dependencyFile is empty and /sourceDependencies otherwise; GCC-family compilers
-/// use Make dependency syntax. Relative paths are resolved against workingDirectory and normalized lexically.
+/// use Make dependency syntax. `workingDirectory` is an absolute normalized directory without a trailing separator;
+/// relative paths are resolved against it and normalized lexically.
 /// The compiled source is always excluded; configure-tree headers are excluded only when requested.
 gtl::flat_hash_set<Node *> parseHeaderDeps(std::string &output, const Compiler &compiler, int exitStatus,
                                            const std::string &dependencyFile, std::string_view workingDirectory,
