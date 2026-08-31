@@ -148,7 +148,10 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
     }
     else
     {
-        string str = srcNode->filePath + "/libs/" + name + "/test";
+        string str(srcNode->filePath);
+        str += "/libs/";
+        str += name;
+        str += "/test";
         for (const auto &p : std::filesystem::recursive_directory_iterator(str))
         {
             if (p.path().extension() == ".ipp" || p.path().extension() == ".hpp")
