@@ -88,7 +88,7 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
 
 string CppSrc::getPrintName() const
 {
-    return node->filePath;
+    return string(node->filePath);
 }
 
 void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
@@ -113,17 +113,27 @@ void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
         compileCommand += "-c /nologo ";
         if (target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
         {
-            compileCommand += "/sourceDependencies \"" + objectNodes.front()->filePath + ".json\" ";
+            compileCommand += "/sourceDependencies \"";
+            compileCommand += objectNodes.front()->filePath;
+            compileCommand += ".json\" ";
         }
         else
         {
             compileCommand += "/showIncludes ";
         }
-        compileCommand += "/TP \"" + node->filePath + "\" /Fo\"" + objectNodes.front()->filePath + "\"";
+        compileCommand += "/TP \"";
+        compileCommand += node->filePath;
+        compileCommand += "\" /Fo\"";
+        compileCommand += objectNodes.front()->filePath;
+        compileCommand += '"';
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
-        compileCommand += "-c -MMD \"" + node->filePath + "\" -o \"" + objectNodes.front()->filePath + "\"";
+        compileCommand += "-c -MMD \"";
+        compileCommand += node->filePath;
+        compileCommand += "\" -o \"";
+        compileCommand += objectNodes.front()->filePath;
+        compileCommand += '"';
     }
 }
 
@@ -183,7 +193,9 @@ bool CppSrc::isEventRegistered(Builder &builder)
     const uint64_t responseFileThreshold = target->configuration->responseFileThreshold;
     if (responseFileThreshold != 0 && cppFullCompileCommand.size() > responseFileThreshold)
     {
-        commandWithResponseFile(cppFullCompileCommand, objectNodes.front()->filePath + ".rsp", responseFileThreshold);
+        string responseFile(objectNodes.front()->filePath);
+        responseFile += ".rsp";
+        commandWithResponseFile(cppFullCompileCommand, responseFile, responseFileThreshold);
     }
     run.startAsyncProcess(cppFullCompileCommand.data(), builder, this, false);
     return true;
@@ -202,7 +214,8 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
     else if (compiler.bTFamily == BTFamily::MSVC &&
              target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
     {
-        dependencyFile = objectNodes.front()->filePath + ".json";
+        dependencyFile = objectNodes.front()->filePath;
+        dependencyFile += ".json";
     }
     headerFiles = parseHeaderDeps(*run.output, compiler, realBTargets[0].exitStatus, dependencyFile,
                                   currentNode->filePath, node, true);
@@ -259,7 +272,7 @@ void CppSrc::writeConfigCacheAtConfigTime(string &buffer)
     objectFile += node->getFileName();
     objectFile += fileNumber;
     objectFile += ".o";
-    objectNodes.emplace_back(Node::getNode(objectFile, true, true));
+    objectNodes.emplace_back(Node::getNode<PathType::NORMAL_ABSOLUTE>(objectFile, true, true));
     writeNode(buffer, objectNodes.front());
 }
 
@@ -304,7 +317,8 @@ void CppSrc::verifyBuildCache(const string_view buildCache) const
         }
 
         const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
-        const path debugFile = target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
+        const path debugFile = path(target->myBuildDir->filePath) /
+                               path("hashes" + toString(node->myId) + ".txt");
         if (std::ofstream out(debugFile, std::ios::app); out)
         {
             out << "commandHash:       " << commandHash << '\n';
@@ -880,7 +894,9 @@ bool CppMod::isEventRegistered(Builder &builder)
     if (responseFileThreshold != 0 && cppFullCompileCommand.size() > responseFileThreshold)
     {
         const Node *compileOutput = objectNodes.empty() ? interfaceNode : objectNodes.front();
-        commandWithResponseFile(cppFullCompileCommand, compileOutput->filePath + ".rsp", responseFileThreshold);
+        string responseFile(compileOutput->filePath);
+        responseFile += ".rsp";
+        commandWithResponseFile(cppFullCompileCommand, responseFile, responseFileThreshold);
     }
     if (!target->useIPC)
     {
@@ -1033,7 +1049,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         else if (target->configuration->msvcHeaderDependencyMode ==
                  MSVCHeaderDependencyMode::DEPENDENCY_FILE)
         {
-            dependencyFile = compileOutput->filePath + ".json";
+            dependencyFile = compileOutput->filePath;
+            dependencyFile += ".json";
         }
         headerFiles = parseHeaderDeps(*run.output, compiler, rb.exitStatus, dependencyFile,
                                       currentNode->filePath, node, true);
@@ -1359,18 +1376,35 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand +=
-                (target->isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"") +
-                interfaceNode->filePath + "\" " + useIPCsTR + "-x c++-header \"" + node->filePath + '\"';
+                target->isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"";
+            compileCommand += interfaceNode->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-x c++-header \"";
+            compileCommand += node->filePath;
+            compileCommand += '"';
         }
         else if (type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
         {
-            compileCommand += " -o \"" + objectNodes.front()->filePath + "\" " + useIPCsTR + "-c -x c++-module \"" +
-                              node->filePath + "\" -fmodule-output=\"" + interfaceNode->filePath + '\"';
+            compileCommand += " -o \"";
+            compileCommand += objectNodes.front()->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-c -x c++-module \"";
+            compileCommand += node->filePath;
+            compileCommand += "\" -fmodule-output=\"";
+            compileCommand += interfaceNode->filePath;
+            compileCommand += '"';
         }
         else
         {
-            compileCommand +=
-                "-o \"" + objectNodes.front()->filePath + "\" " + useIPCsTR + "-c /TP \"" + node->filePath + '\"';
+            compileCommand += "-o \"";
+            compileCommand += objectNodes.front()->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-c /TP \"";
+            compileCommand += node->filePath;
+            compileCommand += '"';
         }
 
         if (isConsole)
@@ -1386,18 +1420,35 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     {
         if (type == CppModType::HEADER_UNIT)
         {
-            compileCommand += (target->isSystem ? "-fmodule-header=system -o\"" : "-fmodule-header=user -o\"") +
-                              interfaceNode->filePath + "\" " + useIPCsTR + "-x c++-header \"" + node->filePath + '\"';
+            compileCommand += target->isSystem ? "-fmodule-header=system -o\"" : "-fmodule-header=user -o\"";
+            compileCommand += interfaceNode->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-x c++-header \"";
+            compileCommand += node->filePath;
+            compileCommand += '"';
         }
         else if (type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
         {
-            compileCommand += " -o \"" + objectNodes.front()->filePath + "\" " + useIPCsTR + "-c -x c++-module \"" +
-                              node->filePath + "\" -fmodule-output=\"" + interfaceNode->filePath + '\"';
+            compileCommand += " -o \"";
+            compileCommand += objectNodes.front()->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-c -x c++-module \"";
+            compileCommand += node->filePath;
+            compileCommand += "\" -fmodule-output=\"";
+            compileCommand += interfaceNode->filePath;
+            compileCommand += '"';
         }
         else
         {
-            compileCommand +=
-                "-o \"" + objectNodes.front()->filePath + "\" " + useIPCsTR + "-c \"" + node->filePath + '\"';
+            compileCommand += "-o \"";
+            compileCommand += objectNodes.front()->filePath;
+            compileCommand += "\" ";
+            compileCommand += useIPCsTR;
+            compileCommand += "-c \"";
+            compileCommand += node->filePath;
+            compileCommand += '"';
         }
 
         if (isConsole)
@@ -1420,7 +1471,9 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     {
         if (target->configuration->msvcHeaderDependencyMode == MSVCHeaderDependencyMode::DEPENDENCY_FILE)
         {
-            compileCommand += " /sourceDependencies \"" + compileOutput->filePath + ".json\" ";
+            compileCommand += " /sourceDependencies \"";
+            compileCommand += compileOutput->filePath;
+            compileCommand += ".json\" ";
         }
         else
         {
@@ -1429,7 +1482,7 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     }
     else
     {
-        string dependencyFile = compileOutput->filePath;
+        string dependencyFile(compileOutput->filePath);
         dependencyFile.resize(dependencyFile.size() - compileOutput->getFileExtension().size());
         dependencyFile += ".d";
         compileCommand += " -MMD -MF \"" + dependencyFile + "\" ";
@@ -1442,7 +1495,9 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
         {
             continue;
         }
-        compileCommand += "-fmodule-file=\"" + mod->interfaceNode->filePath + "\" ";
+        compileCommand += "-fmodule-file=\"";
+        compileCommand += mod->interfaceNode->filePath;
+        compileCommand += "\" ";
     }
 }
 
@@ -1688,7 +1743,7 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
         interfaceFile += node->getFileName();
         interfaceFile += fileNumber;
         interfaceFile += ".ifc";
-        interfaceNode = Node::getNode(interfaceFile, true, true);
+        interfaceNode = Node::getNode<PathType::NORMAL_ABSOLUTE>(interfaceFile, true, true);
         writeNode(buffer, interfaceNode);
         writeStringView(buffer, logicalName);
     }
@@ -1703,7 +1758,7 @@ void CppMod::writeConfigCacheAtConfigTime(string &buffer)
         objectFile += node->getFileName();
         objectFile += fileNumber;
         objectFile += ".o";
-        objectNodes.emplace_back(Node::getNode(objectFile, true, true));
+        objectNodes.emplace_back(Node::getNode<PathType::NORMAL_ABSOLUTE>(objectFile, true, true));
         writeNode(buffer, objectNodes.front());
     }
     else
@@ -1965,8 +2020,8 @@ void CppMod::verifyBuildCache(const string_view buildCache) const
 
         {
             const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
-            const path debugFile =
-                target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
+            const path debugFile = path(target->myBuildDir->filePath) /
+                                   path("hashes" + toString(node->myId) + ".txt");
             if (std::ofstream out(debugFile, std::ios::app); out)
             {
                 out << "commandHash:       " << commandHash << '\n';
@@ -2139,15 +2194,17 @@ void AdaptiveManager::prepareWorkingSet()
         printErrorMessage("Adaptive unity requires a project source root (`srcNode`).");
     }
 
+    STACK_PMR_STRING(normalizedPath, 4 * 1024)
     const auto markPath = [&](const string_view reportedPath, const bool relativeToSourceRoot) {
-        path candidatePath(reportedPath);
+        normalizedPath.clear();
         if (relativeToSourceRoot)
         {
-            candidatePath = path(srcNode->filePath) / candidatePath;
+            normalizedPath.assign(srcNode->filePath);
+            normalizedPath += slashc;
         }
-        string normalized = candidatePath.lexically_normal().string();
-        lowerCaseOnWindows(normalized.data(), normalized.size());
-        sourceControlPaths.emplace(std::move(normalized));
+        normalizedPath.append(reportedPath);
+        Node::normalize<PathType::ABSOLUTE>(normalizedPath);
+        sourceControlPaths.emplace(normalizedPath);
     };
 
     if (!sourceControlQueried)
@@ -2281,7 +2338,11 @@ void AdaptiveManager::completeRoundOne()
         return compileUnit;
     };
     const auto getGeneratedNode = [&](const uint32_t index) {
-        return Node::getHalfNode(owner.myBuildDir->filePath + slashc + std::to_string(index) + ".gen.cpp");
+        string generatedPath(owner.myBuildDir->filePath);
+        generatedPath += slashc;
+        generatedPath += std::to_string(index);
+        generatedPath += ".gen.cpp";
+        return Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(generatedPath));
     };
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -2329,11 +2390,11 @@ void AdaptiveManager::completeRoundOne()
 
     const auto writeGeneratedPartition = [&](const uint32_t firstSourceIndex, const string &contents) {
         const Node *generatedNode = getGeneratedNode(firstSourceIndex);
-        if (const string &generatedPath = generatedNode->filePath;
+        if (const string_view generatedPath = generatedNode->filePath;
             !std::filesystem::exists(generatedPath) || fileToString(generatedPath) != contents)
         {
             std::filesystem::create_directories(path(generatedPath).parent_path());
-            std::ofstream(generatedPath, std::ios::binary) << contents;
+            std::ofstream(generatedPath.data(), std::ios::binary) << contents;
         }
         scheduleCompileUnit(createCompileUnit(generatedNode, true));
     };
