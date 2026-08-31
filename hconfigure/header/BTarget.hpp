@@ -591,9 +591,8 @@ inline BTarget *RealBTarget::getBTarget() const
 /// `BuildSystemFunctions.cpp`.
 ///
 /// On disk (under the configure directory as uncompressed binary files):
-/// - Each file starts with a u64 hash of the remaining payload, used to avoid replacing an unchanged cache.
-/// - `config-cache.bin` payload — one entry per target: `cacheName`, sized `configCache` blob.
-/// - `build-cache.bin` payload — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
+/// - `config-cache.bin` — one entry per target: `cacheName`, sized `configCache` blob.
+/// - `build-cache.bin` — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
 ///   FULL/WAIT `cacheIndex` list), then sized per-target
 ///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `completionTime`).
 ///

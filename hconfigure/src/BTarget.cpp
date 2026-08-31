@@ -284,7 +284,10 @@ void BTarget::initializeBTarget(bool makeDirectory)
     {
         if (makeDirectory)
         {
-            std::filesystem::create_directory(configureNode->filePath + slashc + name);
+            string directory(configureNode->filePath);
+            directory += slashc;
+            directory += name;
+            std::filesystem::create_directory(directory);
         }
     }
 
