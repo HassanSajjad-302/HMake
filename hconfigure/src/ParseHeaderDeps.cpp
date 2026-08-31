@@ -8,7 +8,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 #include <utility>
 
 namespace
@@ -20,8 +19,10 @@ struct HeaderDepsParser
     std::string_view workingDirectory;
     const Node *compiledSource;
     bool excludeHeadersInConfigureNode;
-    std::filesystem::path workingDirectoryPath;
     gtl::flat_hash_set<Node *> dependencies;
+    alignas(std::max_align_t) std::array<std::byte, 4 * 1024 + 64> pathBuffer;
+    std::pmr::monotonic_buffer_resource pathResource{pathBuffer.data(), pathBuffer.size()};
+    std::pmr::string normalizedPath{&pathResource};
 
     Node *dependencyNode(const std::string_view dependency)
     {
@@ -30,24 +31,18 @@ struct HeaderDepsParser
             return nullptr;
         }
 
-        Node *node;
+        normalizedPath.clear();
         if (Node::isAbsolute(dependency))
         {
-            node = Node::getHalfNodeNonNormalized(dependency);
+            normalizedPath.assign(dependency);
         }
         else
         {
-            if (workingDirectoryPath.empty())
-            {
-                workingDirectoryPath = std::filesystem::path{workingDirectory};
-            }
-            // Both callers supply an absolute working directory, so dependency normalization stays purely lexical.
-            std::filesystem::path dependencyPath = workingDirectoryPath;
-            dependencyPath /= dependency;
-            std::string normalized = dependencyPath.lexically_normal().string();
-            lowerCaseOnWindows(normalized.data(), normalized.size());
-            node = Node::getHalfNode(normalized);
+            normalizedPath.assign(workingDirectory);
+            normalizedPath.push_back(slashc);
+            normalizedPath.append(dependency);
         }
+        Node *node = Node::getHalfNode<PathType::ABSOLUTE>(normalizedPath);
 
         if (node == compiledSource ||
             (excludeHeadersInConfigureNode && isPathInDirectory(node->filePath, configureNode->filePath)))
