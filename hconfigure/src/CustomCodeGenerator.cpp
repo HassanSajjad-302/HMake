@@ -8,10 +8,16 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
+        string buildDirectory(configureNode->filePath);
+        buildDirectory += slashc;
+        buildDirectory += name;
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildDirectory));
         std::filesystem::create_directories(myBuildDir->filePath);
-        sourceNode = Node::getNodeNonNormalized(macroValueFile, true, false);
-        outputHeader = Node::getHalfNode(myBuildDir->filePath + slashc + string("output.h"));
+        sourceNode = Node::getNode<PathType::NEITHER>(macroValueFile, true, false);
+        string outputPath(myBuildDir->filePath);
+        outputPath += slashc;
+        outputPath += "output.h";
+        outputHeader = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(outputPath));
     }
     else
     {

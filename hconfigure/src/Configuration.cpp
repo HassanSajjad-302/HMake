@@ -144,7 +144,7 @@ void Configuration::initialize()
         toolchainLibraryDirs.reserve(toolchain->libraryDirs.size());
         for (const string &directory : toolchain->libraryDirs)
         {
-            toolchainLibraryDirs.emplace_back(Node::getNodeNonNormalized(directory, false));
+            toolchainLibraryDirs.emplace_back(Node::getNode<PathType::NEITHER>(directory, false));
         }
     }
     else
@@ -172,7 +172,7 @@ void Configuration::initialize()
             CppTarget *c = stdCppTarget->getSourceTargetPointer();
             for (const string &str : toolchain->includeDirs)
             {
-                const Node *inclNode = Node::getNodeNonNormalized(str, false);
+                const Node *inclNode = Node::getNode<PathType::NEITHER>(str, false);
                 // In Module compilation mode, we only add include dirs for our own target but not as interface
                 // includes.
                 c->actuallyAddInclude(true, inclNode, true, evaluate(IsCppMod::NO));
