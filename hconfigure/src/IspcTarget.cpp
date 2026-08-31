@@ -243,7 +243,7 @@ string getIspcActionName(const IspcTarget *target, const Node *source, const str
 
 string getHeaderOutputBase(const IspcTarget *target, const Node *source)
 {
-    string result = target->myBuildDir->filePath;
+    string result(target->myBuildDir->filePath);
     result += slashc;
     result += source->getFileName();
     return result;
@@ -264,20 +264,20 @@ string getDependencyListPath(const IspcTarget *target, const Node *source)
     return getHeaderOutputBase(target, source) + ".txt";
 }
 
-bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
+bool filesHaveSameContents(const string_view lhsPath, const string_view rhsPath)
 {
     constexpr uint64_t bufferSize = 64 * 1024;
     alignas(64) std::array<char, bufferSize> lhsBuffer;
     alignas(64) std::array<char, bufferSize> rhsBuffer;
 
 #ifdef _WIN32
-    const HANDLE lhs = CreateFileA(lhsPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    const HANDLE lhs = CreateFileA(lhsPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (lhs == INVALID_HANDLE_VALUE)
     {
         return false;
     }
-    const HANDLE rhs = CreateFileA(rhsPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    const HANDLE rhs = CreateFileA(rhsPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (rhs == INVALID_HANDLE_VALUE)
     {
@@ -325,12 +325,12 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
     CloseHandle(lhs);
     return same;
 #else
-    const int lhs = open(lhsPath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int lhs = open(lhsPath.data(), O_RDONLY | O_CLOEXEC);
     if (lhs == -1)
     {
         return false;
     }
-    const int rhs = open(rhsPath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int rhs = open(rhsPath.data(), O_RDONLY | O_CLOEXEC);
     if (rhs == -1)
     {
         close(lhs);
@@ -420,7 +420,7 @@ IspcHeader::IspcHeader(IspcTarget *target_, Node *sourceNode_)
       target(target_), sourceNode(sourceNode_)
 {
     const string outputBase = getHeaderOutputBase(target, sourceNode);
-    finalHeader = Node::getHalfNode(outputBase + ".generated.h");
+    finalHeader = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(outputBase + ".generated.h");
 
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -571,7 +571,7 @@ void IspcHeader::parseDependencyList()
                                      "Target: {}\nSource: {}\nDependency: {}",
                                      target->cppTarget->name, sourceNode->filePath, dependency));
         }
-        Node *node = Node::getHalfNodeNonNormalized(dependency);
+        Node *node = Node::getHalfNode<PathType::ABSOLUTE>(dependency);
         if (isPathInDirectory(node->filePath, configureNode->filePath))
         {
             continue;
@@ -623,7 +623,9 @@ bool IspcHeader::isEventCompleted(Builder &builder, string_view)
 
 string IspcHeader::getPrintName() const
 {
-    return "ISPC header " + sourceNode->filePath;
+    string result = "ISPC header ";
+    result += sourceNode->filePath;
+    return result;
 }
 
 void IspcHeader::writeBuildCacheAtConfigTime(string &buffer)
@@ -672,12 +674,13 @@ IspcObject::IspcObject(IspcTarget *target_, IspcHeader *headerTarget_, Node *sou
         objectNodes.reserve(features.targets.size() + 1);
         for (const string &targetName : features.targets)
         {
-            objectNodes.emplace_back(Node::getNode(outputBase + '_' + targetName.substr(0, targetName.find('-')) +
-                                                       string(features.getObjectSuffix()),
-                                                   true, true));
+            objectNodes.emplace_back(Node::getNode<PathType::NORMAL_ABSOLUTE>(
+                outputBase + '_' + targetName.substr(0, targetName.find('-')) + string(features.getObjectSuffix()),
+                true, true));
         }
     }
-    objectNodes.emplace_back(Node::getNode(outputBase + string(features.getObjectSuffix()), true, true));
+    objectNodes.emplace_back(Node::getNode<PathType::NORMAL_ABSOLUTE>(
+        outputBase + string(features.getObjectSuffix()), true, true));
 
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -765,7 +768,9 @@ bool IspcObject::isEventCompleted(Builder &builder, string_view)
 
 string IspcObject::getPrintName() const
 {
-    return "ISPC object " + sourceNode->filePath;
+    string result = "ISPC object ";
+    result += sourceNode->filePath;
+    return result;
 }
 
 void IspcObject::writeBuildCacheAtBuildTime(string &)
