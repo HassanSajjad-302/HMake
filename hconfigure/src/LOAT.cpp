@@ -16,7 +16,10 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
     {
         if (!myBuildDir)
         {
-            myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
+            string buildDirectory(configureNode->filePath);
+            buildDirectory += slashc;
+            buildDirectory += name;
+            myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildDirectory));
         }
         std::filesystem::create_directories(myBuildDir->filePath);
     }
@@ -123,7 +126,11 @@ string LOAT::getPrintName() const
     {
         str = "Executable";
     }
-    return str + " " + configureNode->filePath + slashc + name;
+    str += ' ';
+    str += configureNode->filePath;
+    str += slashc;
+    str += name;
+    return str;
 }
 
 void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
@@ -241,7 +248,9 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
 
     for (const Node *objectNode : objectNodes)
     {
-        linkWithTargets += '\"' + objectNode->filePath + "\" ";
+        linkWithTargets += '\"';
+        linkWithTargets += objectNode->filePath;
+        linkWithTargets += "\" ";
     }
 
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -377,7 +386,9 @@ bool LOAT::isEventRegistered(Builder &builder)
         // Archivers update existing archives instead of removing omitted members. Remove only a failed action's
         // temporary output; the final archive remains valid until the new one has been created successfully.
         std::error_code removeError;
-        std::filesystem::remove(outputFileNode->filePath + ".tmp", removeError);
+        string temporaryArchive(outputFileNode->filePath);
+        temporaryArchive += ".tmp";
+        std::filesystem::remove(temporaryArchive, removeError);
         if (removeError)
         {
             printErrorMessage(FORMAT("Could not remove a stale temporary static library.\n"
@@ -388,7 +399,7 @@ bool LOAT::isEventRegistered(Builder &builder)
 
     if (config.responseFileThreshold != 0 && linkWithTargets.size() > config.responseFileThreshold)
     {
-        string responseFile = myBuildDir->filePath;
+        string responseFile(myBuildDir->filePath);
         responseFile += slashc;
         responseFile += outputFileNode->getFileName();
         responseFile += ".rsp";
@@ -418,7 +429,8 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
 {
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
-        const string temporaryArchive = outputFileNode->filePath + ".tmp";
+        string temporaryArchive(outputFileNode->filePath);
+        temporaryArchive += ".tmp";
         if (realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
             std::error_code replaceError;
