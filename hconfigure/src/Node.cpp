@@ -16,6 +16,21 @@ using std::filesystem::file_type;
 
 static bool canSkipNormalization(const string_view filePath, const PathType pathType, bool &absolute)
 {
+    if (!filePath.empty())
+    {
+        const char lastCharacter = filePath.back();
+        bool endsInSeparator = lastCharacter == slashc;
+        if constexpr (os == OS::NT)
+        {
+            endsInSeparator = endsInSeparator || lastCharacter == '/';
+        }
+        if (endsInSeparator)
+        {
+            printErrorMessage(
+                FORMAT("A path passed to Node must not end in a directory separator.\nPath: {}", filePath));
+        }
+    }
+
     absolute = pathType == PathType::ABSOLUTE || Node::isAbsolute(filePath);
     if (!absolute)
     {
@@ -25,11 +40,6 @@ static bool canSkipNormalization(const string_view filePath, const PathType path
     {
         return true;
     }
-    if (filePath.size() > 1 && filePath.back() == slashc)
-    {
-        return false;
-    }
-
     if constexpr (os == OS::NT)
     {
         // Even a lexically clean Windows path may still need separator conversion and lower-casing.
