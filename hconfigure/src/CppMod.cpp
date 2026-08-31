@@ -1482,10 +1482,10 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
     }
     else
     {
-        string dependencyFile(compileOutput->filePath);
-        dependencyFile.resize(dependencyFile.size() - compileOutput->getFileExtension().size());
-        dependencyFile += ".d";
-        compileCommand += " -MMD -MF \"" + dependencyFile + "\" ";
+        compileCommand += " -MMD -MF \"";
+        compileCommand.append(compileOutput->filePath.data(),
+                              compileOutput->filePath.size() - compileOutput->getFileExtension().size());
+        compileCommand += ".d\" ";
     }
 
     // Only for convention command-line approach if the compiler supports such.
