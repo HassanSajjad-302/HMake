@@ -1960,7 +1960,6 @@ BTarget &CppTarget::getCppSrc(const string &str)
         return getOrCreateAdaptiveManager();
     }
     printErrorMessage(FORMAT("Source file is not registered with the target.\nTarget: {}\nSource file: {}", name, str));
-    std::unreachable();
 }
 
 CppMod &CppTarget::getCppInterfaceModule(const string &str)
@@ -1968,10 +1967,6 @@ CppMod &CppTarget::getCppInterfaceModule(const string &str)
     const Node *const node = Node::getHalfNode<PathType::NEITHER>(str);
     for (CppMod *cppMod : imodFileDeps)
     {
-        if (!cppMod)
-        {
-            continue;
-        }
         if (cppMod->node == node)
         {
             return *cppMod;
@@ -1979,7 +1974,6 @@ CppMod &CppTarget::getCppInterfaceModule(const string &str)
     }
     printErrorMessage(
         FORMAT("Module interface is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
-    std::unreachable();
 }
 
 BTarget &CppTarget::getCppModule(const string &str)
@@ -1996,7 +1990,6 @@ BTarget &CppTarget::getCppModule(const string &str)
     }
     printErrorMessage(
         FORMAT("Module implementation is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
-    std::unreachable();
 }
 
 CppTarget &CppTarget::makeJumboToNormal(const NodeOrStr source)
@@ -2137,7 +2130,6 @@ CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, cons
         }
     }
     printErrorMessage(FORMAT("Header unit is not registered with the target.\nTarget: {}\nHeader unit: {}", name, str));
-    std::unreachable();
 }
 
 string CppTarget::escapeAndQuoteDefineValue(string_view val)
