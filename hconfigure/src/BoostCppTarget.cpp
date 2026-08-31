@@ -16,8 +16,12 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
-        myBuildDir = Node::getHalfNode(buildCacheFilesDirPath);
+        string buildCacheFilesDirPath(configureNode->filePath);
+        buildCacheFilesDirPath += slashc;
+        buildCacheFilesDirPath += configuration->name;
+        buildCacheFilesDirPath += slashc;
+        buildCacheFilesDirPath += name;
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildCacheFilesDirPath));
         std::filesystem::create_directories(myBuildDir->filePath);
     }
 
