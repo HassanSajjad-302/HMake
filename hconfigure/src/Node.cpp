@@ -1,6 +1,7 @@
 #include "Node.hpp"
 #include "Manager.hpp"
 #include "rapidhash/rapidhash.h"
+#include <cstring>
 
 #ifdef _WIN32
 #include "Windows.h"
@@ -13,65 +14,132 @@
 
 using std::filesystem::file_type;
 
-string getStatusString(const path &p)
+static bool canSkipNormalization(const string_view filePath, const PathType pathType, bool &absolute)
 {
-    switch (status(p).type())
+    absolute = pathType == PathType::ABSOLUTE || Node::isAbsolute(filePath);
+    if (!absolute)
     {
-    case file_type::none:
-        return " has `not-evaluated-yet` type";
-    case file_type::not_found:
-        return " does not exist";
-    case file_type::regular:
-        return " is a regular file";
-    case file_type::directory:
-        return " is a directory";
-    case file_type::symlink:
-        return " is a symlink";
-    case file_type::block:
-        return " is a block device";
-    case file_type::character:
-        return " is a character device";
-    case file_type::fifo:
-        return " is a named IPC pipe";
-    case file_type::socket:
-        return " is a named IPC socket";
-    case file_type::unknown:
-        return " has `unknown` type";
-    default:
-        return " has `implementation-defined` type";
+        return false;
     }
+    if (pathType == PathType::NORMAL)
+    {
+        return true;
+    }
+    if (filePath.size() > 1 && filePath.back() == slashc)
+    {
+        return false;
+    }
+
+    if constexpr (os == OS::NT)
+    {
+        // Even a lexically clean Windows path may still need separator conversion and lower-casing.
+        return false;
+    }
+
+    uint64_t offset = 1;
+    while (offset < filePath.size())
+    {
+        const uint64_t componentStart = offset;
+        while (offset < filePath.size() && filePath[offset] != '/')
+        {
+            ++offset;
+        }
+        const uint64_t componentSize = offset - componentStart;
+        if (componentSize == 0 ||
+            (filePath[componentStart] == '.' &&
+             (componentSize == 1 || (componentSize == 2 && filePath[componentStart + 1] == '.'))))
+        {
+            return false;
+        }
+        if (offset < filePath.size())
+        {
+            ++offset;
+        }
+    }
+    return true;
 }
 
-bool NodeEqual::operator()(const Node &lhs, const Node &rhs) const
+template <typename String> static void normalizeNodePath(String &filePath, const bool prependBase)
 {
-    return lhs.filePath == rhs.filePath;
-}
+    if (prependBase)
+    {
+        assert(!normalizationBasePath.empty());
+        const uint64_t pathSize = filePath.size();
+        const bool addSeparator = normalizationBasePath.back() != slashc;
+        const uint64_t prefixSize = normalizationBasePath.size() + addSeparator;
+        filePath.resize(prefixSize + pathSize);
+        memmove(filePath.data() + prefixSize, filePath.data(), pathSize);
+        memcpy(filePath.data(), normalizationBasePath.data(), normalizationBasePath.size());
+        if (addSeparator)
+        {
+            filePath[normalizationBasePath.size()] = slashc;
+        }
+    }
 
-bool NodeEqual::operator()(const Node &lhs, const string_view &rhs) const
-{
-    return lhs.filePath == rhs;
-}
+    if constexpr (os == OS::NT)
+    {
+        path normalized{string(filePath)};
+        normalized = normalized.lexically_normal();
+        normalized.make_preferred();
+        string normalizedString = normalized.string();
+        lowerCaseOnWindows(normalizedString.data(), normalizedString.size());
+        filePath.assign(normalizedString.data(), normalizedString.size());
+    }
+    else
+    {
+        assert(!filePath.empty() && filePath.front() == '/');
+        const uint64_t inputSize = filePath.size();
+        uint64_t readOffset = 1;
+        uint64_t writeOffset = 1;
 
-bool NodeEqual::operator()(const string_view &lhs, const Node &rhs) const
-{
-    return lhs == rhs.filePath;
-}
-
-uint64_t NodeHash::operator()(const Node &node) const
-{
-    return rapidhash(node.filePath.c_str(), node.filePath.size());
-}
-
-uint64_t NodeHash::operator()(const string_view &str) const
-{
-    return rapidhash(str.data(), str.size());
+        while (readOffset < inputSize)
+        {
+            while (readOffset < inputSize && filePath[readOffset] == '/')
+            {
+                ++readOffset;
+            }
+            const uint64_t componentStart = readOffset;
+            while (readOffset < inputSize && filePath[readOffset] != '/')
+            {
+                ++readOffset;
+            }
+            const uint64_t componentSize = readOffset - componentStart;
+            if (componentSize == 0 || (componentSize == 1 && filePath[componentStart] == '.'))
+            {
+                continue;
+            }
+            if (componentSize == 2 && filePath[componentStart] == '.' && filePath[componentStart + 1] == '.')
+            {
+                if (writeOffset > 1)
+                {
+                    while (writeOffset > 1 && filePath[writeOffset - 1] != '/')
+                    {
+                        --writeOffset;
+                    }
+                    if (writeOffset > 1)
+                    {
+                        --writeOffset;
+                    }
+                }
+                continue;
+            }
+            if (writeOffset > 1)
+            {
+                filePath[writeOffset++] = '/';
+            }
+            memmove(filePath.data() + writeOffset, filePath.data() + componentStart, componentSize);
+            writeOffset += componentSize;
+        }
+        filePath.resize(writeOffset);
+    }
 }
 
 Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
 {
+    assert(filePath_.data()[filePath_.size()] == '\0');
     if (myId >= 128 * 1024)
     {
-        printErrorMessage(FORMAT("Maximum node count exceeded.\nLimit: {}\nPath: {}", 128 * 1024, filePath));
+        printErrorMessage(FORMAT("Maximum node count exceeded.\nLimit: {}\nPath: {}", 128 * 1024, filePath_));
     }
     nodeIndices.emplace_back(this);
 }
@@ -104,39 +172,6 @@ bool Node::isAbsolute(string_view fileSystemPath)
     }
 }
 
-string_view Node::getFileName() const noexcept
-{
-    if (const uint64_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
-    {
-        return {filePath.data() + slashPos + 1, filePath.size() - slashPos - 1};
-    }
-    return filePath;
-}
-
-string_view Node::getFileStem() const noexcept
-{
-    const uint64_t slashPos = filePath.find_last_of(slashc);
-    const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const uint64_t dotPos = filePath.find_last_of('.');
-    if (dotPos == string::npos || dotPos <= nameStart)
-    {
-        return {filePath.data() + nameStart, filePath.size() - nameStart};
-    }
-    return {filePath.data() + nameStart, dotPos - nameStart};
-}
-
-string_view Node::getFileExtension() const noexcept
-{
-    const uint64_t slashPos = filePath.find_last_of(slashc);
-    const uint64_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const uint64_t dotPos = filePath.find_last_of('.');
-    if (dotPos == string::npos || dotPos <= nameStart)
-    {
-        return {};
-    }
-    return {filePath.data() + dotPos, filePath.size() - dotPos};
-}
-
 void Node::performSystemCheck()
 {
     if (statCompleted)
@@ -147,7 +182,7 @@ void Node::performSystemCheck()
     const uint64_t persistedLastWriteTime = lastWriteTime;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
-    if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
+    if (!GetFileAttributesExA(filePath.data(), GetFileExInfoStandard, &attrs))
     {
         if (const DWORD win_err = GetLastError(); win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
         {
@@ -239,16 +274,50 @@ void Node::performSystemCheck()
     }
 }
 
-Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
+Node *Node::finishNode(Node *const node, const bool isFile, const bool mayNotExist)
 {
-    Node *node = getHalfNode(filePath_);
-
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
     {
+        string_view status;
+        switch (node->fileType)
+        {
+        case file_type::none:
+            status = " has `not-evaluated-yet` type";
+            break;
+        case file_type::not_found:
+            status = " does not exist";
+            break;
+        case file_type::regular:
+            status = " is a regular file";
+            break;
+        case file_type::directory:
+            status = " is a directory";
+            break;
+        case file_type::symlink:
+            status = " is a symlink";
+            break;
+        case file_type::block:
+            status = " is a block device";
+            break;
+        case file_type::character:
+            status = " is a character device";
+            break;
+        case file_type::fifo:
+            status = " is a named IPC pipe";
+            break;
+        case file_type::socket:
+            status = " is a named IPC socket";
+            break;
+        case file_type::unknown:
+            status = " has `unknown` type";
+            break;
+        default:
+            status = " has `implementation-defined` type";
+            break;
+        }
         printErrorMessage(FORMAT("Filesystem entry has the wrong type.\nPath: {}\nExpected type: {}\nActual status:{}",
-                                 node->filePath, isFile ? "regular file" : "directory",
-                                 getStatusString(node->filePath)));
+                                 node->filePath, isFile ? "regular file" : "directory", status));
     }
     return node;
 }
@@ -257,7 +326,7 @@ Node *Node::getNode(const std::filesystem::directory_entry &entry)
 {
     string filePath = entry.path().string();
     lowerCaseOnWindows(filePath.data(), filePath.size());
-    return getNode(filePath, entry.is_regular_file());
+    return getNode<PathType::NORMAL_ABSOLUTE>(std::move(filePath), entry.is_regular_file());
 }
 
 void Node::performContentHash()
@@ -281,7 +350,7 @@ void Node::performContentHash()
         return;
     }
 #ifdef _WIN32
-    HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    HANDLE hFile = CreateFileA(filePath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -309,7 +378,7 @@ void Node::performContentHash()
     CloseHandle(hMap);
     CloseHandle(hFile);
 #else
-    const int fd = open(filePath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int fd = open(filePath.data(), O_RDONLY | O_CLOEXEC);
     if (fd == -1)
     {
         printErrorMessage(FORMAT("Could not open a file for content hashing.\nPath: {}\nOperation: open\n"
@@ -338,61 +407,56 @@ void Node::performContentHash()
 #endif
 }
 
-Node *Node::getNodeNonNormalized(const string_view filePath_, const bool isFile, const bool mayNotExist)
+Node *Node::getHalfNodeImpl(const string_view filePath_)
 {
-    return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
+    const auto iterator = nodeAllFiles.lazy_emplace(filePath_, [&](const auto &constructor) {
+        nodeStrings.emplace_back(filePath_);
+        constructor(string_view(nodeStrings.back()));
+    });
+    return &const_cast<Node &>(*iterator);
 }
 
-string_view Node::getDirectoryStringView() const
+Node *Node::getHalfNodeImpl(string &&filePath_)
 {
-    const uint64_t separator = filePath.find_last_of(slashc);
-    if (separator == string::npos)
+    const string_view lookupPath = filePath_;
+    const auto iterator = nodeAllFiles.lazy_emplace(lookupPath, [&](const auto &constructor) {
+        nodeStrings.emplace_back(std::move(filePath_));
+        constructor(string_view(nodeStrings.back()));
+    });
+    return &const_cast<Node &>(*iterator);
+}
+
+Node *Node::getHalfNodeImpl(const string_view filePath_, const PathType pathType)
+{
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
     {
-        return {};
+        return getHalfNodeImpl(filePath_);
     }
-    return string_view(filePath).substr(0, separator);
+
+    STACK_PMR_STRING(normalizedPath, 4 * 1024)
+    normalizedPath.assign(filePath_);
+    normalizeNodePath(normalizedPath, !absolute);
+    return getHalfNodeImpl(string_view(normalizedPath));
 }
 
-Node *Node::getHalfNode(const string_view filePath_)
+Node *Node::getHalfNodeImpl(string &&filePath_, const PathType pathType)
 {
-    const auto it = nodeAllFiles.emplace(filePath_).first;
-    return &const_cast<Node &>(*it);
-}
-
-Node *Node::getHalfNodeNonNormalized(const string_view filePath_)
-{
-    if constexpr (os != OS::NT)
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
     {
-        if (isAbsolute(filePath_) && filePath_.back() != '/')
-        {
-            bool isClearlyNormalized = true;
-            for (uint64_t i = 1; i < filePath_.size(); ++i)
-            {
-                if (filePath_[i] == '/' && filePath_[i - 1] == '/')
-                {
-                    isClearlyNormalized = false;
-                    break;
-                }
-                if (filePath_[i] == '.' && filePath_[i - 1] == '/' &&
-                    (i + 1 == filePath_.size() || filePath_[i + 1] == '/' ||
-                     (filePath_[i + 1] == '.' &&
-                      (i + 2 == filePath_.size() || filePath_[i + 2] == '/'))))
-                {
-                    isClearlyNormalized = false;
-                    break;
-                }
-            }
-            if (isClearlyNormalized)
-            {
-                return getHalfNode(filePath_);
-            }
-        }
+        return getHalfNodeImpl(std::move(filePath_));
     }
-    return getHalfNode(getNormalizedPath(filePath_));
+    normalizeNodePath(filePath_, !absolute);
+    return getHalfNodeImpl(std::move(filePath_));
 }
 
-Node *Node::getHalfNode(const uint32_t index)
+void Node::normalizeImpl(std::pmr::string &filePath_, const PathType pathType)
 {
-    assert(index < nodeIndices.size());
-    return nodeIndices[index];
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
+    {
+        return;
+    }
+    normalizeNodePath(filePath_, !absolute);
 }
