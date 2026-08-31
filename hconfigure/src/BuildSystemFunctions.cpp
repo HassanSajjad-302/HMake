@@ -34,7 +34,6 @@ void setIsConsol()
 #endif
 }
 
-uint64_t buildCacheContentHash = -1;
 uint64_t buildExeCommandHash = 0;
 uint64_t configureExeCommandHash = 0;
 uint64_t selectedToolchainCommandCache = 0;
@@ -44,12 +43,11 @@ flat_hash_set<Node *> reconfigureNodes;
 
 namespace
 {
-/// Owning storage for the complete hash-prefixed config/build cache files. Views in `BTargetCache` borrow from these
-/// strings, so neither is modified after cache parsing.
+/// Owning storage for complete cache payloads. Node and BTargetCache views borrow from these strings, so none is
+/// modified after cache parsing.
+string nodesCacheGlobal;
 string configCacheGlobal;
 string buildCacheGlobal;
-uint64_t nodesCacheContentHash = -1;
-uint64_t configCacheContentHash = -1;
 
 void readConfigCache();
 void readBuildCache();
@@ -57,7 +55,7 @@ string getConfigCache();
 
 string cachePath(const string_view fileName)
 {
-    string result = configureNode->filePath;
+    string result(configureNode->filePath);
     result.push_back(slashc);
     result.append(fileName);
     return result;
@@ -99,7 +97,7 @@ void initializeCache()
 
     toolchains.initialize(srcNode->filePath);
 
-    currentNode = Node::getHalfNode(current_path().string());
+    currentNode = Node::getHalfNode<PathType::ABSOLUTE>(current_path().string());
     if (currentNode->filePath.size() < configureNode->filePath.size())
     {
         printErrorMessage(
@@ -117,12 +115,6 @@ void initializeCache()
     if (const path p = cachePath(configCacheFileName); exists(p))
     {
         configCacheGlobal = fileToString(p.string());
-        if (configCacheGlobal.size() < sizeof(configCacheContentHash))
-        {
-            printErrorMessage(FORMAT("Malformed config cache: missing payload hash.\nPath: {}\nCache size: {}",
-                                     p.string(), configCacheGlobal.size()));
-        }
-        memcpy(&configCacheContentHash, configCacheGlobal.data(), sizeof(configCacheContentHash));
     }
     else
     {
@@ -138,12 +130,6 @@ void initializeCache()
     if (const path p = cachePath(buildCacheFileName); exists(p))
     {
         buildCacheGlobal = fileToString(p.string());
-        if (buildCacheGlobal.size() < sizeof(buildCacheContentHash))
-        {
-            printErrorMessage(FORMAT("Malformed build cache: missing payload hash.\nPath: {}\nCache size: {}",
-                                     p.string(), buildCacheGlobal.size()));
-        }
-        memcpy(&buildCacheContentHash, buildCacheGlobal.data(), sizeof(buildCacheContentHash));
         readBuildCache();
     }
     else
@@ -244,8 +230,15 @@ bool configureOrBuild()
             const string configCache = getConfigCache();
             const string buildCache = getBuildCache();
             writeNodesCache();
-            writeCacheFile(cachePath(configCacheFileName), configCache, &configCacheContentHash);
-            writeCacheFile(cachePath(buildCacheFileName), buildCache, &buildCacheContentHash);
+            const string configCachePath = cachePath(configCacheFileName);
+            if (configCache != configCacheGlobal || !std::filesystem::exists(configCachePath))
+            {
+                writeCacheFile(configCachePath, configCache);
+            }
+            if (!buildCache.empty())
+            {
+                writeCacheFile(cachePath(buildCacheFileName), buildCache);
+            }
         }
     }
     else
@@ -254,7 +247,7 @@ bool configureOrBuild()
         writeNodesCache();
         if (!buildCache.empty())
         {
-            writeCacheFile(cachePath(buildCacheFileName), buildCache, &buildCacheContentHash);
+            writeCacheFile(cachePath(buildCacheFileName), buildCache);
         }
     }
 
@@ -265,13 +258,11 @@ void constructGlobals()
 {
     // We intentionally skip zero-initializing these large arrays. This improves zero-target build time by roughly 4-5%.
 
+    nodesCacheGlobal = {};
     configCacheGlobal = {};
     buildCacheGlobal = {};
     recompileNodes.clear();
     reconfigureNodes.clear();
-    nodesCacheContentHash = -1;
-    configCacheContentHash = -1;
-    buildCacheContentHash = -1;
     buildExeCommandHash = 0;
     configureExeCommandHash = 0;
     selectedToolchainCommandCache = 0;
@@ -288,6 +279,8 @@ void constructGlobals()
         constexpr uint32_t count = 128 * 1024;
         realBTargets = span(new RealBTarget *[count], count);
     }
+    std::construct_at(&nodeStrings);
+    nodeStrings.reserve(128 * 1024);
     std::construct_at(&nodeIndices);
     nodeIndices.reserve(128 * 1024);
     std::construct_at(&nodeAllFiles, 10000);
@@ -306,8 +299,6 @@ void constructGlobals()
 
 void destructGlobals()
 {
-    configCacheGlobal = {};
-    buildCacheGlobal = {};
     recompileNodes.clear();
     reconfigureNodes.clear();
 
@@ -331,6 +322,10 @@ void destructGlobals()
     std::destroy_at(&projectCache);
     std::destroy_at(&nodeAllFiles);
     std::destroy_at(&nodeIndices);
+    std::destroy_at(&nodeStrings);
+    nodesCacheGlobal = {};
+    configCacheGlobal = {};
+    buildCacheGlobal = {};
 }
 
 [[noreturn]] void errorExit()
@@ -379,13 +374,13 @@ string_view removeDashCppFromNameSV(string_view name)
 
 namespace
 {
-template <typename String> void readFileIntoString(const string &fileName, String &buffer)
+template <typename String> void readFileIntoString(const string_view fileName, String &buffer)
 {
     FILE *file = nullptr;
 #ifdef _WIN32
-    const int openError = fopen_s(&file, fileName.c_str(), "rb");
+    const int openError = fopen_s(&file, fileName.data(), "rb");
 #else
-    file = fopen(fileName.c_str(), "rb");
+    file = fopen(fileName.data(), "rb");
     const int openError = file == nullptr ? errno : 0;
 #endif
     if (openError != 0 || file == nullptr)
@@ -449,14 +444,14 @@ template <typename String> void readFileIntoString(const string &fileName, Strin
 }
 } // namespace
 
-string fileToString(const string &fileName)
+string fileToString(const string_view fileName)
 {
     string buffer;
     readFileIntoString(fileName, buffer);
     return buffer;
 }
 
-void fileToString(const string &fileName, std::pmr::string &buffer)
+void fileToString(const string_view fileName, std::pmr::string &buffer)
 {
     readFileIntoString(fileName, buffer);
 }
@@ -722,20 +717,21 @@ string getThreadId()
 // config/build readers detect implementation/layout drift in debug builds; they are not corruption-recovery code.
 void loadNodesCache(const path &fileName)
 {
-    const string cacheStorage = fileToString(fileName.string());
-    string_view cache = cacheStorage;
-    memcpy(&nodesCacheContentHash, cache.data(), sizeof(nodesCacheContentHash));
-    cache.remove_prefix(sizeof(nodesCacheContentHash));
-    const char *bytes = cache.data();
+    nodesCacheGlobal = fileToString(fileName.string());
+    const char *bytes = nodesCacheGlobal.data();
     uint64_t offset = 0;
-    while (offset < cache.size())
+    while (offset < nodesCacheGlobal.size())
     {
         uint16_t pathSize;
         memcpy(&pathSize, bytes + offset, sizeof(pathSize));
         offset += sizeof(pathSize);
         const string_view nodePath(bytes + offset, pathSize);
-        Node *node = Node::getHalfNode(nodePath);
-        offset += pathSize;
+        assert(bytes[offset + pathSize] == '\0');
+        const auto iterator = nodeAllFiles.lazy_emplace(nodePath, [&](const auto &constructor) {
+            constructor(nodePath);
+        });
+        Node *node = &const_cast<Node &>(*iterator);
+        offset += pathSize + 1;
         memcpy(&node->lastWriteTime, bytes + offset, sizeof(node->lastWriteTime));
         offset += sizeof(node->lastWriteTime);
         memcpy(&node->contentHash, bytes + offset, sizeof(node->contentHash));
@@ -793,10 +789,6 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
 void readConfigCache()
 {
     string_view configCache = configCacheGlobal;
-    if (!configCache.empty())
-    {
-        configCache.remove_prefix(sizeof(configCacheContentHash));
-    }
     const uint64_t bufferSize = configCache.size();
     uint64_t bufferRead = 0;
 
@@ -819,7 +811,6 @@ void readConfigCache()
 void readBuildCache()
 {
     string_view buildCache = buildCacheGlobal;
-    buildCache.remove_prefix(sizeof(buildCacheContentHash));
     const uint64_t bufferSize = buildCache.size();
     uint64_t bytesRead = readBuildCacheInvalidationPrefix(buildCache);
 
@@ -849,7 +840,7 @@ void writeNodesCache()
     {
         const Node &node = *nodeIndices[id];
         assert(!node.filePath.empty());
-        constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 2 * sizeof(uint64_t);
+        constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 1 + 2 * sizeof(uint64_t);
         fileSize += fixedRecordSize + node.filePath.size();
     }
 
@@ -857,6 +848,7 @@ void writeNodesCache()
     string fileBuffer;
     fileBuffer.resize_and_overwrite(fileSize, [nodeCount](char *bytes, const uint64_t) {
         uint64_t offset = 0;
+        uint64_t previousOffset = 0;
         for (uint32_t id = 0; id < nodeCount; ++id)
         {
             const Node &node = *nodeIndices[id];
@@ -870,15 +862,50 @@ void writeNodesCache()
             }
             memcpy(bytes + offset, node.filePath.data(), pathSize);
             offset += pathSize;
-            memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
-            offset += sizeof(node.lastWriteTime);
-            memcpy(bytes + offset, &node.contentHash, sizeof(node.contentHash));
-            offset += sizeof(node.contentHash);
+            bytes[offset++] = '\0';
+
+            const char *previousMetadata = nullptr;
+            if (previousOffset < nodesCacheGlobal.size())
+            {
+                uint16_t previousPathSize;
+                memcpy(&previousPathSize, nodesCacheGlobal.data() + previousOffset, sizeof(previousPathSize));
+                previousOffset += sizeof(previousPathSize);
+                const char *previousPath = nodesCacheGlobal.data() + previousOffset;
+                previousOffset += previousPathSize + 1;
+                if (!node.hashCompleted && previousPathSize == pathSize &&
+                    memcmp(previousPath, node.filePath.data(), pathSize) == 0)
+                {
+                    previousMetadata = nodesCacheGlobal.data() + previousOffset;
+                }
+                previousOffset += 2 * sizeof(uint64_t);
+            }
+
+            if (node.hashCompleted)
+            {
+                memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
+                memcpy(bytes + offset + sizeof(node.lastWriteTime), &node.contentHash, sizeof(node.contentHash));
+            }
+            else if (previousMetadata != nullptr)
+            {
+                memcpy(bytes + offset, previousMetadata, 2 * sizeof(uint64_t));
+            }
+            else
+            {
+                constexpr uint64_t unresolvedLastWriteTime = -1;
+                constexpr uint64_t unresolvedContentHash = 0;
+                memcpy(bytes + offset, &unresolvedLastWriteTime, sizeof(unresolvedLastWriteTime));
+                memcpy(bytes + offset + sizeof(unresolvedLastWriteTime), &unresolvedContentHash,
+                       sizeof(unresolvedContentHash));
+            }
+            offset += 2 * sizeof(uint64_t);
         }
         return offset;
     });
 
-    writeCacheFile(destination, fileBuffer, &nodesCacheContentHash);
+    if (fileBuffer != nodesCacheGlobal)
+    {
+        writeCacheFile(destination, fileBuffer);
+    }
 }
 
 namespace
@@ -955,6 +982,10 @@ string getBuildCache()
                 }
             }
         }
+        if (buildCache == buildCacheGlobal)
+        {
+            return {};
+        }
         return buildCache;
     }
 
@@ -1023,6 +1054,10 @@ string getBuildCache()
             }
         }
     }
+    if (buildCache == buildCacheGlobal)
+    {
+        return {};
+    }
     return buildCache;
 }
 
@@ -1058,18 +1093,8 @@ void replaceFileAtomically(const string &temporaryFile, const string &destinatio
 #endif
 }
 
-void writeCacheFile(const string &fileName, const string_view fileBuffer, uint64_t *const cachedContentHash)
+void writeCacheFile(const string &fileName, const string_view fileBuffer)
 {
-    uint64_t contentHash = 0;
-    if (cachedContentHash != nullptr)
-    {
-        contentHash = hash_value(fileBuffer);
-        if (contentHash == *cachedContentHash)
-        {
-            return;
-        }
-    }
-
     const string temporaryFile = fileName + ".tmp";
     FILE *output = nullptr;
 #ifdef _WIN32
@@ -1085,19 +1110,13 @@ void writeCacheFile(const string &fileName, const string_view fileBuffer, uint64
     }
 
     errno = 0;
-    uint64_t hashBytesWritten = 0;
-    if (cachedContentHash != nullptr)
-    {
-        hashBytesWritten = fwrite(&contentHash, 1, sizeof(contentHash), output);
-    }
-    const uint64_t expectedHashBytes = cachedContentHash == nullptr ? 0 : sizeof(contentHash);
     uint64_t payloadBytesWritten = 0;
-    if (hashBytesWritten == expectedHashBytes && !fileBuffer.empty())
+    if (!fileBuffer.empty())
     {
         payloadBytesWritten = fwrite(fileBuffer.data(), 1, fileBuffer.size(), output);
     }
     const int closeResult = fclose(output);
-    if (hashBytesWritten != expectedHashBytes || payloadBytesWritten != fileBuffer.size() || closeResult != 0)
+    if (payloadBytesWritten != fileBuffer.size() || closeResult != 0)
     {
         const string error = errno == 0 ? std::make_error_code(std::errc::io_error).message()
                                         : std::error_code(errno, std::generic_category()).message();
@@ -1106,10 +1125,6 @@ void writeCacheFile(const string &fileName, const string_view fileBuffer, uint64
     }
 
     replaceFileAtomically(temporaryFile, fileName);
-    if (cachedContentHash != nullptr)
-    {
-        *cachedContentHash = contentHash;
-    }
 }
 
 bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
@@ -1144,22 +1159,6 @@ void lowerCaseOnWindows(char *ptr, const uint64_t size)
             ptr[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(ptr[i])));
         }
     }
-}
-
-string getNormalizedPath(path filePath)
-{
-    if (filePath.is_relative())
-    {
-        filePath = path(normalizationBasePath) / filePath;
-    }
-    filePath = filePath.lexically_normal();
-    if (filePath != filePath.root_path() && !filePath.has_filename())
-    {
-        filePath = filePath.parent_path();
-    }
-    string result = filePath.string();
-    lowerCaseOnWindows(result.data(), result.size());
-    return result;
 }
 
 string addQuotes(const string_view pstr)
