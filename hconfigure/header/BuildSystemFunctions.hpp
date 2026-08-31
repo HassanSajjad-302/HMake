@@ -77,10 +77,7 @@ inline constexpr string_view nodesCacheFileName = "nodes-cache.bin";
 inline constexpr string_view configCacheFileName = "config-cache.bin";
 inline constexpr string_view buildCacheFileName = "build-cache.bin";
 
-/// Hash of the payload following `build-cache.bin`'s leading u64, shared with hbuild's take-off path.
-extern uint64_t buildCacheContentHash;
-
-/// Take-off command hashes/content caches stored at the start of the `build-cache.bin` payload, after its content hash.
+/// Take-off command hashes/content caches stored at the start of `build-cache.bin`.
 /// Generated configure/build executables preserve these values when rewriting ordinary target rows.
 extern uint64_t buildExeCommandHash;
 extern uint64_t configureExeCommandHash;
@@ -94,9 +91,8 @@ extern flat_hash_set<Node *> reconfigureNodes;
 /// Node representing the project source directory. It always has node ID 0.
 inline class Node *srcNode;
 
-// Base directory used by getNormalizedPath() for relative paths. It normally
-// views srcNode->filePath, but decentralized specifications temporarily point it
-// at the directory containing the active specification file.
+// Base directory used by Node's lexical path normalization. It normally views srcNode->filePath, but decentralized
+// specifications temporarily point it at the directory containing the active specification file.
 inline string_view normalizationBasePath;
 
 /// Node representing the active configure/build directory. It always has node ID 1.
@@ -450,8 +446,8 @@ inline const char *getColorCode(ColorIndex c)
     return ColorCodes[static_cast<uint32_t>(c)];
 }
 
-/// Writes a cache buffer atomically. A non-null hash adds a u64 payload-hash prefix and skips an unchanged write.
-void writeCacheFile(const string &fileName, string_view fileBuffer, uint64_t *cachedContentHash = nullptr);
+/// Writes a complete cache payload atomically through a temporary sibling file.
+void writeCacheFile(const string &fileName, string_view fileBuffer);
 /// Replaces destination with a fully written and closed temporary sibling on the same filesystem.
 void replaceFileAtomically(const string &temporaryFile, const string &destinationFile);
 
@@ -468,16 +464,11 @@ path findProjectBuildDirectory(const path &start);
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);
 
-/**
- * Makes a path absolute relative to `normalizationBasePath`, applies lexical normalization,
- * and lowercases it on Windows. It does not access the filesystem or resolve symlinks.
- */
-string getNormalizedPath(path filePath);
+/// Reads an entire file into a string. The path view must be NUL-terminated, and the file must be readable.
+string fileToString(string_view fileName);
+/// Reads an entire file into caller-provided polymorphic-allocator storage. The path view must be NUL-terminated.
+void fileToString(string_view fileName, std::pmr::string &buffer);
 
-/// Reads an entire file into a string. The file must exist and be readable.
-string fileToString(const string &fileName);
-/// Reads an entire file into caller-provided polymorphic-allocator storage.
-void fileToString(const string &fileName, std::pmr::string &buffer);
 /// Decodes `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and fixed-width `\xHH` escapes within the owned input buffer.
 [[nodiscard]] string decodeBackslashEscapes(string value);
 
@@ -492,11 +483,11 @@ void fileToString(const string &fileName, std::pmr::string &buffer);
 void commandWithResponseFile(std::pmr::string &command, const string &responseFile, uint64_t threshold);
 void commandWithResponseFile(string &command, const string &responseFile, uint64_t threshold);
 
-/// Reads `[u64 payload-hash][u16 path-size][path][u64 mtime][u64 content-hash]...` from `nodes-cache.bin` and restores
-/// node IDs 0 and 1 as `srcNode` and `configureNode`.
+/// Reads `[u16 path-size][path][NUL][u64 mtime][u64 content-hash]...` from `nodes-cache.bin` and restores node IDs 0
+/// and 1 as `srcNode` and `configureNode`. The retained file buffer owns the path views for the process lifetime.
 void loadNodesCache(const path &fileName);
 
-/// Atomically writes the same hash-prefixed repeated-record representation to `nodes-cache.bin`.
+/// Atomically writes the same repeated-record representation to `nodes-cache.bin` when its bytes changed.
 void writeNodesCache();
 string getBuildCache();
 string getThreadId();
