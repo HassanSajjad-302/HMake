@@ -924,11 +924,8 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
 struct CompileTask
 {
     string label;
-    path finalExecutable;
-    // Installed atomically only after both bootstrap compilations and their dependency parsing succeed.
-    path temporaryExecutable;
-    path temporaryDependency;
-    path temporaryObject;
+    path executable;
+    path dependencyFile;
     Command command;
     uint64_t semanticHash = 0;
     RunCommand::OutputAndStatus result;
@@ -940,34 +937,19 @@ CompileTask makeCompileTask(const Toolchain &toolchain, const bool configureMode
 {
     CompileTask task;
     task.label = configureMode ? "configure" : "build";
-    task.finalExecutable = buildDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, task.label);
-    task.temporaryExecutable = task.finalExecutable.string() + ".tmp";
+    task.executable = buildDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, task.label);
     const path dependencyDirectory = buildDirectory / ".hbuild";
-    task.temporaryDependency =
-        dependencyDirectory / (task.label + (toolchain.style == "msvc" ? ".json.tmp" : ".d.tmp"));
-    task.temporaryObject = dependencyDirectory / (task.label + ".obj.tmp");
-    task.command = makeCompileCommand(toolchain, configureMode, sourceFile, task.temporaryExecutable,
-                                      task.temporaryDependency, task.temporaryObject, buildDirectory);
+    task.dependencyFile = dependencyDirectory / (task.label + (toolchain.style == "msvc" ? ".json" : ".d"));
+    const path objectFile = dependencyDirectory / (task.label + ".obj");
+    task.command = makeCompileCommand(toolchain, configureMode, sourceFile, task.executable, task.dependencyFile,
+                                      objectFile, buildDirectory);
     task.semanticHash = commandHash(task.command);
     return task;
-}
-
-void removeTemporaryTaskFiles(const CompileTask &task)
-{
-    std::error_code ignored;
-    std::filesystem::remove(task.temporaryExecutable, ignored);
-    ignored.clear();
-    std::filesystem::remove(task.temporaryDependency, ignored);
-    ignored.clear();
-    std::filesystem::remove(task.temporaryObject, ignored);
 }
 
 bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildTask, const Compiler &compiler,
                                  const Node *compiledSource, flat_hash_set<Node *> &dependencies, string &diagnostic)
 {
-    removeTemporaryTaskFiles(configureTask);
-    removeTemporaryTaskFiles(buildTask);
-
     const auto execute = [](CompileTask &task) {
         const auto started = std::chrono::steady_clock::now();
         const string command = renderCommand(task.command);
@@ -995,8 +977,6 @@ bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildT
     }
     if (!diagnostic.empty())
     {
-        removeTemporaryTaskFiles(configureTask);
-        removeTemporaryTaskFiles(buildTask);
         return false;
     }
 
@@ -1011,27 +991,20 @@ bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildT
     printMessage(FORMAT("configure compilation time: {:.3f} seconds\n", configureTask.elapsedSeconds));
     printMessage(FORMAT("build compilation time: {:.3f} seconds\n", buildTask.elapsedSeconds));
 
-    if (!isRegularFile(configureTask.temporaryDependency) || !isRegularFile(buildTask.temporaryDependency))
+    if (!isRegularFile(configureTask.dependencyFile) || !isRegularFile(buildTask.dependencyFile))
     {
-        removeTemporaryTaskFiles(configureTask);
-        removeTemporaryTaskFiles(buildTask);
         diagnostic = "Bootstrap compilation did not produce dependency files.";
         return false;
     }
 
     const auto parse = [&](CompileTask &task) {
         flat_hash_set<Node *> parsed = parseHeaderDeps(
-            task.result.output, compiler, task.result.exitStatus, task.temporaryDependency.string(),
+            task.result.output, compiler, task.result.exitStatus, task.dependencyFile.string(),
             task.command.workingDirectory.string(), compiledSource, false);
         dependencies.insert(parsed.begin(), parsed.end());
     };
     parse(configureTask);
     parse(buildTask);
-
-    replaceFileAtomically(configureTask.temporaryExecutable.string(), configureTask.finalExecutable.string());
-    replaceFileAtomically(buildTask.temporaryExecutable.string(), buildTask.finalExecutable.string());
-    removeTemporaryTaskFiles(configureTask);
-    removeTemporaryTaskFiles(buildTask);
     return true;
 }
 
@@ -1326,8 +1299,8 @@ int runBootstrap(const int argc, char **argv)
         const bool configExistsInitially = isRegularFile(configFile);
         const uint64_t selectedToolchainCache = toolchainCommandCache(*projectToolchain);
         const uint64_t projectContentCache = projectCache.contentCache();
-        bool mustCompile = options.recompile || !isRegularFile(configureTask.finalExecutable) ||
-                           !isRegularFile(buildTask.finalExecutable) || nodesMetadataMissing || buildMetadataMissing;
+        bool mustCompile = options.recompile || !isRegularFile(configureTask.executable) ||
+                           !isRegularFile(buildTask.executable) || nodesMetadataMissing || buildMetadataMissing;
         bool mustConfigure = options.reconfigure || mustCompile || !configExistsInitially;
 
         if (!prefix.bytes.empty())
@@ -1426,7 +1399,7 @@ int runBootstrap(const int argc, char **argv)
 
         if (mustConfigure)
         {
-            if (!runGeneratedConfigure(configureTask.finalExecutable, configureNode->filePath, diagnostic))
+            if (!runGeneratedConfigure(configureTask.executable, configureNode->filePath, diagnostic))
             {
                 string removeDiagnostic;
                 removeMetadataFile(configFile, removeDiagnostic);
@@ -1453,7 +1426,7 @@ int runBootstrap(const int argc, char **argv)
         const bool invocationIsInBuild =
             invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory);
         const path buildWorkingDirectory = invocationIsInBuild ? path(invocationPath) : path(buildDirectory);
-        return runGeneratedBuild(options, buildTask.finalExecutable, buildWorkingDirectory);
+        return runGeneratedBuild(options, buildTask.executable, buildWorkingDirectory);
     }();
     destructGlobals();
     return result;
