@@ -109,12 +109,20 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
             }
         }
 
-        string targetArgFullPath = (currentDirectory / path(argument)).lexically_normal().string();
-        lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
-        if (targetArgFullPath.ends_with(slashc))
+        const string currentDirectoryString = currentDirectory.string();
+        STACK_PMR_STRING(targetArgFullPath, 4 * 1024)
+        targetArgFullPath.clear();
+        if (Node::isAbsolute(argument))
         {
-            targetArgFullPath.pop_back();
+            targetArgFullPath.assign(argument);
         }
+        else
+        {
+            targetArgFullPath.assign(currentDirectoryString);
+            targetArgFullPath += slashc;
+            targetArgFullPath.append(argument);
+        }
+        Node::normalize<PathType::ABSOLUTE>(targetArgFullPath);
         const auto &base = configureNode->filePath;
         if (!isPathInDirectory(targetArgFullPath, base))
         {
@@ -227,7 +235,7 @@ void printHashMapFile()
             }
         }
     }
-    std::ofstream(configureNode->filePath + slashc + string("hash-map.txt")) << buffer;
+    std::ofstream(path(configureNode->filePath) / "hash-map.txt") << buffer;
 }
 
 int main2(const int argc, char **argv)
