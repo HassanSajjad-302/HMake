@@ -142,18 +142,16 @@ void callConfigurationSpecification()
     // configurationSpecification() invoked here; their owners initialize and finalize dynamically created
     // companions explicitly.
     const uint64_t configurationCount = allConfigurations.size();
+    STACK_PMR_STRING(targetDirectory, 4 * 1024)
     for (uint64_t index = 0; index < configurationCount; ++index)
     {
         Configuration &config = *allConfigurations[index];
         bool configure = config.evaluate(AlwaysConfigureThis::YES) || configureNode == currentNode;
         if (!configure)
         {
-            string targetDirectory = configureNode->filePath;
-            if (!targetDirectory.ends_with(slashc))
-            {
-                targetDirectory += slashc;
-            }
-            targetDirectory += config.name;
+            targetDirectory.assign(configureNode->filePath);
+            targetDirectory += slashc;
+            targetDirectory.append(config.name);
             configure = compareStringsFromEnd(currentNode->filePath, targetDirectory) ||
                         isPathInDirectory(currentNode->filePath, targetDirectory);
         }
