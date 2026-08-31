@@ -44,8 +44,9 @@ flat_hash_set<Node *> reconfigureNodes;
 
 namespace
 {
-/// Owning storage for complete cache payloads. Node and BTargetCache views borrow from these strings, so none is
-/// modified after cache parsing.
+/// Owning storage for complete cache payloads. Node and BTargetCache views borrow from these strings, so their
+/// allocations remain stable after parsing. writeNodesCache may refresh metadata bytes in nodesCacheGlobal, but it
+/// never changes that string's size or its path bytes.
 string nodesCacheGlobal;
 string configCacheGlobal;
 string buildCacheGlobal;
@@ -841,6 +842,7 @@ void writeNodesCache()
 
     constexpr uint64_t fixedRecordSize = sizeof(uint16_t) + 1 + 2 * sizeof(uint64_t);
     const uint64_t cachedSize = nodesCountBefore == 0 ? 0 : nodesCacheGlobal.size();
+    const bool hasNewNodes = nodeCount != nodesCountBefore;
     uint64_t appendedSize = 0;
     for (uint32_t id = nodesCountBefore; id < nodeCount; ++id)
     {
@@ -854,44 +856,45 @@ void writeNodesCache()
         appendedSize += fixedRecordSize + node.filePath.size();
     }
 
-    const auto scanCachedNodes = [&](char *destination) {
-        uint64_t offset = 0;
-        bool metadataChanged = false;
-        for (uint32_t id = 0; id < nodesCountBefore; ++id)
+    uint64_t cachedOffset = 0;
+    bool cachedMetadataChanged = false;
+    for (uint32_t id = 0; id < nodesCountBefore; ++id)
+    {
+        const Node &node = *nodeIndices[id];
+        if (node.filePath.ends_with(slashc))
         {
-            const Node &node = *nodeIndices[id];
-            if (node.filePath.ends_with(slashc))
-            {
-                printErrorMessage(
-                    FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
-            }
+            printErrorMessage(
+                FORMAT("Internal node-path invariant failed: path ends with a separator.\nPath: {}", node.filePath));
+        }
 
-            offset += sizeof(uint16_t) + node.filePath.size() + 1;
-            if (node.hashCompleted)
+        cachedOffset += sizeof(uint16_t) + node.filePath.size() + 1;
+        if (node.hashCompleted)
+        {
+            if (!hasNewNodes && !cachedMetadataChanged)
             {
                 uint64_t cachedLastWriteTime;
                 uint64_t cachedContentHash;
-                memcpy(&cachedLastWriteTime, nodesCacheGlobal.data() + offset, sizeof(cachedLastWriteTime));
-                memcpy(&cachedContentHash, nodesCacheGlobal.data() + offset + sizeof(cachedLastWriteTime),
+                memcpy(&cachedLastWriteTime, nodesCacheGlobal.data() + cachedOffset, sizeof(cachedLastWriteTime));
+                memcpy(&cachedContentHash,
+                       nodesCacheGlobal.data() + cachedOffset + sizeof(cachedLastWriteTime),
                        sizeof(cachedContentHash));
-                const bool nodeMetadataChanged = cachedLastWriteTime != node.lastWriteTime ||
-                                                 cachedContentHash != node.contentHash;
-                metadataChanged = metadataChanged || nodeMetadataChanged;
-                if (destination != nullptr && nodeMetadataChanged)
-                {
-                    memcpy(destination + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
-                    memcpy(destination + offset + sizeof(node.lastWriteTime), &node.contentHash,
-                           sizeof(node.contentHash));
-                }
+                cachedMetadataChanged = cachedLastWriteTime != node.lastWriteTime ||
+                                        cachedContentHash != node.contentHash;
             }
-            offset += 2 * sizeof(uint64_t);
+            memcpy(nodesCacheGlobal.data() + cachedOffset, &node.lastWriteTime, sizeof(node.lastWriteTime));
+            memcpy(nodesCacheGlobal.data() + cachedOffset + sizeof(node.lastWriteTime), &node.contentHash,
+                   sizeof(node.contentHash));
         }
-        assert(offset == cachedSize);
-        return metadataChanged;
-    };
+        cachedOffset += 2 * sizeof(uint64_t);
+    }
+    assert(cachedOffset == cachedSize);
 
-    if (nodeCount == nodesCountBefore && !scanCachedNodes(nullptr))
+    if (!hasNewNodes)
     {
+        if (cachedMetadataChanged)
+        {
+            writeCacheFile(cachePath(nodesCacheFileName), nodesCacheGlobal);
+        }
         return;
     }
 
@@ -901,7 +904,6 @@ void writeNodesCache()
         if (cachedSize != 0)
         {
             memcpy(bytes, nodesCacheGlobal.data(), cachedSize);
-            scanCachedNodes(bytes);
         }
 
         uint64_t offset = cachedSize;

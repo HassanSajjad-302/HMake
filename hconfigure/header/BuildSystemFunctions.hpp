@@ -84,8 +84,8 @@ extern uint64_t configureExeCommandHash;
 extern uint64_t selectedToolchainCommandCache;
 extern uint64_t projectCacheContentCache;
 
-/// Number of Nodes backed by the immutable nodes-cache buffer loaded at process start. This remains fixed after a
-/// write because cached Node path views continue to borrow from that original buffer.
+/// Number of Nodes backed by the retained nodes-cache buffer loaded at process start. This remains fixed after a
+/// write because cached Node path views continue to borrow from that buffer.
 extern uint32_t nodesCountBefore;
 
 /// Files whose content changes require rebuilding the generated executables or rerunning configuration.
