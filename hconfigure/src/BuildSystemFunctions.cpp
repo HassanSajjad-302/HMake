@@ -899,9 +899,8 @@ void writeNodesCache()
         appendedSize += fixedRecordSize + node.filePath.size();
     }
 
-    const uint64_t fileSize = cachedSize + appendedSize;
     string fileBuffer;
-    fileBuffer.resize_and_overwrite(fileSize, [&](char *bytes, const uint64_t) {
+    fileBuffer.resize_and_overwrite(cachedSize + appendedSize, [&](char *bytes, const uint64_t) {
         if (cachedSize != 0)
         {
             memcpy(bytes, nodesCacheGlobal.data(), cachedSize);
