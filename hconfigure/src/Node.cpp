@@ -192,7 +192,7 @@ void Node::performSystemCheck()
     lastWriteTime = std::chrono::duration_cast<std::chrono::nanoseconds>(unix_time).count();
 #else
     struct stat st{};
-    if (stat(filePath.c_str(), &st) != 0)
+    if (stat(filePath.data(), &st) != 0)
     {
         if (errno == ENOENT || errno == ENOTDIR)
         {
