@@ -10,15 +10,13 @@
 #include "rapidhash/rapidhash.h"
 
 #include <cassert>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
-#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -34,10 +32,10 @@
 
 namespace
 {
-using std::filesystem::path;
 using std::string;
 using std::string_view;
 using std::vector;
+using std::filesystem::path;
 
 /// Serializes every operation that can replace metadata in one build directory.
 /// The handle is deliberately non-inheritable, so configure/build subprocesses do not
@@ -64,36 +62,33 @@ class ProjectLock
 #endif
     }
 
-    bool acquire(const path &file, string &diagnostic)
+    void acquire(const path &file)
     {
 #ifdef _WIN32
         const string fileName = file.string();
-        handle = CreateFileA(fileName.c_str(), GENERIC_READ | GENERIC_WRITE,
-                             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, nullptr);
+        handle = CreateFileA(fileName.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (handle == INVALID_HANDLE_VALUE)
         {
-            diagnostic = "Could not open the project lock: " + file.string() +
-                         "\nWindows error: " + std::to_string(GetLastError());
-            return false;
+            printErrorMessage("Could not open the project lock: " + fileName +
+                              "\nWindows error: " + std::to_string(GetLastError()));
         }
         OVERLAPPED overlapped{};
         if (!LockFileEx(handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, MAXDWORD, MAXDWORD,
                         &overlapped))
         {
-            diagnostic = "Could not acquire the project lock: " + file.string() +
-                         "\nWindows error: " + std::to_string(GetLastError());
+            const string error = "Could not acquire the project lock: " + fileName +
+                                 "\nWindows error: " + std::to_string(GetLastError());
             CloseHandle(handle);
             handle = INVALID_HANDLE_VALUE;
-            return false;
+            printErrorMessage(error);
         }
 #else
         descriptor = open(file.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
         if (descriptor == -1)
         {
-            diagnostic =
-                "Could not open the project lock: " + file.string() + "\nSystem error: " + std::strerror(errno);
-            return false;
+            printErrorMessage("Could not open the project lock: " + file.string() +
+                              "\nSystem error: " + std::strerror(errno));
         }
         while (flock(descriptor, LOCK_EX | LOCK_NB) == -1)
         {
@@ -101,14 +96,13 @@ class ProjectLock
             {
                 continue;
             }
-            diagnostic = "Could not acquire the project lock: " + file.string() +
-                         "\nSystem error: " + std::strerror(errno);
+            const string error =
+                "Could not acquire the project lock: " + file.string() + "\nSystem error: " + std::strerror(errno);
             close(descriptor);
             descriptor = -1;
-            return false;
+            printErrorMessage(error);
         }
 #endif
-        return true;
     }
 
   private:
@@ -119,72 +113,57 @@ class ProjectLock
 #endif
 };
 
-bool parsePositiveInteger(const string_view value, uint16_t &result)
-{
-    if (value.empty())
-    {
-        return false;
-    }
-    uint16_t parsed = 0;
-    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-    if (error != std::errc{} || end != value.data() + value.size() || parsed == 0)
-    {
-        return false;
-    }
-    result = parsed;
-    return true;
-}
-
 struct Options
 {
-    std::optional<string> sourceDirectory;
-    std::optional<string> buildDirectory;
-    std::optional<string> toolchain;
-    std::optional<uint16_t> defaultJobs;
-    std::optional<uint16_t> jobs;
-    vector<string> targets;
+    string_view sourceDirectory;
+    string_view buildDirectory;
+    string_view toolchain;
+    uint16_t defaultJobs = 0;
+    vector<string_view> buildArguments;
     bool configureOnly = false;
     bool reconfigure = false;
     bool recompile = false;
-    bool dryRun = false;
-    bool headerUnitsOnly = false;
-    bool standalone = false;
-    bool printHashMap = false;
     bool listToolchains = false;
     bool help = false;
 };
 
-bool takeValue(const int argc, char **argv, int &index, const string_view option, string &value, string &diagnostic)
+Options parseOptions(const int argc, char **argv)
 {
-    if (index + 1 >= argc)
-    {
-        diagnostic = "Option requires a value: " + string(option);
-        return false;
-    }
-    value = argv[++index];
-    if (value.empty())
-    {
-        diagnostic = "Option value cannot be empty: " + string(option);
-        return false;
-    }
-    return true;
-}
+    Options options;
+    const auto takeValue = [&](int &index, const string_view option) {
+        if (index + 1 >= argc)
+        {
+            printErrorMessage("Option requires a value: " + string(option));
+        }
+        const string_view value = argv[++index];
+        if (value.empty())
+        {
+            printErrorMessage("Option value cannot be empty: " + string(option));
+        }
+        return value;
+    };
+    const auto parsePositiveInteger = [](const string_view option, const string_view value) {
+        uint16_t parsed = 0;
+        const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+        if (error != std::errc{} || end != value.data() + value.size() || parsed == 0)
+        {
+            printErrorMessage("Expected an integer from 1 through 65535 after " + string(option) + ": " +
+                              string(value));
+        }
+        return parsed;
+    };
 
-bool parseOptions(const int argc, char **argv, Options &options, string &diagnostic)
-{
-    bool targetsOnly = false;
+    vector<string_view> targets;
     for (int index = 1; index < argc; ++index)
     {
         const string_view argument(argv[index]);
-        if (targetsOnly)
-        {
-            options.targets.emplace_back(argument);
-            continue;
-        }
         if (argument == "--")
         {
-            targetsOnly = true;
-            continue;
+            while (++index < argc)
+            {
+                targets.emplace_back(argv[index]);
+            }
+            break;
         }
         if (argument == "--help")
         {
@@ -196,46 +175,33 @@ bool parseOptions(const int argc, char **argv, Options &options, string &diagnos
             options.listToolchains = true;
             continue;
         }
-        if (argument == "-S" || argument == "-B" || argument == "--toolchain" ||
-            argument == "--default-jobs" || argument == "-j" || argument == "--target")
+        if (argument == "-S" || argument == "-B" || argument == "--toolchain" || argument == "--default-jobs" ||
+            argument == "-j")
         {
-            string value;
-            if (!takeValue(argc, argv, index, argument, value, diagnostic))
-            {
-                return false;
-            }
+            const string_view value = takeValue(index, argument);
             if (argument == "-S")
             {
-                options.sourceDirectory = std::move(value);
+                options.sourceDirectory = value;
             }
             else if (argument == "-B")
             {
-                options.buildDirectory = std::move(value);
+                options.buildDirectory = value;
             }
             else if (argument == "--toolchain")
             {
-                options.toolchain = std::move(value);
-            }
-            else if (argument == "--target")
-            {
-                options.targets.emplace_back(std::move(value));
+                options.toolchain = value;
             }
             else
             {
-                uint16_t parsed = 0;
-                if (!parsePositiveInteger(value, parsed))
-                {
-                    diagnostic =
-                        "Expected an integer from 1 through 65535 after " + string(argument) + ": " + value;
-                    return false;
-                }
+                const uint16_t parsed = parsePositiveInteger(argument, value);
                 if (argument == "--default-jobs")
                 {
                     options.defaultJobs = parsed;
                 }
                 else
                 {
-                    options.jobs = parsed;
+                    options.buildArguments.emplace_back("--jobs");
+                    options.buildArguments.emplace_back(value);
                 }
             }
             continue;
@@ -253,67 +219,60 @@ bool parseOptions(const int argc, char **argv, Options &options, string &diagnos
             options.recompile = true;
             options.reconfigure = true;
         }
-        else if (argument == "--dry-run")
+        else if (argument == "--dry-run" || argument == "--header-units-only" || argument == "--standalone" ||
+                 argument == "--print-hash-map")
         {
-            options.dryRun = true;
+            options.buildArguments.emplace_back(argument);
         }
-        else if (argument == "--header-units-only")
+        else if (argument.starts_with('-'))
         {
-            options.headerUnitsOnly = true;
-        }
-        else if (argument == "--standalone")
-        {
-            options.standalone = true;
-        }
-        else if (argument == "--print-hash-map")
-        {
-            options.printHashMap = true;
-        }
-        else if (!argument.empty() && argument.front() == '-')
-        {
-            diagnostic = "Unknown hbuild option: " + string(argument);
-            return false;
+            printErrorMessage("Unknown hbuild option: " + string(argument));
         }
         else
         {
-            options.targets.emplace_back(argument);
+            targets.emplace_back(argument);
         }
     }
 
-    if (options.listToolchains && (options.buildDirectory || options.toolchain ||
-                                   options.defaultJobs || options.jobs || !options.targets.empty() ||
-                                   options.configureOnly || options.reconfigure || options.recompile || options.dryRun ||
-                                   options.headerUnitsOnly || options.standalone || options.printHashMap))
+    if (!targets.empty())
     {
-        diagnostic = "--list-toolchains cannot be combined with a build request.";
-        return false;
+        options.buildArguments.emplace_back("--");
+        for (const string_view target : targets)
+        {
+            options.buildArguments.emplace_back(target);
+        }
     }
-    return true;
+    if (options.listToolchains &&
+        (!options.buildDirectory.empty() || !options.toolchain.empty() || options.defaultJobs != 0 ||
+         !options.buildArguments.empty() || options.configureOnly || options.reconfigure))
+    {
+        printErrorMessage("--list-toolchains cannot be combined with a build request.");
+    }
+    return options;
 }
 
 void printUsage()
 {
-    printMessage(
-        "Usage: hbuild [options] [targets...] [-- targets...]\n"
-        "\n"
-        "Project selection:\n"
-        "  -S <directory>          Source directory; must be the build directory's immediate parent\n"
-        "  -B <directory>          Build directory; must be an immediate child of the source directory\n"
-        "  --toolchain <name>      Select the project toolchain\n"
-        "  --list-toolchains       List registered toolchains and exit\n"
-        "  From the source directory, use: hbuild -B build\n"
-        "\n"
-        "Execution:\n"
-        "  --default-jobs <count>  Persist the project's default job count\n"
-        "  -j <count>              Override the job count for this invocation\n"
-        "  --configure-only        Stop before dispatching the generated build\n"
-        "  --reconfigure           Force configuration\n"
-        "  --recompile             Rebuild both generated executables, then configure\n"
-        "  --dry-run               Print generated build actions without executing them\n"
-        "  --header-units-only     Build only header-unit work\n"
-        "  --standalone            Emit standalone compile scripts\n"
-        "  --print-hash-map        Write the generated hash-map diagnostic\n"
-        "  --target <name>         Add a target (repeatable)\n");
+    printMessage("Usage: hbuild [options] [targets...] [-- targets...]\n"
+                 "\n"
+                 "Project selection:\n"
+                 "  -S <directory>          Source directory; must be the build directory's immediate parent\n"
+                 "  -B <directory>          Build directory; must be an immediate child of the source directory\n"
+                 "  --toolchain <name>      Select the project toolchain\n"
+                 "  --list-toolchains       List registered toolchains and exit\n"
+                 "  From the source directory, use: hbuild -B build\n"
+                 "\n"
+                 "Execution:\n"
+                 "  --default-jobs <count>  Persist the project's default job count\n"
+                 "  -j <count>              Override the job count for this invocation\n"
+                 "  --configure-only        Stop before dispatching the generated build\n"
+                 "  --reconfigure           Force configuration\n"
+                 "  --recompile             Rebuild both generated executables, then configure\n"
+                 "  --dry-run               Print generated build actions without executing them\n"
+                 "  --header-units-only     Build only header-unit work\n"
+                 "  --standalone            Emit standalone compile scripts\n"
+                 "  --print-hash-map        Write the generated hash-map diagnostic\n"
+                 "  --help                  Print this help and exit\n");
 }
 
 string normalizePath(const string_view input)
@@ -330,278 +289,171 @@ bool isRegularFile(const path &file)
     return std::filesystem::is_regular_file(file, error) && !error;
 }
 
-path resolveSourceDirectory(const std::optional<string> &requestedDirectory, const path &invocationDirectory,
-                            const path *buildDirectory, string &diagnostic)
-{
-    if (buildDirectory == nullptr)
-    {
-        if (requestedDirectory)
-        {
-            path sourceDirectory = normalizePath(*requestedDirectory);
-            if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-            {
-                diagnostic = "The source directory must contain hmake.cpp.\nSource directory: " +
-                             sourceDirectory.string();
-                return {};
-            }
-            return sourceDirectory;
-        }
-
-        if (isRegularFile(invocationDirectory / "hmake.cpp"))
-        {
-            return invocationDirectory;
-        }
-        const path parentDirectory = invocationDirectory.parent_path();
-        if (parentDirectory != invocationDirectory && isRegularFile(parentDirectory / "hmake.cpp"))
-        {
-            return parentDirectory;
-        }
-        diagnostic = "Could not determine the source directory.\n"
-                     "Run --list-toolchains from the source directory or its immediate child, or use -S <directory>.";
-        return {};
-    }
-
-    const path sourceDirectory = buildDirectory->parent_path();
-    if (sourceDirectory.empty() || sourceDirectory == *buildDirectory)
-    {
-        diagnostic = "The build directory must have a parent source directory.\nBuild directory: " +
-                     buildDirectory->string();
-        return {};
-    }
-    if (requestedDirectory)
-    {
-        const path requestedSourceDirectory = normalizePath(*requestedDirectory);
-        if (requestedSourceDirectory != sourceDirectory)
-        {
-            diagnostic = "The build directory must be an immediate child of the selected source directory.\n"
-                         "Selected source directory: " +
-                         requestedSourceDirectory.string() + "\nBuild directory: " + buildDirectory->string();
-            return {};
-        }
-    }
-    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-    {
-        diagnostic = "The build directory's immediate parent must contain hmake.cpp.\n"
-                     "Source directory: " +
-                     sourceDirectory.string() + "\nBuild directory: " + buildDirectory->string();
-        return {};
-    }
-    return sourceDirectory;
-}
-
 struct Command
 {
-    path executable;
-    vector<string> arguments;
-    path workingDirectory;
-};
+    string value;
 
+    Command(const string_view executable, const string_view workingDirectory, const uint64_t capacity = 0)
+    {
 #ifdef _WIN32
-string quoteWindowsArgument(const string_view argument)
-{
-    // The result is consumed by cmd.exe and then by the child C runtime. Quote both empty arguments and cmd
-    // metacharacters even when no whitespace is present; the backslash handling preserves the final child argv.
-    if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"&|<>()^%!") == string_view::npos)
-    {
-        return string(argument);
-    }
-    string result = "\"";
-    uint64_t backslashes = 0;
-    for (const char character : argument)
-    {
-        if (character == '\\')
-        {
-            ++backslashes;
-            continue;
-        }
-        if (character == '"')
-        {
-            result.append(backslashes * 2 + 1, '\\');
-            result.push_back('"');
-            backslashes = 0;
-            continue;
-        }
-        result.append(backslashes, '\\');
-        backslashes = 0;
-        result.push_back(character);
-    }
-    result.append(backslashes * 2, '\\');
-    result.push_back('"');
-    return result;
-}
-
-#endif
-
-string renderCommand(const Command &command)
-{
-    string result;
-#ifdef _WIN32
-    if (!command.workingDirectory.empty())
-    {
-        result = "cd /d ";
-        result += quoteWindowsArgument(command.workingDirectory.string());
-        result += " && ";
-    }
-    result += quoteWindowsArgument(command.executable.string());
-    for (const string &argument : command.arguments)
-    {
-        result.push_back(' ');
-        result += quoteWindowsArgument(argument);
-    }
+        value = "cd /d ";
 #else
-    auto quote = [](const string_view argument) {
+        value = "cd ";
+#endif
+        value.reserve(capacity == 0 ? executable.size() + workingDirectory.size() + 256 : capacity);
+        appendValue(workingDirectory);
+        value += " && ";
+        appendValue(executable);
+    }
+
+    void append(const string_view argument)
+    {
+        value.push_back(' ');
+        appendValue(argument);
+    }
+
+  private:
+    void appendValue(const string_view argument)
+    {
+#ifdef _WIN32
+        // cmd.exe parses this value before the child C runtime. Quote empty arguments and cmd metacharacters;
+        // doubling backslashes before quotes preserves the final child argv.
+        if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"&|<>()^%!") == string_view::npos)
+        {
+            value.append(argument);
+            return;
+        }
+        value.push_back('"');
+        uint64_t backslashes = 0;
+        for (const char character : argument)
+        {
+            if (character == '\\')
+            {
+                ++backslashes;
+                continue;
+            }
+            if (character == '"')
+            {
+                value.append(backslashes * 2 + 1, '\\');
+                value.push_back('"');
+                backslashes = 0;
+                continue;
+            }
+            value.append(backslashes, '\\');
+            backslashes = 0;
+            value.push_back(character);
+        }
+        value.append(backslashes * 2, '\\');
+        value.push_back('"');
+#else
         if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v'\"\\$`!&;|<>()[]{}*?#~") == string_view::npos)
         {
-            return string(argument);
+            value.append(argument);
+            return;
         }
-        string quoted = "'";
+        value.push_back('\'');
         for (const char character : argument)
         {
             if (character == '\'')
             {
-                quoted += "'\\''";
+                value += "'\\''";
             }
             else
             {
-                quoted.push_back(character);
+                value.push_back(character);
             }
         }
-        quoted.push_back('\'');
-        return quoted;
-    };
-    if (!command.workingDirectory.empty())
-    {
-        result = "cd ";
-        result += quote(command.workingDirectory.string());
-        result += " && ";
-    }
-    result += quote(command.executable.string());
-    for (const string &argument : command.arguments)
-    {
-        result.push_back(' ');
-        result += quote(argument);
-    }
+        value.push_back('\'');
 #endif
-    return result;
-}
-
-uint64_t commandHash(const Command &command)
-{
-    STACK_PMR_STRING(semantic, 16 * 1024)
-    semantic.push_back('X');
-    semantic += command.executable.string();
-    semantic.push_back('\0');
-    semantic.push_back('W');
-    semantic += command.workingDirectory.string();
-    semantic.push_back('\0');
-    for (const string &original : command.arguments)
-    {
-        semantic.push_back('A');
-        semantic += original;
-        semantic.push_back('\0');
     }
-    return rapidhash(semantic.data(), semantic.size());
-}
+};
 
 struct BuildCachePrefix
 {
     string bytes;
-    uint64_t ordinaryTailOffset = 0;
     uint64_t ordinaryTailSize = 0;
 };
 
-bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCachePrefix &prefix, string &diagnostic)
+BuildCachePrefix loadBuildCachePrefix(const path &file)
 {
+    BuildCachePrefix prefix;
     std::error_code error;
-    bool exists = std::filesystem::is_regular_file(file, error);
+    const uint64_t fileSize = std::filesystem::file_size(file, error);
     if (error == std::errc::no_such_file_or_directory)
     {
-        error.clear();
-        exists = false;
+        return prefix;
     }
     if (error)
     {
-        diagnostic = "Could not inspect build cache: " + file.string() + "\nSystem error: " + error.message();
-        return false;
-    }
-    if (!exists)
-    {
-        return true;
-    }
-
-    const uint64_t fileSize = std::filesystem::file_size(file, error);
-    if (error)
-    {
-        diagnostic = "Could not determine the build cache size: " + file.string() +
-                     "\nSystem error: " + error.message();
-        return false;
+        printErrorMessage("Could not determine the build cache size: " + file.string() +
+                          "\nSystem error: " + error.message());
     }
     const string fileName = file.string();
     FILE *input = std::fopen(fileName.c_str(), "rb");
     if (input == nullptr)
     {
-        diagnostic = "Could not open the build cache: " + fileName +
-                     "\nSystem error: " + std::strerror(errno);
-        return false;
+        printErrorMessage("Could not open the build cache: " + fileName + "\nSystem error: " + std::strerror(errno));
     }
 
-    uint64_t offset = 0;
-    string prefixBytes;
-    prefixBytes.reserve(4 * 1024);
-    bool inputError = false;
-    auto readBytes = [&](void *const destination, const uint64_t size) {
-        if (offset > fileSize || size > fileSize - offset)
+    prefix.bytes.reserve(4 * 1024);
+    const auto readBytes = [&](const uint64_t size) {
+        const uint64_t offset = prefix.bytes.size();
+        if (size > fileSize - offset)
         {
             return false;
         }
+        prefix.bytes.resize(offset + size);
         errno = 0;
-        if (size != 0 && std::fread(destination, 1, size, input) != size)
+        if (size != 0 && std::fread(prefix.bytes.data() + offset, 1, size, input) != size)
         {
             if (std::ferror(input))
             {
                 const int readError = errno;
-                diagnostic = "Could not read the build cache: " + fileName +
-                             "\nSystem error: " +
-                             (readError == 0 ? string("I/O error") : std::strerror(readError));
-                inputError = true;
+                printErrorMessage("Could not read the build cache: " + fileName + "\nSystem error: " +
+                                  (readError == 0 ? string("I/O error") : std::strerror(readError)));
             }
             return false;
-        }
-        offset += size;
-        if (size != 0)
-        {
-            prefixBytes.append(static_cast<const char *>(destination), size);
         }
         return true;
     };
 
     uint64_t fixedPrefix[4];
-    bool parsed = readBytes(fixedPrefix, sizeof(fixedPrefix));
+    bool parsed = readBytes(sizeof(fixedPrefix));
+    if (parsed)
+    {
+        memcpy(fixedPrefix, prefix.bytes.data(), sizeof(fixedPrefix));
+    }
     auto readIds = [&](flat_hash_set<Node *> &nodes) {
-        uint32_t count = 0;
-        if (!readBytes(&count, sizeof(count)) || count > nodeCount)
+        const uint64_t countOffset = prefix.bytes.size();
+        if (!readBytes(sizeof(uint32_t)))
+        {
+            return false;
+        }
+        uint32_t count;
+        memcpy(&count, prefix.bytes.data() + countOffset, sizeof(count));
+        if (count > nodeIndices.size())
         {
             return false;
         }
         const uint64_t idsSize = static_cast<uint64_t>(count) * sizeof(uint32_t);
-        STACK_PMR_VECTOR(uint32_t, ids, 64)
-        ids.reserve(count);
-        ids.resize(count);
-        if (!readBytes(ids.data(), idsSize))
+        const uint64_t idsOffset = prefix.bytes.size();
+        if (!readBytes(idsSize))
         {
             return false;
         }
         nodes.reserve(count);
-        for (const uint32_t id : ids)
+        for (uint32_t index = 0; index < count; ++index)
         {
-            if (id >= nodeCount)
+            uint32_t id;
+            memcpy(&id, prefix.bytes.data() + idsOffset + index * sizeof(id), sizeof(id));
+            if (id >= nodeIndices.size())
             {
                 return false;
             }
-            Node *node = Node::getHalfNode(id);
-            node->doStatFile = true;
-            node->doHashFile = true;
-            nodes.emplace(node);
+            if (!nodes.emplace(Node::getHalfNode(id)).second)
+            {
+                return false;
+            }
         }
         return true;
     };
@@ -614,21 +466,18 @@ bool loadBuildCachePrefix(const path &file, const uint64_t nodeCount, BuildCache
     std::fclose(input);
     if (!parsed)
     {
-        return !inputError;
+        return {};
     }
 
     buildExeCommandHash = fixedPrefix[0];
     configureExeCommandHash = fixedPrefix[1];
     selectedToolchainCommandCache = fixedPrefix[2];
     projectCacheContentCache = fixedPrefix[3];
-    prefix.bytes = std::move(prefixBytes);
-    prefix.ordinaryTailOffset = offset;
-    prefix.ordinaryTailSize = fileSize - offset;
-    return true;
+    prefix.ordinaryTailSize = fileSize - prefix.bytes.size();
+    return prefix;
 }
 
-bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const bool preserveOrdinaryTail,
-                           string &diagnostic)
+void writeBuildCachePrefix(const path &file, const BuildCachePrefix &prefix, const bool preserveOrdinaryTail)
 {
     const uint64_t prefixSize = 4 * sizeof(uint64_t) + 2 * sizeof(uint32_t) +
                                 (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
@@ -674,87 +523,54 @@ bool writeBuildCachePrefix(const path &file, BuildCachePrefix &prefix, const boo
 
     if (fileBuffer == prefix.bytes && (preserveOrdinaryTail || prefix.ordinaryTailSize == 0))
     {
-        return true;
+        return;
     }
 
-    FILE *tailInput = nullptr;
     if (tailSize != 0)
     {
         const string fileName = file.string();
-        tailInput = std::fopen(fileName.c_str(), "rb");
+        FILE *const tailInput = std::fopen(fileName.c_str(), "rb");
         if (tailInput == nullptr)
         {
-            diagnostic = "Could not open the build cache to preserve its target rows: " + fileName +
-                         "\nSystem error: " + std::strerror(errno);
-            return false;
+            printErrorMessage("Could not open the build cache to preserve its target rows: " + fileName +
+                              "\nSystem error: " + std::strerror(errno));
         }
         errno = 0;
 #ifdef _WIN32
-        const int seekResult = _fseeki64(tailInput, static_cast<int64_t>(prefix.ordinaryTailOffset), SEEK_SET);
+        const int seekResult = _fseeki64(tailInput, static_cast<int64_t>(prefix.bytes.size()), SEEK_SET);
 #else
-        const int seekResult = fseeko(tailInput, static_cast<off_t>(prefix.ordinaryTailOffset), SEEK_SET);
+        const int seekResult = fseeko(tailInput, static_cast<off_t>(prefix.bytes.size()), SEEK_SET);
 #endif
         if (seekResult != 0)
         {
             const int seekError = errno;
             const string errorMessage = seekError == 0 ? "I/O error" : std::strerror(seekError);
             std::fclose(tailInput);
-            diagnostic = "Could not seek to the build-cache target rows: " + fileName +
-                         "\nSystem error: " + errorMessage;
-            return false;
+            printErrorMessage("Could not seek to the build-cache target rows: " + fileName +
+                              "\nSystem error: " + errorMessage);
         }
-    }
 
-    const uint64_t prefixBytes = fileBuffer.size();
-    fileBuffer.resize(prefixBytes + tailSize);
-    uint64_t tailBytesRead = 0;
-    int tailReadError = 0;
-    if (tailInput != nullptr)
-    {
+        const uint64_t prefixBytes = fileBuffer.size();
+        fileBuffer.resize(prefixBytes + tailSize);
         errno = 0;
-        tailBytesRead = std::fread(fileBuffer.data() + prefixBytes, 1, tailSize, tailInput);
-        tailReadError = errno;
-    }
-
-    if (tailInput != nullptr)
-    {
+        const uint64_t tailBytesRead = std::fread(fileBuffer.data() + prefixBytes, 1, tailSize, tailInput);
+        const int tailReadError = errno;
         const bool readFailed = tailBytesRead != tailSize;
         const bool streamError = std::ferror(tailInput);
         std::fclose(tailInput);
         if (readFailed)
         {
-            diagnostic = "Could not read the complete build-cache target rows: " + file.string() +
-                         "\nExpected bytes: " + std::to_string(tailSize) +
-                         "\nRead bytes: " + std::to_string(tailBytesRead);
+            string error = "Could not read the complete build-cache target rows: " + fileName +
+                           "\nExpected bytes: " + std::to_string(tailSize) +
+                           "\nRead bytes: " + std::to_string(tailBytesRead);
             if (streamError)
             {
-                diagnostic += "\nSystem error: " +
-                              (tailReadError == 0 ? string("I/O error") : std::strerror(tailReadError));
+                error += "\nSystem error: " + (tailReadError == 0 ? string("I/O error") : std::strerror(tailReadError));
             }
-            return false;
+            printErrorMessage(error);
         }
     }
     writeCacheFile(file.string(), fileBuffer);
-    prefix.bytes.assign(fileBuffer.data(), prefixSize);
-    prefix.ordinaryTailOffset = prefixSize;
-    prefix.ordinaryTailSize = tailSize;
-    return true;
-}
-
-bool invalidationSetChanged(const flat_hash_set<Node *> &nodes, const std::span<const uint64_t> cachedSnapshots)
-{
-    assert(nodes.size() * 2 == cachedSnapshots.size());
-    uint64_t index = 0;
-    for (const Node *node : nodes)
-    {
-        const uint64_t cachedLastWriteTime = cachedSnapshots[index++];
-        const uint64_t cachedContentHash = cachedSnapshots[index++];
-        if (node->lastWriteTime != cachedLastWriteTime || node->contentHash != cachedContentHash)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 uint64_t toolchainCommandCache(const Toolchain &toolchain)
@@ -796,35 +612,32 @@ uint64_t toolchainCommandCache(const Toolchain &toolchain)
     return rapidhash(fingerprint.data(), fingerprint.size());
 }
 
-const Toolchain *resolveToolchain(const string_view requested, string &diagnostic)
+const Toolchain &resolveToolchain(const string_view requested)
 {
     const string_view selected = requested.empty() ? toolchains.defaultName() : requested;
     if (selected.empty())
     {
-        diagnostic = "No toolchain is registered.";
-        return nullptr;
+        printErrorMessage("No toolchain is registered.");
     }
     const Toolchain *resolved = toolchains.find(selected);
     if (resolved == nullptr)
     {
-        diagnostic = "Unknown toolchain: " + string(selected) + "\nUse --list-toolchains to list valid names.";
-        return nullptr;
+        printErrorMessage("Unknown toolchain: " + string(selected) + "\nUse --list-toolchains to list valid names.");
     }
-    return resolved;
+    return *resolved;
 }
 
-Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const path &sourceFile,
-                           const path &outputFile, const path &dependencyFile, const path &objectFile,
-                           const path &workingDirectory)
+string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
+                          const string_view outputFile, const string_view dependencyFile, const string_view objectFile,
+                          const string_view workingDirectory)
 {
-    Command command;
-    command.executable = toolchain.compiler.bTPath;
-    command.workingDirectory = workingDirectory;
-    command.arguments.reserve(toolchain.bootstrapArguments.size() + 32);
-    command.arguments.insert(command.arguments.end(), toolchain.bootstrapArguments.begin(),
-                             toolchain.bootstrapArguments.end());
-    const path staticLibrary = configureMode ? path(HCONFIGURE_C_STATIC_LIB_PATH) : path(HCONFIGURE_B_STATIC_LIB_PATH);
+    const string_view staticLibrary = configureMode ? HCONFIGURE_C_STATIC_LIB_PATH : HCONFIGURE_B_STATIC_LIB_PATH;
     constexpr string_view includePaths[] = {HCONFIGURE_HEADER, THIRD_PARTY_HEADER, RAPIDJSON_HEADER};
+    Command command(toolchain.compiler.bTPath, workingDirectory, 4 * 1024);
+    for (const string &argument : toolchain.bootstrapArguments)
+    {
+        command.append(argument);
+    }
 
     if (toolchain.style == "gnu")
     {
@@ -835,90 +648,96 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
                                           "-nostdinc",           "-nostdinc++"};
         for (const string_view argument : common)
         {
-            command.arguments.emplace_back(argument);
+            command.append(argument);
         }
         if (!configureMode)
         {
-            command.arguments.emplace_back("-DBUILD_MODE");
-            command.arguments.emplace_back("-DNDEBUG");
+            command.append("-DBUILD_MODE");
+            command.append("-DNDEBUG");
         }
         for (const string_view include : includePaths)
         {
-            command.arguments.emplace_back("-I");
-            command.arguments.emplace_back(include);
+            command.append("-I");
+            command.append(include);
         }
         for (const string &include : toolchain.includeDirs)
         {
-            command.arguments.emplace_back("-isystem");
-            command.arguments.emplace_back(include);
+            command.append("-isystem");
+            command.append(include);
         }
-        command.arguments.emplace_back("-MMD");
-        command.arguments.emplace_back("-MF");
-        command.arguments.emplace_back(dependencyFile.string());
-        command.arguments.emplace_back("-MT");
-        command.arguments.emplace_back(outputFile.string());
-        command.arguments.emplace_back(sourceFile.string());
+        command.append("-MMD");
+        command.append("-MF");
+        command.append(dependencyFile);
+        command.append("-MT");
+        command.append(outputFile);
+        command.append(sourceFile);
         for (const string &directory : toolchain.libraryDirs)
         {
-            command.arguments.emplace_back("-L");
-            command.arguments.emplace_back(directory);
+            command.append("-L");
+            command.append(directory);
         }
-        command.arguments.emplace_back("-Wl,--gc-sections");
-        command.arguments.emplace_back("-Wl,--whole-archive");
-        command.arguments.emplace_back(staticLibrary.string());
-        command.arguments.emplace_back("-Wl,--no-whole-archive");
-        command.arguments.emplace_back("-o");
-        command.arguments.emplace_back(outputFile.string());
+        command.append("-Wl,--gc-sections");
+        command.append("-Wl,--whole-archive");
+        command.append(staticLibrary);
+        command.append("-Wl,--no-whole-archive");
+        command.append("-o");
+        command.append(outputFile);
     }
     else
     {
-        command.arguments.emplace_back("/std:c++latest");
-        command.arguments.emplace_back("/O0");
-        command.arguments.emplace_back("/GR-");
-        command.arguments.emplace_back("/EHs-c-");
-        command.arguments.emplace_back("/D_HAS_EXCEPTIONS=0");
-        command.arguments.emplace_back("/MT");
-        command.arguments.emplace_back("/nologo");
-        command.arguments.emplace_back("/X");
+        STACK_PMR_STRING(argument, 4 * 1024)
+        const auto appendPrefixed = [&](const string_view prefix, const string_view value) {
+            argument.assign(prefix);
+            argument.append(value);
+            command.append(argument);
+        };
+        command.append("/std:c++latest");
+        command.append("/O0");
+        command.append("/GR-");
+        command.append("/EHs-c-");
+        command.append("/D_HAS_EXCEPTIONS=0");
+        command.append("/MT");
+        command.append("/nologo");
+        command.append("/X");
         if (!configureMode)
         {
-            command.arguments.emplace_back("/DBUILD_MODE");
-            command.arguments.emplace_back("/DNDEBUG");
+            command.append("/DBUILD_MODE");
+            command.append("/DNDEBUG");
         }
         for (const string_view include : includePaths)
         {
-            command.arguments.emplace_back("/I" + string(include));
+            appendPrefixed("/I", include);
         }
         for (const string &include : toolchain.includeDirs)
         {
-            command.arguments.emplace_back("/I" + include);
+            appendPrefixed("/I", include);
         }
-        command.arguments.emplace_back("/sourceDependencies");
-        command.arguments.emplace_back(dependencyFile.string());
-        command.arguments.emplace_back(sourceFile.string());
-        command.arguments.emplace_back("/Fo" + objectFile.string());
-        command.arguments.emplace_back("/link");
-        command.arguments.emplace_back("/SUBSYSTEM:CONSOLE");
-        command.arguments.emplace_back("/NOLOGO");
+        command.append("/sourceDependencies");
+        command.append(dependencyFile);
+        command.append(sourceFile);
+        appendPrefixed("/Fo", objectFile);
+        command.append("/link");
+        command.append("/SUBSYSTEM:CONSOLE");
+        command.append("/NOLOGO");
         for (const string &directory : toolchain.libraryDirs)
         {
-            command.arguments.emplace_back("/LIBPATH:" + directory);
+            appendPrefixed("/LIBPATH:", directory);
         }
-        command.arguments.emplace_back("/WHOLEARCHIVE:" + staticLibrary.string());
-        command.arguments.emplace_back("kernel32.lib");
-        command.arguments.emplace_back("synchronization.lib");
-        command.arguments.emplace_back("user32.lib");
-        command.arguments.emplace_back("gdi32.lib");
-        command.arguments.emplace_back("winspool.lib");
-        command.arguments.emplace_back("shell32.lib");
-        command.arguments.emplace_back("ole32.lib");
-        command.arguments.emplace_back("oleaut32.lib");
-        command.arguments.emplace_back("uuid.lib");
-        command.arguments.emplace_back("comdlg32.lib");
-        command.arguments.emplace_back("advapi32.lib");
-        command.arguments.emplace_back("/OUT:" + outputFile.string());
+        appendPrefixed("/WHOLEARCHIVE:", staticLibrary);
+        command.append("kernel32.lib");
+        command.append("synchronization.lib");
+        command.append("user32.lib");
+        command.append("gdi32.lib");
+        command.append("winspool.lib");
+        command.append("shell32.lib");
+        command.append("ole32.lib");
+        command.append("oleaut32.lib");
+        command.append("uuid.lib");
+        command.append("comdlg32.lib");
+        command.append("advapi32.lib");
+        appendPrefixed("/OUT:", outputFile);
     }
-    return command;
+    return std::move(command.value);
 }
 
 struct CompileTask
@@ -926,108 +745,44 @@ struct CompileTask
     string label;
     path executable;
     path dependencyFile;
-    Command command;
-    uint64_t semanticHash = 0;
-    RunCommand::OutputAndStatus result;
-    double elapsedSeconds = 0;
+    string command;
+    uint64_t commandHash = 0;
 };
 
-CompileTask makeCompileTask(const Toolchain &toolchain, const bool configureMode, const path &sourceFile,
-                            const path &buildDirectory)
+flat_hash_set<Node *> compileBootstrapExecutables(const CompileTask &configureTask, const CompileTask &buildTask,
+                                                  const Compiler &compiler, const Node *compiledSource)
 {
-    CompileTask task;
-    task.label = configureMode ? "configure" : "build";
-    task.executable = buildDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, task.label);
-    const path dependencyDirectory = buildDirectory / ".hbuild";
-    task.dependencyFile = dependencyDirectory / (task.label + (toolchain.style == "msvc" ? ".json" : ".d"));
-    const path objectFile = dependencyDirectory / (task.label + ".obj");
-    task.command = makeCompileCommand(toolchain, configureMode, sourceFile, task.executable, task.dependencyFile,
-                                      objectFile, buildDirectory);
-    task.semanticHash = commandHash(task.command);
-    return task;
-}
-
-bool compileBootstrapExecutables(CompileTask &configureTask, CompileTask &buildTask, const Compiler &compiler,
-                                 const Node *compiledSource, flat_hash_set<Node *> &dependencies, string &diagnostic)
-{
-    const auto execute = [](CompileTask &task) {
+    const auto execute = [&](const CompileTask &task) {
         const auto started = std::chrono::steady_clock::now();
-        const string command = renderCommand(task.command);
-        task.result = RunCommand::runProcess(command);
-        task.elapsedSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        RunCommand::OutputAndStatus result = RunCommand::runProcess(task.command);
+        const double elapsedSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        if (result.exitStatus != 0)
+        {
+            printErrorMessage("Could not compile the generated " + task.label +
+                              " executable.\nExit code: " + std::to_string(result.exitStatus) +
+                              "\nCommand: " + task.command + "\nCompiler output:\n" + result.output);
+        }
+        if (!result.output.empty())
+        {
+            printMessage(result.output);
+        }
+        printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", task.label, elapsedSeconds));
+        return parseHeaderDeps(result.output, compiler, result.exitStatus, task.dependencyFile.string(),
+                               configureNode->filePath, compiledSource, false);
     };
-    execute(configureTask);
-    if (configureTask.result.exitStatus == EXIT_SUCCESS)
-    {
-        execute(buildTask);
-    }
-
-    auto reportCompileFailure = [&](const CompileTask &task) {
-        diagnostic = "Could not compile the generated " + task.label + " executable.\nExit code: " +
-                     std::to_string(task.result.exitStatus) + "\nCommand: " + renderCommand(task.command) +
-                     "\nCompiler output:\n" + task.result.output;
-    };
-    if (configureTask.result.exitStatus != 0)
-    {
-        reportCompileFailure(configureTask);
-    }
-    else if (buildTask.result.exitStatus != 0)
-    {
-        reportCompileFailure(buildTask);
-    }
-    if (!diagnostic.empty())
-    {
-        return false;
-    }
-
-    if (!configureTask.result.output.empty())
-    {
-        printMessage(configureTask.result.output);
-    }
-    if (!buildTask.result.output.empty())
-    {
-        printMessage(buildTask.result.output);
-    }
-    printMessage(FORMAT("configure compilation time: {:.3f} seconds\n", configureTask.elapsedSeconds));
-    printMessage(FORMAT("build compilation time: {:.3f} seconds\n", buildTask.elapsedSeconds));
-
-    if (!isRegularFile(configureTask.dependencyFile) || !isRegularFile(buildTask.dependencyFile))
-    {
-        diagnostic = "Bootstrap compilation did not produce dependency files.";
-        return false;
-    }
-
-    const auto parse = [&](CompileTask &task) {
-        flat_hash_set<Node *> parsed = parseHeaderDeps(
-            task.result.output, compiler, task.result.exitStatus, task.dependencyFile.string(),
-            task.command.workingDirectory.string(), compiledSource, false);
-        dependencies.insert(parsed.begin(), parsed.end());
-    };
-    parse(configureTask);
-    parse(buildTask);
-    return true;
+    flat_hash_set<Node *> dependencies = execute(configureTask);
+    flat_hash_set<Node *> buildDependencies = execute(buildTask);
+    dependencies.insert(buildDependencies.begin(), buildDependencies.end());
+    return dependencies;
 }
 
-bool isDirectory(const path &directory)
-{
-    std::error_code error;
-    return std::filesystem::is_directory(directory, error) && !error;
-}
-
-struct ProjectContext
-{
-    Node *hmakeFile = nullptr;
-    bool nodesCacheExisted = false;
-};
-
-bool resolveProject(const Options &options, const path &invocationDirectory, ProjectContext &context,
-                    ProjectLock &projectLock, string &diagnostic)
+Node *resolveProject(const Options &options, const path &invocationDirectory, ProjectLock &projectLock)
 {
     std::error_code error;
     path buildDirectory;
-    if (options.buildDirectory)
+    if (!options.buildDirectory.empty())
     {
-        buildDirectory = normalizePath(*options.buildDirectory);
+        buildDirectory = normalizePath(options.buildDirectory);
     }
     else if (const path cachedBuild = findProjectBuildDirectory(invocationDirectory); !cachedBuild.empty())
     {
@@ -1037,126 +792,99 @@ bool resolveProject(const Options &options, const path &invocationDirectory, Pro
     {
         if (isRegularFile(invocationDirectory / "hmake.cpp"))
         {
-            diagnostic = "The current directory is a source directory. Select an immediate-child build directory "
-                         "with -B <directory>.\nSource directory: " +
-                         invocationDirectory.string();
-            return false;
+            printErrorMessage("The current directory is a source directory. Select an immediate-child build "
+                              "directory with -B <directory>.\nSource directory: " +
+                              invocationDirectory.string());
         }
         buildDirectory = invocationDirectory;
     }
-    const path sourceDirectory =
-        resolveSourceDirectory(options.sourceDirectory, invocationDirectory, &buildDirectory, diagnostic);
-    if (sourceDirectory.empty())
+    const path sourceDirectory = buildDirectory.parent_path();
+    if (sourceDirectory.empty() || sourceDirectory == buildDirectory || sourceDirectory == sourceDirectory.root_path())
     {
-        return false;
+        printErrorMessage("The build directory must have a non-root parent source directory.\nBuild directory: " +
+                          buildDirectory.string());
     }
-    const path hmakeFile = sourceDirectory / "hmake.cpp";
-
-    const bool buildDirectoryCreated = std::filesystem::create_directories(buildDirectory, error);
-    if (error || (!buildDirectoryCreated && !isDirectory(buildDirectory)))
+    if (!options.sourceDirectory.empty())
     {
-        diagnostic = "Could not create build directory: " + buildDirectory.string();
-        if (error)
+        const path requestedSourceDirectory = normalizePath(options.sourceDirectory);
+        if (requestedSourceDirectory != sourceDirectory)
         {
-            diagnostic += "\nSystem error: " + error.message();
+            printErrorMessage("The build directory must be an immediate child of the selected source directory.\n"
+                              "Selected source directory: " +
+                              requestedSourceDirectory.string() + "\nBuild directory: " + buildDirectory.string());
         }
-        return false;
     }
-
+    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+    {
+        printErrorMessage("The build directory's immediate parent must contain hmake.cpp.\n"
+                          "Source directory: " +
+                          sourceDirectory.string() + "\nBuild directory: " + buildDirectory.string());
+    }
     const path bootstrapDirectory = buildDirectory / ".hbuild";
-    error.clear();
-    const bool bootstrapDirectoryCreated = std::filesystem::create_directories(bootstrapDirectory, error);
-    if (error || (!bootstrapDirectoryCreated && !isDirectory(bootstrapDirectory)))
+    std::filesystem::create_directories(bootstrapDirectory, error);
+    if (error)
     {
-        diagnostic = "Could not create hbuild metadata directory: " + bootstrapDirectory.string();
-        if (error)
-        {
-            diagnostic += "\nSystem error: " + error.message();
-        }
-        return false;
+        printErrorMessage("Could not create hbuild metadata directory: " + bootstrapDirectory.string() +
+                          "\nSystem error: " + error.message());
     }
-    if (!projectLock.acquire(bootstrapDirectory / "lock", diagnostic))
-    {
-        return false;
-    }
+    projectLock.acquire(bootstrapDirectory / "lock");
 
     const path cacheFile = buildDirectory / projectCacheFileName;
     if (isRegularFile(cacheFile))
     {
-        const string cacheContents = fileToString(cacheFile.string());
         string cacheError;
-        if (!projectCache.parse(cacheContents, cacheError))
+        if (!projectCache.parse(fileToString(cacheFile.string()), cacheError))
         {
-            diagnostic = "Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError;
-            return false;
+            printErrorMessage("Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError);
         }
     }
-    if (options.toolchain)
+    if (!options.toolchain.empty())
     {
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != *options.toolchain;
-        projectCache.toolchainName = *options.toolchain;
+        projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != options.toolchain;
+        projectCache.toolchainName = options.toolchain;
     }
-    if (options.defaultJobs)
+    if (options.defaultJobs != 0)
     {
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.defaultJobs != *options.defaultJobs;
-        projectCache.defaultJobs = *options.defaultJobs;
+        projectCache.needsWrite = projectCache.needsWrite || projectCache.defaultJobs != options.defaultJobs;
+        projectCache.defaultJobs = options.defaultJobs;
     }
 
     toolchains.initialize(sourceDirectory);
     const path nodesFile = buildDirectory / nodesCacheFileName;
-    context.nodesCacheExisted = isRegularFile(nodesFile);
-    const string sourcePath = sourceDirectory.string();
-    const string configurePath = buildDirectory.string();
-    if (context.nodesCacheExisted)
+    string sourcePath = sourceDirectory.string();
+    string configurePath = buildDirectory.string();
+    string hmakePath = sourcePath;
+    hmakePath.push_back(slashc);
+    hmakePath.append("hmake.cpp");
+    if (isRegularFile(nodesFile))
     {
         loadNodesCache(nodesFile);
         if (srcNode->filePath != sourcePath || configureNode->filePath != configurePath)
         {
-            normalizationBasePath = {};
-            srcNode = nullptr;
-            configureNode = nullptr;
             nodeAllFiles.clear();
             nodeIndices.clear();
             nodeStrings.clear();
             Node::idCount = 0;
             nodesCountBefore = 0;
-            context.nodesCacheExisted = false;
         }
     }
-    if (!context.nodesCacheExisted)
+    if (nodesCountBefore == 0)
     {
-        srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(sourcePath);
-        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(configurePath);
+        srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(sourcePath));
+        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(configurePath));
         normalizationBasePath = srcNode->filePath;
     }
 
-    currentNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(invocationDirectory.string());
-    context.hmakeFile = Node::getNode<PathType::NORMAL_ABSOLUTE>(hmakeFile.string(), true);
-    return true;
+    return Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 }
 
-bool removeMetadataFile(const path &file, string &diagnostic)
+void runGeneratedConfigure(const path &executable, const path &buildDirectory, const path &configFile)
 {
-    std::error_code error;
-    std::filesystem::remove(file, error);
-    if (error)
-    {
-        diagnostic =
-            "Could not invalidate stale metadata file: " + file.string() + "\nSystem error: " + error.message();
-        return false;
-    }
-    return true;
-}
-
-bool runGeneratedConfigure(const path &executable, const path &buildDirectory, string &diagnostic)
-{
-    Command command{executable, {}, buildDirectory};
+    const Command command(executable.string(), buildDirectory.string());
     printMessage("Running configure\n");
     const auto started = std::chrono::steady_clock::now();
-    const string rendered = renderCommand(command);
-    const RunCommand::OutputAndStatus result = RunCommand::runProcess(rendered);
-    const double elapsedSeconds =
-        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    const RunCommand::OutputAndStatus result = RunCommand::runProcess(command.value);
+    const double elapsedSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     if (!result.output.empty())
     {
         printMessage(result.output);
@@ -1164,51 +892,17 @@ bool runGeneratedConfigure(const path &executable, const path &buildDirectory, s
     printMessage(FORMAT("configure execution time: {:.3f} seconds\n", elapsedSeconds));
     if (result.exitStatus != 0)
     {
-        diagnostic =
+        string diagnostic =
             "Generated configure executable failed with exit code " + std::to_string(result.exitStatus) + ".";
-        return false;
+        std::error_code error;
+        std::filesystem::remove(configFile, error);
+        if (error)
+        {
+            diagnostic += "\nAdditionally, stale metadata could not be invalidated: " + configFile.string() +
+                          "\nSystem error: " + error.message();
+        }
+        printErrorMessage(diagnostic);
     }
-    return true;
-}
-
-int runGeneratedBuild(const Options &options, const path &executable, const path &workingDirectory)
-{
-    Command command;
-    command.executable = executable;
-    command.workingDirectory = workingDirectory;
-    if (options.dryRun)
-    {
-        command.arguments.emplace_back("--dry-run");
-    }
-    if (options.headerUnitsOnly)
-    {
-        command.arguments.emplace_back("--header-units-only");
-    }
-    if (options.standalone)
-    {
-        command.arguments.emplace_back("--standalone");
-    }
-    if (options.printHashMap)
-    {
-        command.arguments.emplace_back("--print-hash-map");
-    }
-    if (options.jobs)
-    {
-        command.arguments.emplace_back("--jobs");
-        command.arguments.emplace_back(std::to_string(*options.jobs));
-    }
-    if (!options.targets.empty())
-    {
-        command.arguments.emplace_back("--");
-        command.arguments.insert(command.arguments.end(), options.targets.begin(), options.targets.end());
-    }
-    const string rendered = renderCommand(command);
-    const RunCommand::OutputAndStatus result = RunCommand::runProcess(rendered);
-    if (!result.output.empty())
-    {
-        printMessage(result.output);
-    }
-    return result.exitStatus;
 }
 
 } // namespace
@@ -1225,209 +919,213 @@ int runBootstrap(const int argc, char **argv)
     normalizationBasePath = invocationPath;
     const path invocationDirectory(invocationPath);
 
-    Options options;
-    string diagnostic;
-    if (!parseOptions(argc, argv, options, diagnostic))
-    {
-        printErrorMessage(diagnostic);
-    }
+    Options options = parseOptions(argc, argv);
     if (options.help)
     {
         printUsage();
         return 0;
     }
+
     if (options.listToolchains)
     {
-        const path sourceDirectory =
-            resolveSourceDirectory(options.sourceDirectory, invocationDirectory, nullptr, diagnostic);
-        if (sourceDirectory.empty())
+        path sourceDirectory =
+            options.sourceDirectory.empty() ? invocationDirectory : path(normalizePath(options.sourceDirectory));
+        bool hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
+        if (!hmakeExists && options.sourceDirectory.empty())
         {
-            printErrorMessage(diagnostic);
+            sourceDirectory = invocationDirectory.parent_path();
+            hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
+        }
+        if (!hmakeExists)
+        {
+            printErrorMessage("Could not find hmake.cpp in the selected source directory.\nSource directory: " +
+                              sourceDirectory.string());
         }
         toolchains.initialize(sourceDirectory);
-        printMessage(toolchains.toJson());
-        printMessage("\n");
+        string toolchainsJson = toolchains.toJson();
+        toolchainsJson.push_back('\n');
+        printMessage(toolchainsJson);
         return 0;
     }
 
     constructGlobals();
-    const int result = [&]() -> int {
-        ProjectContext project;
-        ProjectLock projectLock;
-        if (!resolveProject(options, invocationDirectory, project, projectLock, diagnostic))
-        {
-            printErrorMessage(diagnostic);
-        }
+    ProjectLock projectLock;
+    Node *const hmakeFile = resolveProject(options, invocationDirectory, projectLock);
 
-        const Toolchain *projectToolchain = resolveToolchain(projectCache.toolchainName, diagnostic);
-        const Toolchain *bootstrapToolchain = resolveToolchain({}, diagnostic);
-        if (projectToolchain == nullptr || bootstrapToolchain == nullptr)
+    const Toolchain &bootstrapToolchain = resolveToolchain({});
+    const Toolchain &projectToolchain =
+        projectCache.toolchainName.empty() || projectCache.toolchainName == bootstrapToolchain.name
+            ? bootstrapToolchain
+            : resolveToolchain(projectCache.toolchainName);
+    const path buildDirectoryPath(configureNode->filePath);
+    projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain.name;
+    projectCache.toolchainName = projectToolchain.name;
+    if (projectCache.needsWrite)
+    {
+        STACK_PMR_STRING(cacheContents, 4 * 1024)
+        string cacheError;
+        if (!projectCache.serialize(cacheContents, cacheError))
         {
-            printErrorMessage(diagnostic);
+            printErrorMessage(cacheError);
         }
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain->name;
-        projectCache.toolchainName = projectToolchain->name;
-        if (projectCache.needsWrite)
+        writeCacheFile((buildDirectoryPath / projectCacheFileName).string(), cacheContents);
+        projectCache.needsWrite = false;
+    }
+
+    const path bootstrapDirectory = buildDirectoryPath / ".hbuild";
+    const auto makeTask = [&](const bool configureMode) {
+        CompileTask task;
+        task.label = configureMode ? "configure" : "build";
+        task.executable = buildDirectoryPath / task.label;
+        if constexpr (os == OS::NT)
         {
-            STACK_PMR_STRING(cacheContents, 4 * 1024)
-            string cacheError;
-            if (!projectCache.serialize(cacheContents, cacheError))
+            task.executable += ".exe";
+        }
+        task.dependencyFile = bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"));
+        const string objectFile =
+            bootstrapToolchain.style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
+        task.command =
+            makeCompileCommand(bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
+                               task.dependencyFile.string(), objectFile, configureNode->filePath);
+        task.commandHash = rapidhash(task.command.data(), task.command.size());
+        return task;
+    };
+    CompileTask configureTask = makeTask(true);
+    CompileTask buildTask = makeTask(false);
+
+    const path configFile = buildDirectoryPath / configCacheFileName;
+    const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
+    BuildCachePrefix prefix = nodesCountBefore == 0 ? BuildCachePrefix{} : loadBuildCachePrefix(buildCacheFile);
+
+    const bool metadataMissing = nodesCountBefore == 0 || prefix.bytes.empty();
+    const bool configExistsInitially = isRegularFile(configFile);
+    const uint64_t selectedToolchainCache = toolchainCommandCache(projectToolchain);
+    const uint64_t projectContentCache = projectCache.contentCache();
+    bool mustCompile = options.recompile || !isRegularFile(configureTask.executable) ||
+                       !isRegularFile(buildTask.executable) || metadataMissing;
+    bool mustConfigure = options.reconfigure || mustCompile || !configExistsInitially;
+
+    if (!prefix.bytes.empty())
+    {
+        if (mustCompile)
+        {
+            // Configuration replaces this set without hashing it. Keep its current snapshot fresh so the completed
+            // configuration is not followed by one redundant reconfiguration on the next hbuild invocation.
+            for (Node *node : reconfigureNodes)
             {
-                printErrorMessage(cacheError);
+                node->doHashFile = true;
             }
-            writeCacheFile((path(configureNode->filePath) / projectCacheFileName).string(), cacheContents);
-            projectCache.needsWrite = false;
-        }
-
-        CompileTask configureTask = makeCompileTask(*bootstrapToolchain, true, project.hmakeFile->filePath,
-                                                    configureNode->filePath);
-        CompileTask buildTask = makeCompileTask(*bootstrapToolchain, false, project.hmakeFile->filePath,
-                                                configureNode->filePath);
-
-        const path nodesFile = path(configureNode->filePath) / nodesCacheFileName;
-        const path configFile = path(configureNode->filePath) / configCacheFileName;
-        const path buildCacheFile = path(configureNode->filePath) / buildCacheFileName;
-        BuildCachePrefix prefix;
-        if (project.nodesCacheExisted &&
-            !loadBuildCachePrefix(buildCacheFile, nodeIndices.size(), prefix, diagnostic))
-        {
-            printErrorMessage(diagnostic);
-        }
-
-        const bool nodesMetadataMissing = !project.nodesCacheExisted;
-        const bool buildMetadataMissing = prefix.bytes.empty();
-        const bool configExistsInitially = isRegularFile(configFile);
-        const uint64_t selectedToolchainCache = toolchainCommandCache(*projectToolchain);
-        const uint64_t projectContentCache = projectCache.contentCache();
-        bool mustCompile = options.recompile || !isRegularFile(configureTask.executable) ||
-                           !isRegularFile(buildTask.executable) || nodesMetadataMissing || buildMetadataMissing;
-        bool mustConfigure = options.reconfigure || mustCompile || !configExistsInitially;
-
-        if (!prefix.bytes.empty())
-        {
-            STACK_PMR_VECTOR(uint64_t, cachedRecompileSnapshots, 64)
-            cachedRecompileSnapshots.reserve(recompileNodes.size() * 2);
-            for (const Node *node : recompileNodes)
-            {
-                cachedRecompileSnapshots.emplace_back(node->lastWriteTime);
-                cachedRecompileSnapshots.emplace_back(node->contentHash);
-            }
-            STACK_PMR_VECTOR(uint64_t, cachedReconfigureSnapshots, 64)
-            cachedReconfigureSnapshots.reserve(reconfigureNodes.size() * 2);
-            for (const Node *node : reconfigureNodes)
-            {
-                cachedReconfigureSnapshots.emplace_back(node->lastWriteTime);
-                cachedReconfigureSnapshots.emplace_back(node->contentHash);
-            }
-            Builder::checkNodes();
-            const bool recompileChanged = invalidationSetChanged(recompileNodes, cachedRecompileSnapshots);
-            const bool reconfigureChanged = invalidationSetChanged(reconfigureNodes, cachedReconfigureSnapshots);
-            const bool commandCacheChanged =
-                buildExeCommandHash != buildTask.semanticHash || configureExeCommandHash != configureTask.semanticHash;
-            const bool projectInputsChanged =
-                selectedToolchainCommandCache != selectedToolchainCache ||
-                projectCacheContentCache != projectContentCache;
-            mustCompile = mustCompile || commandCacheChanged || recompileChanged;
-            mustConfigure = mustConfigure || commandCacheChanged || recompileChanged || projectInputsChanged ||
-                            reconfigureChanged;
         }
         else
         {
-            recompileNodes.clear();
-            reconfigureNodes.clear();
-        }
-
-        if (nodesMetadataMissing || buildMetadataMissing)
-        {
-            prefix = {};
-        }
-        if (nodesMetadataMissing || buildMetadataMissing || options.reconfigure)
-        {
-            if (!removeMetadataFile(configFile, diagnostic))
-            {
-                printErrorMessage(diagnostic);
-            }
-        }
-
-        if (mustCompile)
-        {
-            printMessage("Compiling configure and build executables\n");
-            flat_hash_set<Node *> dependencies;
-            if (!compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler,
-                                             project.hmakeFile, dependencies, diagnostic))
-            {
-                printErrorMessage(diagnostic);
-            }
-            dependencies.emplace(project.hmakeFile);
-            dependencies.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
-            dependencies.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
-            if (isRegularFile(bootstrapToolchain->compiler.bTPath))
-            {
-                dependencies.emplace(Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true));
-            }
-            recompileNodes = std::move(dependencies);
-        }
-
-        buildExeCommandHash = buildTask.semanticHash;
-        configureExeCommandHash = configureTask.semanticHash;
-        selectedToolchainCommandCache = selectedToolchainCache;
-        projectCacheContentCache = projectContentCache;
-
-        // Configuration reconstructs this user-owned set directly from the current hmake.cpp. Clear the previous
-        // snapshot only after hbuild has used it for the take-off decision, so removed entries do not live forever.
-        if (mustConfigure)
-        {
-            reconfigureNodes.clear();
-        }
-
-        if (mustCompile)
-        {
-            for (Node *node : recompileNodes)
-            {
-                node->doStatFile = true;
-                node->doHashFile = true;
-            }
-            Builder::checkNodes();
-        }
-        writeNodesCache();
-        const bool preserveOrdinaryTail =
-            configExistsInitially && !options.reconfigure && !nodesMetadataMissing && !prefix.bytes.empty();
-        if (!writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail, diagnostic))
-        {
-            printErrorMessage(diagnostic);
-        }
-
-        if (mustConfigure)
-        {
-            if (!runGeneratedConfigure(configureTask.executable, configureNode->filePath, diagnostic))
-            {
-                string removeDiagnostic;
-                removeMetadataFile(configFile, removeDiagnostic);
-                if (!removeDiagnostic.empty())
+            STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
+            cachedSnapshots.reserve((recompileNodes.size() + reconfigureNodes.size()) * 2);
+            const auto snapshotNodes = [&](const flat_hash_set<Node *> &nodes) {
+                for (Node *node : nodes)
                 {
-                    diagnostic += "\nAdditionally, " + removeDiagnostic;
+                    node->doHashFile = true;
+                    cachedSnapshots.emplace_back(node->lastWriteTime);
+                    cachedSnapshots.emplace_back(node->contentHash);
                 }
-                printErrorMessage(diagnostic);
-            }
-            if (!isRegularFile(configFile) || !isRegularFile(nodesFile) || !isRegularFile(buildCacheFile))
-            {
-                printErrorMessage("Generated configure completed without producing all three cache artifacts.");
-            }
-
+            };
+            snapshotNodes(recompileNodes);
+            snapshotNodes(reconfigureNodes);
+            Builder::checkNodes();
+            uint64_t snapshotIndex = 0;
+            const auto nodesChanged = [&](const flat_hash_set<Node *> &nodes) {
+                bool changed = false;
+                for (const Node *node : nodes)
+                {
+                    changed |= node->lastWriteTime != cachedSnapshots[snapshotIndex++];
+                    changed |= node->contentHash != cachedSnapshots[snapshotIndex++];
+                }
+                return changed;
+            };
+            const bool recompileChanged = nodesChanged(recompileNodes);
+            const bool reconfigureChanged = nodesChanged(reconfigureNodes);
+            assert(snapshotIndex == cachedSnapshots.size());
+            const bool commandCacheChanged =
+                buildExeCommandHash != buildTask.commandHash || configureExeCommandHash != configureTask.commandHash;
+            const bool projectInputsChanged = selectedToolchainCommandCache != selectedToolchainCache ||
+                                              projectCacheContentCache != projectContentCache;
+            mustCompile = commandCacheChanged || recompileChanged;
+            mustConfigure = mustConfigure || mustCompile || projectInputsChanged || reconfigureChanged;
         }
-
-        if (options.configureOnly)
+    }
+    if (metadataMissing || options.reconfigure)
+    {
+        std::error_code error;
+        std::filesystem::remove(configFile, error);
+        if (error)
         {
-            return 0;
+            printErrorMessage("Could not invalidate stale metadata file: " + configFile.string() +
+                              "\nSystem error: " + error.message());
         }
+    }
 
+    if (mustCompile)
+    {
+        printMessage("Compiling configure and build executables\n");
+        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain.compiler, hmakeFile);
+        recompileNodes.emplace(hmakeFile);
+        recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
+        recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
+        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain.compiler.bTPath, true, true);
+        if (compilerNode->fileType == std::filesystem::file_type::regular)
+        {
+            recompileNodes.emplace(compilerNode);
+        }
+    }
+
+    buildExeCommandHash = buildTask.commandHash;
+    configureExeCommandHash = configureTask.commandHash;
+    selectedToolchainCommandCache = selectedToolchainCache;
+    projectCacheContentCache = projectContentCache;
+
+    // Configuration reconstructs this user-owned set directly from the current hmake.cpp. Clear the previous
+    // snapshot only after hbuild has used it for the take-off decision, so removed entries do not live forever.
+    if (mustConfigure)
+    {
+        reconfigureNodes.clear();
+    }
+
+    if (mustCompile)
+    {
+        for (Node *node : recompileNodes)
+        {
+            node->doHashFile = true;
+        }
+        Builder::checkNodes();
+    }
+    writeNodesCache();
+    if (mustConfigure)
+    {
+        const bool preserveOrdinaryTail = configExistsInitially && !options.reconfigure && !metadataMissing;
+        writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail);
+        runGeneratedConfigure(configureTask.executable, buildDirectoryPath, configFile);
+    }
+
+    int result = 0;
+    if (!options.configureOnly)
+    {
         const string_view buildDirectory = configureNode->filePath;
-        const string_view invocationPath = currentNode->filePath;
-        const bool invocationIsInBuild =
-            invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory);
-        const path buildWorkingDirectory = invocationIsInBuild ? path(invocationPath) : path(buildDirectory);
-        return runGeneratedBuild(options, buildTask.executable, buildWorkingDirectory);
-    }();
+        const string_view buildWorkingDirectory =
+            invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory)
+                ? string_view(invocationPath)
+                : buildDirectory;
+        const string buildExecutable = buildTask.executable.string();
+        Command command(buildExecutable, buildWorkingDirectory);
+        for (const string_view argument : options.buildArguments)
+        {
+            command.append(argument);
+        }
+        const RunCommand::OutputAndStatus buildResult = RunCommand::runProcess(command.value);
+        if (!buildResult.output.empty())
+        {
+            printMessage(buildResult.output);
+        }
+        result = buildResult.exitStatus;
+    }
     destructGlobals();
     return result;
 }
