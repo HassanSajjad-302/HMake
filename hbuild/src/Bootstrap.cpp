@@ -738,68 +738,6 @@ flat_hash_set<Node *> compileBootstrapExecutables(const CompileTask &configureTa
     return dependencies;
 }
 
-Node *resolveProject(const Options &options, const path &buildDirectory, const path &sourceDirectory,
-                     ProjectLock &projectLock)
-{
-    std::error_code error;
-    const path bootstrapDirectory = buildDirectory / ".hbuild";
-    std::filesystem::create_directories(bootstrapDirectory, error);
-    if (error)
-    {
-        printErrorMessage("Could not create hbuild metadata directory: " + bootstrapDirectory.string() +
-                          "\nSystem error: " + error.message());
-    }
-    projectLock.acquire(bootstrapDirectory / "lock");
-
-    const path cacheFile = buildDirectory / projectCacheFileName;
-    if (isRegularFile(cacheFile))
-    {
-        string cacheError;
-        if (!projectCache.parse(fileToString(cacheFile.string()), cacheError))
-        {
-            printErrorMessage("Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError);
-        }
-    }
-    if (!options.toolchain.empty())
-    {
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != options.toolchain;
-        projectCache.toolchainName = options.toolchain;
-    }
-    if (options.defaultJobs != 0)
-    {
-        projectCache.needsWrite = projectCache.needsWrite || projectCache.defaultJobs != options.defaultJobs;
-        projectCache.defaultJobs = options.defaultJobs;
-    }
-
-    toolchains.initialize(sourceDirectory);
-    const path nodesFile = buildDirectory / nodesCacheFileName;
-    string sourcePath = sourceDirectory.string();
-    string configurePath = buildDirectory.string();
-    string hmakePath = sourcePath;
-    hmakePath.push_back(slashc);
-    hmakePath += "hmake.cpp";
-    if (isRegularFile(nodesFile))
-    {
-        loadNodesCache(nodesFile);
-        if (srcNode->filePath != sourcePath || configureNode->filePath != configurePath)
-        {
-            nodeAllFiles.clear();
-            nodeIndices.clear();
-            nodeStrings.clear();
-            Node::idCount = 0;
-            nodesCountBefore = 0;
-        }
-    }
-    if (nodesCountBefore == 0)
-    {
-        srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(sourcePath));
-        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(configurePath));
-        normalizationBasePath = srcNode->filePath;
-    }
-
-    return Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
-}
-
 void runGeneratedConfigure(const path &executable, const path &buildDirectory, const path &configFile)
 {
     const Command command(executable.string(), buildDirectory.string());
@@ -848,11 +786,11 @@ int runBootstrap(const int argc, char **argv)
         return 0;
     }
 
+    std::error_code error;
     const path buildDirectoryPath =
         options.buildDirectory.empty() ? invocationDirectory : path(normalizePath(options.buildDirectory));
     if (!options.buildDirectory.empty())
     {
-        std::error_code error;
         std::filesystem::create_directories(buildDirectoryPath, error);
         if (error)
         {
@@ -884,7 +822,61 @@ int runBootstrap(const int argc, char **argv)
 
     constructGlobals();
     ProjectLock projectLock;
-    Node *const hmakeFile = resolveProject(options, buildDirectoryPath, sourceDirectory, projectLock);
+    const path bootstrapDirectory = buildDirectoryPath / ".hbuild";
+    std::filesystem::create_directories(bootstrapDirectory, error);
+    if (error)
+    {
+        printErrorMessage("Could not create hbuild metadata directory: " + bootstrapDirectory.string() +
+                          "\nSystem error: " + error.message());
+    }
+    projectLock.acquire(bootstrapDirectory / "lock");
+
+    const path cacheFile = buildDirectoryPath / projectCacheFileName;
+    if (isRegularFile(cacheFile))
+    {
+        string cacheError;
+        if (!projectCache.parse(fileToString(cacheFile.string()), cacheError))
+        {
+            printErrorMessage("Invalid project cache.\nFile: " + cacheFile.string() + "\n" + cacheError);
+        }
+    }
+    if (!options.toolchain.empty())
+    {
+        projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != options.toolchain;
+        projectCache.toolchainName = options.toolchain;
+    }
+    if (options.defaultJobs != 0)
+    {
+        projectCache.needsWrite = projectCache.needsWrite || projectCache.defaultJobs != options.defaultJobs;
+        projectCache.defaultJobs = options.defaultJobs;
+    }
+
+    toolchains.initialize(sourceDirectory);
+    const path nodesFile = buildDirectoryPath / nodesCacheFileName;
+    string sourcePath = sourceDirectory.string();
+    string configurePath = buildDirectoryPath.string();
+    string hmakePath = sourcePath;
+    hmakePath.push_back(slashc);
+    hmakePath += "hmake.cpp";
+    if (isRegularFile(nodesFile))
+    {
+        loadNodesCache(nodesFile);
+        if (srcNode->filePath != sourcePath || configureNode->filePath != configurePath)
+        {
+            nodeAllFiles.clear();
+            nodeIndices.clear();
+            nodeStrings.clear();
+            Node::idCount = 0;
+            nodesCountBefore = 0;
+        }
+    }
+    if (nodesCountBefore == 0)
+    {
+        srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(sourcePath));
+        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(configurePath));
+        normalizationBasePath = srcNode->filePath;
+    }
+    Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 
     const Toolchain &bootstrapToolchain = resolveToolchain({});
     const Toolchain &projectToolchain =
@@ -901,11 +893,10 @@ int runBootstrap(const int argc, char **argv)
         {
             printErrorMessage(cacheError);
         }
-        writeCacheFile((buildDirectoryPath / projectCacheFileName).string(), cacheContents);
+        writeCacheFile(cacheFile.string(), cacheContents);
         projectCache.needsWrite = false;
     }
 
-    const path bootstrapDirectory = buildDirectoryPath / ".hbuild";
     const auto makeTask = [&](const bool configureMode) {
         CompileTask task;
         task.label = configureMode ? "configure" : "build";
