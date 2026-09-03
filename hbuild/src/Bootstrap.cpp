@@ -854,26 +854,19 @@ int runBootstrap(const int argc, char **argv)
     toolchains.initialize(sourceDirectory);
     const path nodesFile = buildDirectoryPath / nodesCacheFileName;
     string sourcePath = sourceDirectory.string();
-    string configurePath = buildDirectoryPath.string();
     string hmakePath = sourcePath;
     hmakePath.push_back(slashc);
     hmakePath += "hmake.cpp";
     if (isRegularFile(nodesFile))
     {
         loadNodesCache(nodesFile);
-        if (srcNode->filePath != sourcePath || configureNode->filePath != configurePath)
-        {
-            nodeAllFiles.clear();
-            nodeIndices.clear();
-            nodeStrings.clear();
-            Node::idCount = 0;
-            nodesCountBefore = 0;
-        }
+        assert(srcNode->filePath == sourcePath);
+        assert(configureNode->filePath == buildDirectoryPath.string());
     }
-    if (nodesCountBefore == 0)
+    else
     {
         srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(sourcePath));
-        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(configurePath));
+        configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(buildDirectoryPath.string());
         normalizationBasePath = srcNode->filePath;
     }
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
