@@ -304,7 +304,8 @@ getConfiguration("Debug").assign(ConfigType::DEBUG, Warnings::EXTRA, WarningsAsE
 HMake installs a named default toolchain matching the compiler used to build HMake. Additional
 toolchains live in `~/.hmake/toolchains.json` on Linux or `%LOCALAPPDATA%\HMake\toolchains.json`
 on Windows, and optionally beside `hmake.cpp`. Select one with `hbuild --toolchain <name>` and print the fully
-resolved registry with `hbuild --list-toolchains`.
+resolved registry with `hbuild --list-toolchains -B build` from the source directory or `hbuild --list-toolchains`
+from the build directory.
 
 `toolchains.json` is a top-level object keyed by unique toolchain names. A complete entry has the following form. A
 derived entry can use `extends` and override only the fields it changes; its base must appear earlier.

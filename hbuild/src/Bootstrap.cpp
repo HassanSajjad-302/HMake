@@ -738,40 +738,10 @@ flat_hash_set<Node *> compileBootstrapExecutables(const CompileTask &configureTa
     return dependencies;
 }
 
-Node *resolveProject(const Options &options, const path &invocationDirectory, ProjectLock &projectLock)
+Node *resolveProject(const Options &options, const path &buildDirectory, const path &sourceDirectory,
+                     ProjectLock &projectLock)
 {
     std::error_code error;
-    path buildDirectory;
-    if (!options.buildDirectory.empty())
-    {
-        buildDirectory = normalizePath(options.buildDirectory);
-    }
-    else if (const path cachedBuild = findProjectBuildDirectory(invocationDirectory); !cachedBuild.empty())
-    {
-        buildDirectory = cachedBuild;
-    }
-    else
-    {
-        if (isRegularFile(invocationDirectory / "hmake.cpp"))
-        {
-            printErrorMessage("The current directory is a source directory. Select an immediate-child build "
-                              "directory with -B <directory>.\nSource directory: " +
-                              invocationDirectory.string());
-        }
-        buildDirectory = invocationDirectory;
-    }
-    const path sourceDirectory = buildDirectory.parent_path();
-    if (!sourceDirectory.has_relative_path())
-    {
-        printErrorMessage("The build directory must have a non-root parent source directory.\nBuild directory: " +
-                          buildDirectory.string());
-    }
-    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-    {
-        printErrorMessage("The build directory's immediate parent must contain hmake.cpp.\n"
-                          "Source directory: " +
-                          sourceDirectory.string() + "\nBuild directory: " + buildDirectory.string());
-    }
     const path bootstrapDirectory = buildDirectory / ".hbuild";
     std::filesystem::create_directories(bootstrapDirectory, error);
     if (error)
@@ -878,22 +848,33 @@ int runBootstrap(const int argc, char **argv)
         return 0;
     }
 
+    const path buildDirectoryPath =
+        options.buildDirectory.empty() ? invocationDirectory : path(normalizePath(options.buildDirectory));
+    if (!options.buildDirectory.empty())
+    {
+        std::error_code error;
+        std::filesystem::create_directories(buildDirectoryPath, error);
+        if (error)
+        {
+            printErrorMessage("Could not create build directory: " + buildDirectoryPath.string() +
+                              "\nSystem error: " + error.message());
+        }
+    }
+    const path sourceDirectory = buildDirectoryPath.parent_path();
+    if (!sourceDirectory.has_relative_path())
+    {
+        printErrorMessage("The build directory must have a non-root parent source directory.\nBuild directory: " +
+                          buildDirectoryPath.string());
+    }
+    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
+    {
+        printErrorMessage("The build directory's immediate parent must contain hmake.cpp.\n"
+                          "Source directory: " +
+                          sourceDirectory.string() + "\nBuild directory: " + buildDirectoryPath.string());
+    }
+
     if (options.listToolchains)
     {
-        path sourceDirectory = options.buildDirectory.empty()
-                                   ? invocationDirectory
-                                   : path(normalizePath(options.buildDirectory)).parent_path();
-        bool hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
-        if (!hmakeExists && options.buildDirectory.empty())
-        {
-            sourceDirectory = invocationDirectory.parent_path();
-            hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
-        }
-        if (!hmakeExists)
-        {
-            printErrorMessage("Could not find hmake.cpp in the selected source directory.\nSource directory: " +
-                              sourceDirectory.string());
-        }
         toolchains.initialize(sourceDirectory);
         string toolchainsJson = toolchains.toJson();
         toolchainsJson.push_back('\n');
@@ -903,14 +884,13 @@ int runBootstrap(const int argc, char **argv)
 
     constructGlobals();
     ProjectLock projectLock;
-    Node *const hmakeFile = resolveProject(options, invocationDirectory, projectLock);
+    Node *const hmakeFile = resolveProject(options, buildDirectoryPath, sourceDirectory, projectLock);
 
     const Toolchain &bootstrapToolchain = resolveToolchain({});
     const Toolchain &projectToolchain =
         projectCache.toolchainName.empty() || projectCache.toolchainName == bootstrapToolchain.name
             ? bootstrapToolchain
             : resolveToolchain(projectCache.toolchainName);
-    const path buildDirectoryPath(configureNode->filePath);
     projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain.name;
     projectCache.toolchainName = projectToolchain.name;
     if (projectCache.needsWrite)
