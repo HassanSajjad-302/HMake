@@ -796,9 +796,9 @@ int runBootstrap(const int argc, char **argv)
                           sourceDirectory.string() + "\nBuild directory: " + buildDirectoryPath.string());
     }
 
+    toolchains.initialize(sourceDirectory);
     if (options.listToolchains)
     {
-        toolchains.initialize(sourceDirectory);
         string toolchainsJson = toolchains.toJson();
         toolchainsJson.push_back('\n');
         printMessage(toolchainsJson);
@@ -836,7 +836,6 @@ int runBootstrap(const int argc, char **argv)
         projectCache.defaultJobs = options.defaultJobs;
     }
 
-    toolchains.initialize(sourceDirectory);
     const path nodesFile = buildDirectoryPath / nodesCacheFileName;
     string sourcePath = sourceDirectory.string();
     string hmakePath = sourcePath;
@@ -856,20 +855,17 @@ int runBootstrap(const int argc, char **argv)
     normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 
-    const Toolchain *const bootstrapToolchain = toolchains.find(toolchains.defaultName());
-    if (bootstrapToolchain == nullptr)
+    const Toolchain &bootstrapToolchain = toolchains.entries.find(toolchains.defaultName())->second;
+    const Toolchain *projectToolchain = &bootstrapToolchain;
+    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain.name)
     {
-        printErrorMessage("No toolchain is registered.");
-    }
-    const Toolchain *projectToolchain = bootstrapToolchain;
-    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain->name)
-    {
-        projectToolchain = toolchains.find(projectCache.toolchainName);
-        if (projectToolchain == nullptr)
+        const auto selectedToolchain = toolchains.entries.find(projectCache.toolchainName);
+        if (selectedToolchain == toolchains.entries.end())
         {
             printErrorMessage("Unknown toolchain: " + projectCache.toolchainName +
                               "\nUse --list-toolchains to list valid names.");
         }
+        projectToolchain = &selectedToolchain->second;
     }
     projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain->name;
     projectCache.toolchainName = projectToolchain->name;
@@ -894,11 +890,11 @@ int runBootstrap(const int argc, char **argv)
             task.executable += ".exe";
         }
         task.dependencyFile =
-            (bootstrapDirectory / (task.label + (bootstrapToolchain->style == "msvc" ? ".json" : ".d"))).string();
+            (bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"))).string();
         const string objectFile =
-            bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
+            bootstrapToolchain.style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
         task.command =
-            makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
+            makeCompileCommand(bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
                                task.dependencyFile, objectFile, configureNode->filePath);
         task.commandHash = rapidhash(task.command.data(), task.command.size());
         return task;
@@ -979,11 +975,11 @@ int runBootstrap(const int argc, char **argv)
     if (mustCompile)
     {
         printMessage("Compiling configure and build executables\n");
-        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler, hmakeFile);
+        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain.compiler, hmakeFile);
         recompileNodes.emplace(hmakeFile);
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
-        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true, true);
+        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain.compiler.bTPath, true, true);
         if (compilerNode->fileType == std::filesystem::file_type::regular)
         {
             recompileNodes.emplace(compilerNode);

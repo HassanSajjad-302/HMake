@@ -542,35 +542,12 @@ void Toolchains::loadFile(const path &filePath)
 
 void Toolchains::initialize(const path &sourceDirectory)
 {
-    if (!userFileLoaded)
-    {
-        loadFile(userToolchainsFilePath);
-        userFileLoaded = true;
-    }
-    if (!sourceDirectory.empty() && !sourceFileLoaded)
-    {
-        loadFile(sourceDirectory / "toolchains.json");
-        sourceFileLoaded = true;
-    }
+    loadFile(userToolchainsFilePath);
+    loadFile(sourceDirectory / "toolchains.json");
 }
 
-const Toolchain *Toolchains::find(const string_view name)
+string Toolchains::toJson() const
 {
-    initialize();
-    const auto found = entries.find(name);
-    return found == entries.end() ? nullptr : &found->second;
-}
-
-string_view Toolchains::defaultName()
-{
-    initialize();
-    return registryOrder.empty() ? string_view{} : string_view(registryOrder.front());
-}
-
-string Toolchains::toJson()
-{
-    initialize();
-
     rapidjson::Document document(rapidjson::kObjectType);
     auto &allocator = document.GetAllocator();
     for (const string &name : registryOrder)

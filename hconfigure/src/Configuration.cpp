@@ -91,12 +91,14 @@ void Configuration::initialize()
     {
         printErrorMessage("No project toolchain is selected.");
     }
-    const Toolchain *toolchain = toolchains.find(projectCache.toolchainName);
-    if (toolchain == nullptr)
+
+    const auto &toolchainIt = toolchains.entries.find(projectCache.toolchainName);
+    if (toolchainIt == toolchains.entries.end())
     {
-        printErrorMessage(FORMAT("The selected project toolchain does not exist.\nToolchain: {}",
-                                 projectCache.toolchainName));
+        printErrorMessage(
+            FORMAT("The selected project toolchain does not exist.\nToolchain: {}", projectCache.toolchainName));
     }
+    const Toolchain *toolchain = &toolchainIt->second;
 
     if (compilerFeatures.targetOs == TargetOS::NONE)
     {
@@ -113,13 +115,12 @@ void Configuration::initialize()
     if (toolchain->targetOs != compilerFeatures.targetOs || toolchain->targetArch != compilerFeatures.arch ||
         toolchain->targetAddressModel != compilerFeatures.addModel)
     {
-        printErrorMessage(FORMAT("The selected toolchain target is incompatible with the configuration.\n"
-                                 "Configuration: {}\nToolchain: {}\nTarget: {}\nRequested OS: {}\n"
-                                 "Requested architecture: {}\nRequested address model: {}",
-                                 name, toolchain->name, toolchain->target,
-                                 static_cast<uint8_t>(compilerFeatures.targetOs),
-                                 static_cast<uint8_t>(compilerFeatures.arch),
-                                 static_cast<uint8_t>(compilerFeatures.addModel)));
+        printErrorMessage(
+            FORMAT("The selected toolchain target is incompatible with the configuration.\n"
+                   "Configuration: {}\nToolchain: {}\nTarget: {}\nRequested OS: {}\n"
+                   "Requested architecture: {}\nRequested address model: {}",
+                   name, toolchain->name, toolchain->target, static_cast<uint8_t>(compilerFeatures.targetOs),
+                   static_cast<uint8_t>(compilerFeatures.arch), static_cast<uint8_t>(compilerFeatures.addModel)));
     }
 
     linkerFeatures.targetOs = compilerFeatures.targetOs;
