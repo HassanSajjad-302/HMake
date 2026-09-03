@@ -604,21 +604,6 @@ uint64_t toolchainCommandCache(const Toolchain &toolchain)
     return rapidhash(fingerprint.data(), fingerprint.size());
 }
 
-const Toolchain &resolveToolchain(const string_view requested)
-{
-    const string_view selected = requested.empty() ? toolchains.defaultName() : requested;
-    if (selected.empty())
-    {
-        printErrorMessage("No toolchain is registered.");
-    }
-    const Toolchain *resolved = toolchains.find(selected);
-    if (resolved == nullptr)
-    {
-        printErrorMessage("Unknown toolchain: " + string(selected) + "\nUse --list-toolchains to list valid names.");
-    }
-    return *resolved;
-}
-
 string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
                           const string_view outputFile, const string_view dependencyFile, const string_view objectFile,
                           const string_view workingDirectory)
@@ -867,17 +852,27 @@ int runBootstrap(const int argc, char **argv)
     {
         srcNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(sourcePath));
         configureNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(buildDirectoryPath.string());
-        normalizationBasePath = srcNode->filePath;
     }
+    normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 
-    const Toolchain &bootstrapToolchain = resolveToolchain({});
-    const Toolchain &projectToolchain =
-        projectCache.toolchainName.empty() || projectCache.toolchainName == bootstrapToolchain.name
-            ? bootstrapToolchain
-            : resolveToolchain(projectCache.toolchainName);
-    projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain.name;
-    projectCache.toolchainName = projectToolchain.name;
+    const Toolchain *const bootstrapToolchain = toolchains.find(toolchains.defaultName());
+    if (bootstrapToolchain == nullptr)
+    {
+        printErrorMessage("No toolchain is registered.");
+    }
+    const Toolchain *projectToolchain = bootstrapToolchain;
+    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain->name)
+    {
+        projectToolchain = toolchains.find(projectCache.toolchainName);
+        if (projectToolchain == nullptr)
+        {
+            printErrorMessage("Unknown toolchain: " + projectCache.toolchainName +
+                              "\nUse --list-toolchains to list valid names.");
+        }
+    }
+    projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain->name;
+    projectCache.toolchainName = projectToolchain->name;
     if (projectCache.needsWrite)
     {
         STACK_PMR_STRING(cacheContents, 4 * 1024)
@@ -899,11 +894,11 @@ int runBootstrap(const int argc, char **argv)
             task.executable += ".exe";
         }
         task.dependencyFile =
-            (bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"))).string();
+            (bootstrapDirectory / (task.label + (bootstrapToolchain->style == "msvc" ? ".json" : ".d"))).string();
         const string objectFile =
-            bootstrapToolchain.style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
+            bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
         task.command =
-            makeCompileCommand(bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
+            makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
                                task.dependencyFile, objectFile, configureNode->filePath);
         task.commandHash = rapidhash(task.command.data(), task.command.size());
         return task;
@@ -917,7 +912,7 @@ int runBootstrap(const int argc, char **argv)
 
     const bool metadataMissing = nodesCountBefore == 0 || prefix.bytes.empty();
     const bool configExistsInitially = isRegularFile(configFile);
-    const uint64_t selectedToolchainCache = toolchainCommandCache(projectToolchain);
+    const uint64_t selectedToolchainCache = toolchainCommandCache(*projectToolchain);
     const uint64_t projectContentCache = projectCache.contentCache();
     bool mustCompile = options.recompile || !isRegularFile(configureTask.executable) ||
                        !isRegularFile(buildTask.executable) || metadataMissing;
@@ -984,11 +979,11 @@ int runBootstrap(const int argc, char **argv)
     if (mustCompile)
     {
         printMessage("Compiling configure and build executables\n");
-        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain.compiler, hmakeFile);
+        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler, hmakeFile);
         recompileNodes.emplace(hmakeFile);
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
-        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain.compiler.bTPath, true, true);
+        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true, true);
         if (compilerNode->fileType == std::filesystem::file_type::regular)
         {
             recompileNodes.emplace(compilerNode);
