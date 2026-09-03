@@ -257,7 +257,7 @@ configure/build executables when necessary, configures, and then builds.
 
 ```bash
 cd HMake/Examples/Example1
-hbuild -S . -B build
+hbuild -B build
 ```
 
 For Example 1, the resulting executable is `build/Release/app/app` on Linux
@@ -338,7 +338,7 @@ replace them.
 The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
 Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
 is invalid. The first two values are positional; later values use `name=value` syntax. The source directory is exactly
-the build directory's immediate parent and must contain `hmake.cpp`; an explicit `-S` must select that directory.
+the build directory's immediate parent and must contain `hmake.cpp`.
 Generated commands are
 structured internally rather than stored as editable shell strings. Cache variables are edited in this file; `hbuild`
 does not provide `-D` command-line overrides.

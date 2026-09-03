@@ -13,7 +13,7 @@ git clone https://github.com/cdacamar/ball_pit --recursive --shallow-submodules
 Then configure and build it in one command:
 
 ```bash
-hbuild -S . -B Build
+hbuild -B Build
 ```
 
 This specification enables `IsCppMod::YES`, so select a named toolchain compatible with

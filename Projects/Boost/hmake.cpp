@@ -5,7 +5,7 @@
 // 3) Add the build-dir to Environment Variable
 // 4) Register the MSVC toolchain in %LOCALAPPDATA%\HMake\toolchains.json if it is not the installed default.
 // 5) Copy the Projects/boost/* to boost/
-// 6) In boost/, run hbuild -S . -B BoostBuild --toolchain <name>.
+// 6) In boost/, run hbuild -B BoostBuild --toolchain <name>.
 // 7) cd BoostBuild/conventional-d && hbuild    --> This will full build the conventional-d configuration.
 // 8) cd ../hu-d/ScanOnly   &&   hbuild    --> This will just scan, but not build the hu-d configuration.
 // 9) cd ../ && hbuild      --> This will full build the hu-d configuration. Just sit-back and enjoy.

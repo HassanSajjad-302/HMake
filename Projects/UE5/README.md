@@ -53,7 +53,7 @@ For a fresh build directory, let `hbuild` perform the complete take-off:
 ```sh
 mkdir -p /home/hassan/Projects/UnrealEngine/uebuild
 cd /home/hassan/Projects/UnrealEngine/uebuild
-hbuild -S .. -B .
+hbuild -B .
 ```
 
 ## File metadata and selection

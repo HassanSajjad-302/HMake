@@ -115,7 +115,6 @@ class ProjectLock
 
 struct Options
 {
-    string_view sourceDirectory;
     string_view buildDirectory;
     string_view toolchain;
     uint16_t defaultJobs = 0;
@@ -175,15 +174,10 @@ Options parseOptions(const int argc, char **argv)
             options.listToolchains = true;
             continue;
         }
-        if (argument == "-S" || argument == "-B" || argument == "--toolchain" || argument == "--default-jobs" ||
-            argument == "-j")
+        if (argument == "-B" || argument == "--toolchain" || argument == "--default-jobs" || argument == "-j")
         {
             const string_view value = takeValue(index, argument);
-            if (argument == "-S")
-            {
-                options.sourceDirectory = value;
-            }
-            else if (argument == "-B")
+            if (argument == "-B")
             {
                 options.buildDirectory = value;
             }
@@ -242,9 +236,8 @@ Options parseOptions(const int argc, char **argv)
             options.buildArguments.emplace_back(target);
         }
     }
-    if (options.listToolchains &&
-        (!options.buildDirectory.empty() || !options.toolchain.empty() || options.defaultJobs != 0 ||
-         !options.buildArguments.empty() || options.configureOnly || options.reconfigure))
+    if (options.listToolchains && (!options.toolchain.empty() || options.defaultJobs != 0 ||
+                                   !options.buildArguments.empty() || options.configureOnly || options.reconfigure))
     {
         printErrorMessage("--list-toolchains cannot be combined with a build request.");
     }
@@ -256,10 +249,9 @@ void printUsage()
     printMessage("Usage: hbuild [options] [targets...] [-- targets...]\n"
                  "\n"
                  "Project selection:\n"
-                 "  -S <directory>          Source directory; must be the build directory's immediate parent\n"
                  "  -B <directory>          Build directory; must be an immediate child of the source directory\n"
                  "  --toolchain <name>      Select the project toolchain\n"
-                 "  --list-toolchains       List registered toolchains and exit\n"
+                 "  --list-toolchains       List registered toolchains; -B may select another project\n"
                  "  From the source directory, use: hbuild -B build\n"
                  "\n"
                  "Execution:\n"
@@ -320,7 +312,7 @@ struct Command
         // doubling backslashes before quotes preserves the final child argv.
         if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"&|<>()^%!") == string_view::npos)
         {
-            value.append(argument);
+            value += argument;
             return;
         }
         value.push_back('"');
@@ -348,7 +340,7 @@ struct Command
 #else
         if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v'\"\\$`!&;|<>()[]{}*?#~") == string_view::npos)
         {
-            value.append(argument);
+            value += argument;
             return;
         }
         value.push_back('\'');
@@ -506,7 +498,7 @@ void writeBuildCachePrefix(const path &file, const BuildCachePrefix &prefix, con
             }
             if (sameNodes)
             {
-                fileBuffer.append(prefix.bytes.data() + recordStart, cachedNodeOffset - recordStart);
+                fileBuffer += string_view(prefix.bytes.data() + recordStart, cachedNodeOffset - recordStart);
                 return;
             }
         }
@@ -576,21 +568,21 @@ void writeBuildCachePrefix(const path &file, const BuildCachePrefix &prefix, con
 uint64_t toolchainCommandCache(const Toolchain &toolchain)
 {
     STACK_PMR_STRING(fingerprint, 16 * 1024)
-    fingerprint.append(toolchain.name);
+    fingerprint += toolchain.name;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.family);
+    fingerprint += toolchain.family;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.style);
+    fingerprint += toolchain.style;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.version);
+    fingerprint += toolchain.version;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.target);
+    fingerprint += toolchain.target;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.compiler.bTPath);
+    fingerprint += toolchain.compiler.bTPath;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.linker.bTPath);
+    fingerprint += toolchain.linker.bTPath;
     fingerprint.push_back('\0');
-    fingerprint.append(toolchain.archiver.bTPath);
+    fingerprint += toolchain.archiver.bTPath;
     for (const string &directory : toolchain.includeDirs)
     {
         fingerprint.push_back('\0');
@@ -641,46 +633,35 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
 
     if (toolchain.style == "gnu")
     {
-        constexpr string_view common[] = {"-std=c++23",          "-O0",
-                                          "-fno-exceptions",     "-fno-rtti",
-                                          "-fvisibility=hidden", "-ffunction-sections",
-                                          "-fdata-sections",     "-pthread",
-                                          "-nostdinc",           "-nostdinc++"};
-        for (const string_view argument : common)
-        {
-            command.append(argument);
-        }
+        command.value += " -std=c++23 -O0 -fno-exceptions -fno-rtti -fvisibility=hidden"
+                         " -ffunction-sections -fdata-sections -pthread -nostdinc -nostdinc++";
         if (!configureMode)
         {
-            command.append("-DBUILD_MODE");
-            command.append("-DNDEBUG");
+            command.value += " -DBUILD_MODE -DNDEBUG";
         }
         for (const string_view include : includePaths)
         {
-            command.append("-I");
+            command.value += " -I";
             command.append(include);
         }
         for (const string &include : toolchain.includeDirs)
         {
-            command.append("-isystem");
+            command.value += " -isystem";
             command.append(include);
         }
-        command.append("-MMD");
-        command.append("-MF");
+        command.value += " -MMD -MF";
         command.append(dependencyFile);
-        command.append("-MT");
+        command.value += " -MT";
         command.append(outputFile);
         command.append(sourceFile);
         for (const string &directory : toolchain.libraryDirs)
         {
-            command.append("-L");
+            command.value += " -L";
             command.append(directory);
         }
-        command.append("-Wl,--gc-sections");
-        command.append("-Wl,--whole-archive");
+        command.value += " -Wl,--gc-sections -Wl,--whole-archive";
         command.append(staticLibrary);
-        command.append("-Wl,--no-whole-archive");
-        command.append("-o");
+        command.value += " -Wl,--no-whole-archive -o";
         command.append(outputFile);
     }
     else
@@ -688,21 +669,13 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
         STACK_PMR_STRING(argument, 4 * 1024)
         const auto appendPrefixed = [&](const string_view prefix, const string_view value) {
             argument.assign(prefix);
-            argument.append(value);
+            argument += value;
             command.append(argument);
         };
-        command.append("/std:c++latest");
-        command.append("/O0");
-        command.append("/GR-");
-        command.append("/EHs-c-");
-        command.append("/D_HAS_EXCEPTIONS=0");
-        command.append("/MT");
-        command.append("/nologo");
-        command.append("/X");
+        command.value += " /std:c++latest /O0 /GR- /EHs-c- /D_HAS_EXCEPTIONS=0 /MT /nologo /X";
         if (!configureMode)
         {
-            command.append("/DBUILD_MODE");
-            command.append("/DNDEBUG");
+            command.value += " /DBUILD_MODE /DNDEBUG";
         }
         for (const string_view include : includePaths)
         {
@@ -712,29 +685,18 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
         {
             appendPrefixed("/I", include);
         }
-        command.append("/sourceDependencies");
+        command.value += " /sourceDependencies";
         command.append(dependencyFile);
         command.append(sourceFile);
         appendPrefixed("/Fo", objectFile);
-        command.append("/link");
-        command.append("/SUBSYSTEM:CONSOLE");
-        command.append("/NOLOGO");
+        command.value += " /link /SUBSYSTEM:CONSOLE /NOLOGO";
         for (const string &directory : toolchain.libraryDirs)
         {
             appendPrefixed("/LIBPATH:", directory);
         }
         appendPrefixed("/WHOLEARCHIVE:", staticLibrary);
-        command.append("kernel32.lib");
-        command.append("synchronization.lib");
-        command.append("user32.lib");
-        command.append("gdi32.lib");
-        command.append("winspool.lib");
-        command.append("shell32.lib");
-        command.append("ole32.lib");
-        command.append("oleaut32.lib");
-        command.append("uuid.lib");
-        command.append("comdlg32.lib");
-        command.append("advapi32.lib");
+        command.value += " kernel32.lib synchronization.lib user32.lib gdi32.lib winspool.lib shell32.lib"
+                         " ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib";
         appendPrefixed("/OUT:", outputFile);
     }
     return std::move(command.value);
@@ -744,7 +706,7 @@ struct CompileTask
 {
     string label;
     path executable;
-    path dependencyFile;
+    string dependencyFile;
     string command;
     uint64_t commandHash = 0;
 };
@@ -767,8 +729,8 @@ flat_hash_set<Node *> compileBootstrapExecutables(const CompileTask &configureTa
             printMessage(result.output);
         }
         printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", task.label, elapsedSeconds));
-        return parseHeaderDeps(result.output, compiler, result.exitStatus, task.dependencyFile.string(),
-                               configureNode->filePath, compiledSource, false);
+        return parseHeaderDeps(result.output, compiler, result.exitStatus, task.dependencyFile, configureNode->filePath,
+                               compiledSource, false);
     };
     flat_hash_set<Node *> dependencies = execute(configureTask);
     flat_hash_set<Node *> buildDependencies = execute(buildTask);
@@ -799,20 +761,10 @@ Node *resolveProject(const Options &options, const path &invocationDirectory, Pr
         buildDirectory = invocationDirectory;
     }
     const path sourceDirectory = buildDirectory.parent_path();
-    if (sourceDirectory.empty() || sourceDirectory == buildDirectory || sourceDirectory == sourceDirectory.root_path())
+    if (!sourceDirectory.has_relative_path())
     {
         printErrorMessage("The build directory must have a non-root parent source directory.\nBuild directory: " +
                           buildDirectory.string());
-    }
-    if (!options.sourceDirectory.empty())
-    {
-        const path requestedSourceDirectory = normalizePath(options.sourceDirectory);
-        if (requestedSourceDirectory != sourceDirectory)
-        {
-            printErrorMessage("The build directory must be an immediate child of the selected source directory.\n"
-                              "Selected source directory: " +
-                              requestedSourceDirectory.string() + "\nBuild directory: " + buildDirectory.string());
-        }
     }
     if (!isRegularFile(sourceDirectory / "hmake.cpp"))
     {
@@ -855,7 +807,7 @@ Node *resolveProject(const Options &options, const path &invocationDirectory, Pr
     string configurePath = buildDirectory.string();
     string hmakePath = sourcePath;
     hmakePath.push_back(slashc);
-    hmakePath.append("hmake.cpp");
+    hmakePath += "hmake.cpp";
     if (isRegularFile(nodesFile))
     {
         loadNodesCache(nodesFile);
@@ -928,10 +880,11 @@ int runBootstrap(const int argc, char **argv)
 
     if (options.listToolchains)
     {
-        path sourceDirectory =
-            options.sourceDirectory.empty() ? invocationDirectory : path(normalizePath(options.sourceDirectory));
+        path sourceDirectory = options.buildDirectory.empty()
+                                   ? invocationDirectory
+                                   : path(normalizePath(options.buildDirectory)).parent_path();
         bool hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
-        if (!hmakeExists && options.sourceDirectory.empty())
+        if (!hmakeExists && options.buildDirectory.empty())
         {
             sourceDirectory = invocationDirectory.parent_path();
             hmakeExists = isRegularFile(sourceDirectory / "hmake.cpp");
@@ -981,12 +934,13 @@ int runBootstrap(const int argc, char **argv)
         {
             task.executable += ".exe";
         }
-        task.dependencyFile = bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"));
+        task.dependencyFile =
+            (bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"))).string();
         const string objectFile =
             bootstrapToolchain.style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
         task.command =
             makeCompileCommand(bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
-                               task.dependencyFile.string(), objectFile, configureNode->filePath);
+                               task.dependencyFile, objectFile, configureNode->filePath);
         task.commandHash = rapidhash(task.command.data(), task.command.size());
         return task;
     };
@@ -1113,8 +1067,7 @@ int runBootstrap(const int argc, char **argv)
             invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory)
                 ? string_view(invocationPath)
                 : buildDirectory;
-        const string buildExecutable = buildTask.executable.string();
-        Command command(buildExecutable, buildWorkingDirectory);
+        Command command(buildTask.executable.string(), buildWorkingDirectory);
         for (const string_view argument : options.buildArguments)
         {
             command.append(argument);
