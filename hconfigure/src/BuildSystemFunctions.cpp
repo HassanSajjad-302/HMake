@@ -749,8 +749,6 @@ void loadNodesCache(const path &fileName)
     nodesCountBefore = Node::idCount;
 }
 
-namespace
-{
 void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 {
     assert(cacheBytes.empty());
@@ -760,6 +758,7 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
         for (const Node *node : nodes)
         {
+            assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
             writeUint32(cacheBytes, node->myId);
         }
     };
@@ -770,6 +769,8 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     memcpy(cacheBytes.data(), &prefixSize, sizeof(prefixSize));
 }
 
+namespace
+{
 uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
 {
     uint64_t bytesRead = 0;

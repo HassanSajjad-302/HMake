@@ -492,6 +492,8 @@ void loadNodesCache(const path &fileName);
 /// path records are retained from the loaded cache; only their resolved metadata and newly discovered Nodes are
 /// serialized.
 void writeNodesCache();
+/// Appends the build-cache invalidation prefix, including its four-byte total-size field, to an empty buffer.
+void writeBuildCacheInvalidationPrefix(string &cacheBytes);
 string getBuildCache();
 string getThreadId();
 
