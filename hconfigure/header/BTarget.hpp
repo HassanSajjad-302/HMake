@@ -592,8 +592,8 @@ inline BTarget *RealBTarget::getBTarget() const
 ///
 /// On disk (under the configure directory as uncompressed binary files):
 /// - `config-cache.bin` — one entry per target: `cacheName`, sized `configCache` blob.
-/// - `build-cache.bin` — invalidation prefix followed by a parallel target array: inline `depsCache` (round-0
-///   FULL/WAIT `cacheIndex` list), then sized per-target
+/// - `build-cache.bin` — a u32-sized invalidation prefix followed by a parallel target array: inline `depsCache`
+///   (round-0 FULL/WAIT `cacheIndex` list), then sized per-target
 ///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `completionTime`).
 ///
 /// `readConfigCache()` / `readBuildCache()` fill `bTargetCaches` and `nameToIndexMap` before `buildSpecification()`.

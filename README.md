@@ -69,7 +69,7 @@ payload directly, avoiding a temporary write and atomic replacement when the cac
 |------|----------------|----------|
 | `nodes-cache.bin` | Configure or build | Repeated `[u16 path size][path][NUL][u64 modification time][u64 content hash]` records in `Node::myId` order |
 | `config-cache.bin` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
-| `build-cache.bin` | HMake take-off, configure, or build | The last successful configuration time, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
+| `build-cache.bin` | HMake take-off, configure, or build | A 4-byte invalidation-prefix size, the last successful configuration time, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
 
 At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
 live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
