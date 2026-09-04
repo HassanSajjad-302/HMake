@@ -4,10 +4,8 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "Node.hpp"
-#include "ParseHeaderDeps.hpp"
 #include "RunCommand.hpp"
 #include "Toolchains.hpp"
-#include "rapidhash/rapidhash.h"
 
 #include <cassert>
 #include <cerrno>
@@ -409,11 +407,11 @@ BuildCachePrefix loadBuildCachePrefix(const path &file)
         return true;
     };
 
-    uint64_t fixedPrefix[4];
-    bool parsed = readBytes(sizeof(fixedPrefix));
+    uint64_t cachedConfigurationTime;
+    bool parsed = readBytes(sizeof(cachedConfigurationTime));
     if (parsed)
     {
-        memcpy(fixedPrefix, prefix.bytes.data(), sizeof(fixedPrefix));
+        memcpy(&cachedConfigurationTime, prefix.bytes.data(), sizeof(cachedConfigurationTime));
     }
     auto readIds = [&](flat_hash_set<Node *> &nodes) {
         const uint64_t countOffset = prefix.bytes.size();
@@ -461,26 +459,20 @@ BuildCachePrefix loadBuildCachePrefix(const path &file)
         return {};
     }
 
-    buildExeCommandHash = fixedPrefix[0];
-    configureExeCommandHash = fixedPrefix[1];
-    selectedToolchainCommandCache = fixedPrefix[2];
-    projectCacheContentCache = fixedPrefix[3];
+    configurationTime = cachedConfigurationTime;
     prefix.ordinaryTailSize = fileSize - prefix.bytes.size();
     return prefix;
 }
 
 void writeBuildCachePrefix(const path &file, const BuildCachePrefix &prefix, const bool preserveOrdinaryTail)
 {
-    const uint64_t prefixSize = 4 * sizeof(uint64_t) + 2 * sizeof(uint32_t) +
-                                (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
+    const uint64_t prefixSize =
+        sizeof(uint64_t) + 2 * sizeof(uint32_t) + (recompileNodes.size() + reconfigureNodes.size()) * sizeof(uint32_t);
     const uint64_t tailSize = preserveOrdinaryTail ? prefix.ordinaryTailSize : 0;
     string fileBuffer;
     fileBuffer.reserve(prefixSize + tailSize);
-    writeUint64(fileBuffer, buildExeCommandHash);
-    writeUint64(fileBuffer, configureExeCommandHash);
-    writeUint64(fileBuffer, selectedToolchainCommandCache);
-    writeUint64(fileBuffer, projectCacheContentCache);
-    uint64_t cachedNodeOffset = 4 * sizeof(uint64_t);
+    writeUint64(fileBuffer, configurationTime);
+    uint64_t cachedNodeOffset = sizeof(uint64_t);
     const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
         if (!prefix.bytes.empty())
         {
@@ -565,47 +557,8 @@ void writeBuildCachePrefix(const path &file, const BuildCachePrefix &prefix, con
     writeCacheFile(file.string(), fileBuffer);
 }
 
-uint64_t toolchainCommandCache(const Toolchain &toolchain)
-{
-    STACK_PMR_STRING(fingerprint, 16 * 1024)
-    fingerprint += toolchain.name;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.family;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.style;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.version;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.target;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.compiler.bTPath;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.linker.bTPath;
-    fingerprint.push_back('\0');
-    fingerprint += toolchain.archiver.bTPath;
-    for (const string &directory : toolchain.includeDirs)
-    {
-        fingerprint.push_back('\0');
-        fingerprint.push_back('I');
-        fingerprint += directory;
-    }
-    for (const string &directory : toolchain.libraryDirs)
-    {
-        fingerprint.push_back('\0');
-        fingerprint.push_back('L');
-        fingerprint += directory;
-    }
-    for (const string &argument : toolchain.bootstrapArguments)
-    {
-        fingerprint.push_back('\0');
-        fingerprint.push_back('A');
-        fingerprint += argument;
-    }
-    return rapidhash(fingerprint.data(), fingerprint.size());
-}
-
 string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
-                          const string_view outputFile, const string_view dependencyFile, const string_view objectFile,
+                          const string_view outputFile, const string_view objectFile,
                           const string_view workingDirectory)
 {
     const string_view staticLibrary = configureMode ? HCONFIGURE_C_STATIC_LIB_PATH : HCONFIGURE_B_STATIC_LIB_PATH;
@@ -634,10 +587,6 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
             command.value += " -isystem";
             command.append(include);
         }
-        command.value += " -MMD -MF";
-        command.append(dependencyFile);
-        command.value += " -MT";
-        command.append(outputFile);
         command.append(sourceFile);
         for (const string &directory : toolchain.libraryDirs)
         {
@@ -670,8 +619,6 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
         {
             appendPrefixed("/I", include);
         }
-        command.value += " /sourceDependencies";
-        command.append(dependencyFile);
         command.append(sourceFile);
         appendPrefixed("/Fo", objectFile);
         command.value += " /link /SUBSYSTEM:CONSOLE /NOLOGO";
@@ -685,42 +632,6 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
         appendPrefixed("/OUT:", outputFile);
     }
     return std::move(command.value);
-}
-
-struct CompileTask
-{
-    string label;
-    path executable;
-    string dependencyFile;
-    string command;
-    uint64_t commandHash = 0;
-};
-
-flat_hash_set<Node *> compileBootstrapExecutables(const CompileTask &configureTask, const CompileTask &buildTask,
-                                                  const Compiler &compiler, const Node *compiledSource)
-{
-    const auto execute = [&](const CompileTask &task) {
-        const auto started = std::chrono::steady_clock::now();
-        RunCommand::OutputAndStatus result = RunCommand::runProcess(task.command);
-        const double elapsedSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-        if (result.exitStatus != 0)
-        {
-            printErrorMessage("Could not compile the generated " + task.label +
-                              " executable.\nExit code: " + std::to_string(result.exitStatus) +
-                              "\nCommand: " + task.command + "\nCompiler output:\n" + result.output);
-        }
-        if (!result.output.empty())
-        {
-            printMessage(result.output);
-        }
-        printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", task.label, elapsedSeconds));
-        return parseHeaderDeps(result.output, compiler, result.exitStatus, task.dependencyFile, configureNode->filePath,
-                               compiledSource, false);
-    };
-    flat_hash_set<Node *> dependencies = execute(configureTask);
-    flat_hash_set<Node *> buildDependencies = execute(buildTask);
-    dependencies.insert(buildDependencies.begin(), buildDependencies.end());
-    return dependencies;
 }
 
 void runGeneratedConfigure(const path &executable, const path &buildDirectory, const path &configFile)
@@ -796,9 +707,9 @@ int runBootstrap(const int argc, char **argv)
                           sourceDirectory.string() + "\nBuild directory: " + buildDirectoryPath.string());
     }
 
-    toolchains.initialize(sourceDirectory);
     if (options.listToolchains)
     {
+        toolchains.initialize(sourceDirectory);
         string toolchainsJson = toolchains.toJson();
         toolchainsJson.push_back('\n');
         printMessage(toolchainsJson);
@@ -854,25 +765,16 @@ int runBootstrap(const int argc, char **argv)
     }
     normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
+    Node *const projectCacheFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(cacheFile.string());
 
     const Toolchain *const bootstrapToolchain = toolchains.registryOrder.front();
-    const Toolchain *projectToolchain = bootstrapToolchain;
     if (projectCache.toolchainName.empty())
     {
         projectCache.toolchainName = bootstrapToolchain->name;
         projectCache.needsWrite = true;
     }
-    else if (projectCache.toolchainName != bootstrapToolchain->name)
-    {
-        const auto selectedToolchain = toolchains.entries.find(projectCache.toolchainName);
-        if (selectedToolchain == toolchains.entries.end())
-        {
-            printErrorMessage("Unknown toolchain: " + projectCache.toolchainName +
-                              "\nUse --list-toolchains to list valid names.");
-        }
-        projectToolchain = &selectedToolchain->second;
-    }
-    if (projectCache.needsWrite)
+    const bool projectCacheWritten = projectCache.needsWrite;
+    if (projectCacheWritten)
     {
         STACK_PMR_STRING(cacheContents, 4 * 1024)
         string cacheError;
@@ -884,85 +786,58 @@ int runBootstrap(const int argc, char **argv)
         projectCache.needsWrite = false;
     }
 
-    const auto makeTask = [&](const bool configureMode) {
-        CompileTask task;
-        task.label = configureMode ? "configure" : "build";
-        task.executable = buildDirectoryPath / task.label;
-        if constexpr (os == OS::NT)
-        {
-            task.executable += ".exe";
-        }
-        task.dependencyFile =
-            (bootstrapDirectory / (task.label + (bootstrapToolchain->style == "msvc" ? ".json" : ".d"))).string();
-        const string objectFile =
-            bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
-        task.command =
-            makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
-                               task.dependencyFile, objectFile, configureNode->filePath);
-        task.commandHash = rapidhash(task.command.data(), task.command.size());
-        return task;
-    };
-    CompileTask configureTask = makeTask(true);
-    CompileTask buildTask = makeTask(false);
+    path configureExecutable = buildDirectoryPath / "configure";
+    path buildExecutable = buildDirectoryPath / "build";
+    if constexpr (os == OS::NT)
+    {
+        configureExecutable += ".exe";
+        buildExecutable += ".exe";
+    }
 
     const path configFile = buildDirectoryPath / configCacheFileName;
     const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
     BuildCachePrefix prefix = nodesCountBefore == 0 ? BuildCachePrefix{} : loadBuildCachePrefix(buildCacheFile);
+    const bool hmakeWasNotTracked = recompileNodes.emplace(hmakeFile).second;
+    const bool projectCacheWasNotTracked = reconfigureNodes.emplace(projectCacheFile).second;
 
     const bool metadataMissing = nodesCountBefore == 0 || prefix.bytes.empty();
     const bool configExistsInitially = isRegularFile(configFile);
-    const uint64_t selectedToolchainCache = toolchainCommandCache(*projectToolchain);
-    const uint64_t projectContentCache = projectCache.contentCache();
-    bool mustCompile = options.recompile || !isRegularFile(configureTask.executable) ||
-                       !isRegularFile(buildTask.executable) || metadataMissing;
-    bool mustConfigure = options.reconfigure || mustCompile || !configExistsInitially;
+    bool mustCompile = options.recompile || !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable) ||
+                       metadataMissing || hmakeWasNotTracked;
+    bool mustConfigure = options.reconfigure || projectCacheWritten || projectCacheWasNotTracked || mustCompile ||
+                         !configExistsInitially;
 
-    if (!prefix.bytes.empty())
+    if (!prefix.bytes.empty() && !mustCompile)
     {
-        if (mustCompile)
+        STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
+        cachedSnapshots.reserve(recompileNodes.size() * 2);
+        for (Node *node : recompileNodes)
         {
-            // Configuration replaces this set without hashing it. Keep its current snapshot fresh so the completed
-            // configuration is not followed by one redundant reconfiguration on the next hbuild invocation.
-            for (Node *node : reconfigureNodes)
-            {
-                node->doHashFile = true;
-            }
+            node->doHashFile = true;
+            cachedSnapshots.emplace_back(node->lastWriteTime);
+            cachedSnapshots.emplace_back(node->contentHash);
         }
-        else
+        for (Node *node : reconfigureNodes)
         {
-            STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
-            cachedSnapshots.reserve((recompileNodes.size() + reconfigureNodes.size()) * 2);
-            const auto snapshotNodes = [&](const flat_hash_set<Node *> &nodes) {
-                for (Node *node : nodes)
-                {
-                    node->doHashFile = true;
-                    cachedSnapshots.emplace_back(node->lastWriteTime);
-                    cachedSnapshots.emplace_back(node->contentHash);
-                }
-            };
-            snapshotNodes(recompileNodes);
-            snapshotNodes(reconfigureNodes);
-            Builder::checkNodes();
-            uint64_t snapshotIndex = 0;
-            const auto nodesChanged = [&](const flat_hash_set<Node *> &nodes) {
-                bool changed = false;
-                for (const Node *node : nodes)
-                {
-                    changed |= node->lastWriteTime != cachedSnapshots[snapshotIndex++];
-                    changed |= node->contentHash != cachedSnapshots[snapshotIndex++];
-                }
-                return changed;
-            };
-            const bool recompileChanged = nodesChanged(recompileNodes);
-            const bool reconfigureChanged = nodesChanged(reconfigureNodes);
-            assert(snapshotIndex == cachedSnapshots.size());
-            const bool commandCacheChanged =
-                buildExeCommandHash != buildTask.commandHash || configureExeCommandHash != configureTask.commandHash;
-            const bool projectInputsChanged = selectedToolchainCommandCache != selectedToolchainCache ||
-                                              projectCacheContentCache != projectContentCache;
-            mustCompile = commandCacheChanged || recompileChanged;
-            mustConfigure = mustConfigure || mustCompile || projectInputsChanged || reconfigureChanged;
+            node->doStatFile = true;
         }
+        Builder::checkNodes();
+        uint64_t snapshotIndex = 0;
+        bool recompileChanged = false;
+        for (const Node *node : recompileNodes)
+        {
+            recompileChanged |= node->lastWriteTime != cachedSnapshots[snapshotIndex++];
+            recompileChanged |= node->contentHash != cachedSnapshots[snapshotIndex++];
+        }
+        assert(snapshotIndex == cachedSnapshots.size());
+        bool reconfigureChanged = configurationTime == -1;
+        for (const Node *node : reconfigureNodes)
+        {
+            reconfigureChanged |=
+                node->fileType != std::filesystem::file_type::regular || node->lastWriteTime > configurationTime;
+        }
+        mustCompile = recompileChanged;
+        mustConfigure = mustConfigure || mustCompile || reconfigureChanged;
     }
     if (metadataMissing || options.reconfigure)
     {
@@ -977,28 +852,40 @@ int runBootstrap(const int argc, char **argv)
 
     if (mustCompile)
     {
+        const auto compile = [&](const bool configureMode, const path &executable) {
+            const string label = configureMode ? "configure" : "build";
+            const string objectFile =
+                bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (label + ".obj")).string() : string{};
+            const string command = makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath,
+                                                      executable.string(), objectFile, configureNode->filePath);
+            const auto started = std::chrono::steady_clock::now();
+            RunCommand::OutputAndStatus result = RunCommand::runProcess(command);
+            const double elapsedSeconds =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+            if (result.exitStatus != 0)
+            {
+                printErrorMessage("Could not compile the generated " + label +
+                                  " executable.\nExit code: " + std::to_string(result.exitStatus) +
+                                  "\nCommand: " + command + "\nCompiler output:\n" + result.output);
+            }
+            if (!result.output.empty())
+            {
+                printMessage(result.output);
+            }
+            printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", label, elapsedSeconds));
+        };
         printMessage("Compiling configure and build executables\n");
-        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler, hmakeFile);
-        recompileNodes.emplace(hmakeFile);
-        recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
-        recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
-        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true, true);
-        if (compilerNode->fileType == std::filesystem::file_type::regular)
-        {
-            recompileNodes.emplace(compilerNode);
-        }
+        compile(true, configureExecutable);
+        compile(false, buildExecutable);
     }
 
-    buildExeCommandHash = buildTask.commandHash;
-    configureExeCommandHash = configureTask.commandHash;
-    selectedToolchainCommandCache = selectedToolchainCache;
-    projectCacheContentCache = projectContentCache;
-
-    // Configuration reconstructs this user-owned set directly from the current hmake.cpp. Clear the previous
-    // snapshot only after hbuild has used it for the take-off decision, so removed entries do not live forever.
     if (mustConfigure)
     {
-        reconfigureNodes.clear();
+        // The generated configure/build executables may extend both sets. Preserve those registrations and commit the
+        // next configuration time only after configuration has completed successfully.
+        configurationTime = -1;
+        const bool preserveOrdinaryTail = configExistsInitially && !options.reconfigure && !metadataMissing;
+        writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail);
     }
 
     if (mustCompile)
@@ -1012,9 +899,7 @@ int runBootstrap(const int argc, char **argv)
     writeNodesCache();
     if (mustConfigure)
     {
-        const bool preserveOrdinaryTail = configExistsInitially && !options.reconfigure && !metadataMissing;
-        writeBuildCachePrefix(buildCacheFile, prefix, preserveOrdinaryTail);
-        runGeneratedConfigure(configureTask.executable, buildDirectoryPath, configFile);
+        runGeneratedConfigure(configureExecutable, buildDirectoryPath, configFile);
     }
 
     int result = 0;
@@ -1025,7 +910,7 @@ int runBootstrap(const int argc, char **argv)
             invocationPath == buildDirectory || isPathInDirectory(invocationPath, buildDirectory)
                 ? string_view(invocationPath)
                 : buildDirectory;
-        Command command(buildTask.executable.string(), buildWorkingDirectory);
+        Command command(buildExecutable.string(), buildWorkingDirectory);
         for (const string_view argument : options.buildArguments)
         {
             command.append(argument);

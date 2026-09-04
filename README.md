@@ -69,7 +69,7 @@ payload directly, avoiding a temporary write and atomic replacement when the cac
 |------|----------------|----------|
 | `nodes-cache.bin` | Configure or build | Repeated `[u16 path size][path][NUL][u64 modification time][u64 content hash]` records in `Node::myId` order |
 | `config-cache.bin` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
-| `build-cache.bin` | HMake take-off, configure, or build | Four take-off caches, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
+| `build-cache.bin` | HMake take-off, configure, or build | The last successful configuration time, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
 
 At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
 live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
@@ -336,6 +336,9 @@ disables the compiler's default header search with `-nostdinc -nostdinc++` or `/
 likewise provide its full standard include search path. Derived toolchains inherit these directory lists unless they
 replace them.
 
+Toolchain registries are treated as externally managed inputs. Editing `toolchains.json` does not cause automatic
+reconfiguration, while every modification of the project's `cache.txt` does.
+
 The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
 Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
 is invalid. The first two values are positional; later values use `name=value` syntax. The source directory is exactly
@@ -344,10 +347,11 @@ Generated commands are
 structured internally rather than stored as editable shell strings. Cache variables are edited in this file; `hbuild`
 does not provide `-D` command-line overrides.
 
-On each invocation, `hbuild` checks `configure`, `build`, `nodes-cache.bin`, `config-cache.bin`,
-and `build-cache.bin`. Missing or stale take-off inputs cause the minimum required recompile or
-reconfigure work before the generated build executable runs. `--recompile`, `--reconfigure`, and
-`--configure-only` provide explicit control when needed.
+On each invocation, `hbuild` checks `configure`, `build`, `recompileNodes` (which always contains `hmake.cpp`),
+`reconfigureNodes` (which always contains `cache.txt`), `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
+Compiler-discovered headers, HMake libraries and headers, compiler/linker binaries, toolchain definitions, and
+bootstrap-command changes are not monitored automatically. `--recompile`, `--reconfigure`, and `--configure-only`
+provide explicit control over the generated executables and configuration.
 
 The hmake source filename selects the HMake API generation instead of storing a schema field in local caches.
 The current library pair uses `hmake.cpp`; future generation-specific installations use names such as
