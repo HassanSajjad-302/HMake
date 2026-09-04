@@ -421,7 +421,7 @@ string loadBuildCachePrefix(const path &file)
     memcpy(&cachedConfigurationTime, prefix.data() + offset, sizeof(cachedConfigurationTime));
     offset += sizeof(cachedConfigurationTime);
     auto readIds = [&](flat_hash_set<Node *> &nodes) {
-        if (offset > prefixSize || sizeof(uint32_t) > prefixSize - offset)
+        if (sizeof(uint32_t) > prefixSize - offset)
         {
             return false;
         }
@@ -433,17 +433,16 @@ string loadBuildCachePrefix(const path &file)
             return false;
         }
         const uint64_t idsSize = static_cast<uint64_t>(count) * sizeof(uint32_t);
-        if (offset > prefixSize || idsSize > prefixSize - offset)
+        if (idsSize > prefixSize - offset)
         {
             return false;
         }
-        const uint64_t idsOffset = offset;
-        offset += idsSize;
         nodes.reserve(count);
         for (uint32_t index = 0; index < count; ++index)
         {
             uint32_t id;
-            memcpy(&id, prefix.data() + idsOffset + static_cast<uint64_t>(index) * sizeof(id), sizeof(id));
+            memcpy(&id, prefix.data() + offset, sizeof(id));
+            offset += sizeof(id);
             if (id >= nodeIndices.size())
             {
                 return false;
@@ -477,9 +476,9 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
         return;
     }
 
+    const string fileName = file.string();
     if (preserveOrdinaryTail)
     {
-        const string fileName = file.string();
         std::error_code error;
         const uint64_t fileSize = std::filesystem::file_size(file, error);
         if (error)
@@ -519,14 +518,16 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
         }
 
         const uint64_t prefixBytes = fileBuffer.size();
-        fileBuffer.resize(prefixBytes + tailSize);
-        errno = 0;
-        const uint64_t tailBytesRead = std::fread(fileBuffer.data() + prefixBytes, 1, tailSize, tailInput);
+        uint64_t tailBytesRead = 0;
+        fileBuffer.resize_and_overwrite(prefixBytes + tailSize, [&](char *bytes, const uint64_t) {
+            errno = 0;
+            tailBytesRead = std::fread(bytes + prefixBytes, 1, tailSize, tailInput);
+            return prefixBytes + tailBytesRead;
+        });
         const int tailReadError = errno;
-        const bool readFailed = tailBytesRead != tailSize;
         const bool streamError = std::ferror(tailInput);
         std::fclose(tailInput);
-        if (readFailed)
+        if (tailBytesRead != tailSize)
         {
             string error = "Could not read the complete build-cache target rows: " + fileName +
                            "\nExpected bytes: " + std::to_string(tailSize) +
@@ -538,7 +539,7 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
             printErrorMessage(error);
         }
     }
-    writeCacheFile(file.string(), fileBuffer);
+    writeCacheFile(fileName, fileBuffer);
 }
 
 string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
