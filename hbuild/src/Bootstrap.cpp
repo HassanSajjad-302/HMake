@@ -772,18 +772,6 @@ int runBootstrap(const int argc, char **argv)
         projectCache.toolchainName = bootstrapToolchain->name;
         projectCache.needsWrite = true;
     }
-    const bool projectCacheWritten = projectCache.needsWrite;
-    if (projectCacheWritten)
-    {
-        STACK_PMR_STRING(cacheContents, 4 * 1024)
-        string cacheError;
-        if (!projectCache.serialize(cacheContents, cacheError))
-        {
-            printErrorMessage(cacheError);
-        }
-        writeCacheFile(cacheFile.string(), cacheContents);
-        projectCache.needsWrite = false;
-    }
 
     path configureExecutable = buildDirectoryPath / "configure";
     path buildExecutable = buildDirectoryPath / "build";
@@ -803,8 +791,20 @@ int runBootstrap(const int argc, char **argv)
     const bool configExistsInitially = isRegularFile(configFile);
     bool mustCompile = options.recompile || !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable) ||
                        metadataMissing || hmakeWasNotTracked;
-    bool mustConfigure = options.reconfigure || projectCacheWritten || projectCacheWasNotTracked || mustCompile ||
+    bool mustConfigure = options.reconfigure || projectCache.needsWrite || projectCacheWasNotTracked || mustCompile ||
                          !configExistsInitially;
+
+    if (projectCache.needsWrite)
+    {
+        STACK_PMR_STRING(cacheContents, 4 * 1024)
+        string cacheError;
+        if (!projectCache.serialize(cacheContents, cacheError))
+        {
+            printErrorMessage(cacheError);
+        }
+        writeCacheFile(cacheFile.string(), cacheContents);
+        projectCache.needsWrite = false;
+    }
 
     if (!prefix.bytes.empty() && !mustCompile)
     {
