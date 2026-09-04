@@ -855,9 +855,9 @@ int runBootstrap(const int argc, char **argv)
     normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 
-    const Toolchain &bootstrapToolchain = *toolchains.registryOrder.front();
-    const Toolchain *projectToolchain = &bootstrapToolchain;
-    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain.name)
+    const Toolchain *const bootstrapToolchain = toolchains.registryOrder.front();
+    const Toolchain *projectToolchain = bootstrapToolchain;
+    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain->name)
     {
         const auto selectedToolchain = toolchains.entries.find(projectCache.toolchainName);
         if (selectedToolchain == toolchains.entries.end())
@@ -890,11 +890,11 @@ int runBootstrap(const int argc, char **argv)
             task.executable += ".exe";
         }
         task.dependencyFile =
-            (bootstrapDirectory / (task.label + (bootstrapToolchain.style == "msvc" ? ".json" : ".d"))).string();
+            (bootstrapDirectory / (task.label + (bootstrapToolchain->style == "msvc" ? ".json" : ".d"))).string();
         const string objectFile =
-            bootstrapToolchain.style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
+            bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (task.label + ".obj")).string() : string{};
         task.command =
-            makeCompileCommand(bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
+            makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath, task.executable.string(),
                                task.dependencyFile, objectFile, configureNode->filePath);
         task.commandHash = rapidhash(task.command.data(), task.command.size());
         return task;
@@ -975,11 +975,11 @@ int runBootstrap(const int argc, char **argv)
     if (mustCompile)
     {
         printMessage("Compiling configure and build executables\n");
-        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain.compiler, hmakeFile);
+        recompileNodes = compileBootstrapExecutables(configureTask, buildTask, bootstrapToolchain->compiler, hmakeFile);
         recompileNodes.emplace(hmakeFile);
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_C_STATIC_LIB_PATH, true));
         recompileNodes.emplace(Node::getNode<PathType::NEITHER>(HCONFIGURE_B_STATIC_LIB_PATH, true));
-        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain.compiler.bTPath, true, true);
+        Node *const compilerNode = Node::getNode<PathType::NEITHER>(bootstrapToolchain->compiler.bTPath, true, true);
         if (compilerNode->fileType == std::filesystem::file_type::regular)
         {
             recompileNodes.emplace(compilerNode);
