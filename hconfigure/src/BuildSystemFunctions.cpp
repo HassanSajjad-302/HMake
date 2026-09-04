@@ -63,14 +63,14 @@ string cachePath(const string_view fileName)
 
 } // namespace
 
-path findProjectBuildDirectory(const path &start)
+path findProjectDirectory(const path &start, const bool buildDirectory)
 {
     path candidate = start;
-    const path cacheFileName(projectCacheFileName);
+    const path marker = path(buildDirectory ? projectCacheFileName : "hmake.cpp");
     std::error_code error;
     while (!candidate.empty())
     {
-        if (std::filesystem::is_regular_file(candidate / cacheFileName, error))
+        if (std::filesystem::is_regular_file(candidate / marker, error))
         {
             return candidate;
         }

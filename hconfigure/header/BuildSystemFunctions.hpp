@@ -459,8 +459,9 @@ bool compareStringsFromEnd(string_view lhs, string_view rhs);
 /// parentDirectory must be nonempty and must not end in slashc.
 bool isPathInDirectory(string_view childPath, string_view parentDirectory);
 
-/// Returns the nearest directory at or above start containing cache.txt, or an empty path.
-path findProjectBuildDirectory(const path &start);
+/// Returns the nearest directory at or above start containing cache.txt when buildDirectory is true, or hmake.cpp
+/// otherwise. Returns an empty path when no matching directory exists.
+path findProjectDirectory(const path &start, bool buildDirectory);
 
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);

@@ -31,7 +31,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     string configurePathString;
     if constexpr (bsMode != BSMode::CONFIGURE)
     {
-        const path configurePath = findProjectBuildDirectory(currentDirectory);
+        const path configurePath = findProjectDirectory(currentDirectory, true);
         if (configurePath.empty())
         {
             printErrorMessage(FORMAT("Could not find cache.txt in the current directory or any parent directory.\n"
