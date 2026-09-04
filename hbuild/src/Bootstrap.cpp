@@ -247,7 +247,7 @@ void printUsage()
     printMessage("Usage: hbuild [options] [targets...] [-- targets...]\n"
                  "\n"
                  "Project selection:\n"
-                 "  -B <directory>          Build directory; must be an immediate child of the source directory\n"
+                 "  -B <directory>          Build directory; a parent directory must contain hmake.cpp\n"
                  "  --toolchain <name>      Select the project toolchain\n"
                  "  --list-toolchains       List registered toolchains; -B may select another project\n"
                  "  From the source directory, use: hbuild -B build\n"
@@ -694,17 +694,16 @@ int runBootstrap(const int argc, char **argv)
                               "\nSystem error: " + error.message());
         }
     }
-    const path sourceDirectory = buildDirectoryPath.parent_path();
+    path sourceDirectory = buildDirectoryPath.parent_path();
+    while (sourceDirectory.has_relative_path() && !isRegularFile(sourceDirectory / "hmake.cpp"))
+    {
+        sourceDirectory = sourceDirectory.parent_path();
+    }
     if (!sourceDirectory.has_relative_path())
     {
-        printErrorMessage("The build directory must have a non-root parent source directory.\nBuild directory: " +
+        printErrorMessage("Could not find hmake.cpp in any parent directory of the build directory.\n"
+                          "Build directory: " +
                           buildDirectoryPath.string());
-    }
-    if (!isRegularFile(sourceDirectory / "hmake.cpp"))
-    {
-        printErrorMessage("The build directory's immediate parent must contain hmake.cpp.\n"
-                          "Source directory: " +
-                          sourceDirectory.string() + "\nBuild directory: " + buildDirectoryPath.string());
     }
 
     if (options.listToolchains)

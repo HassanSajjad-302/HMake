@@ -460,7 +460,6 @@ bool compareStringsFromEnd(string_view lhs, string_view rhs);
 bool isPathInDirectory(string_view childPath, string_view parentDirectory);
 
 /// Returns the nearest directory at or above start containing cache.txt, or an empty path.
-/// This locates an existing build root; the source root is always that build root's immediate parent.
 path findProjectBuildDirectory(const path &start);
 
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.

@@ -342,7 +342,7 @@ reconfiguration, while every modification of the project's `cache.txt` does.
 The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
 Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
 is invalid. The first two values are positional; later values use `name=value` syntax. The source directory is exactly
-the build directory's immediate parent and must contain `hmake.cpp`.
+the nearest parent of the build directory that contains `hmake.cpp`.
 Generated commands are
 structured internally rather than stored as editable shell strings. Cache variables are edited in this file; `hbuild`
 does not provide `-D` command-line overrides.
