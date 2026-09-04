@@ -75,11 +75,8 @@ class ProjectLock
         if (!LockFileEx(handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, MAXDWORD, MAXDWORD,
                         &overlapped))
         {
-            const string error = "Could not acquire the project lock: " + fileName +
-                                 "\nWindows error: " + std::to_string(GetLastError());
-            CloseHandle(handle);
-            handle = INVALID_HANDLE_VALUE;
-            printErrorMessage(error);
+            printErrorMessage("Could not acquire the project lock: " + fileName +
+                              "\nWindows error: " + std::to_string(GetLastError()));
         }
 #else
         descriptor = open(file.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
@@ -94,11 +91,8 @@ class ProjectLock
             {
                 continue;
             }
-            const string error =
-                "Could not acquire the project lock: " + file.string() + "\nSystem error: " + std::strerror(errno);
-            close(descriptor);
-            descriptor = -1;
-            printErrorMessage(error);
+            printErrorMessage("Could not acquire the project lock: " + file.string() +
+                              "\nSystem error: " + std::strerror(errno));
         }
 #endif
     }
@@ -265,18 +259,10 @@ void printUsage()
                  "  --help                  Print this help and exit\n");
 }
 
-string normalizePath(const string_view input)
-{
-    STACK_PMR_STRING(result, 4 * 1024)
-    result.assign(input);
-    Node::normalize<PathType::NEITHER>(result);
-    return string(result);
-}
-
 bool isRegularFile(const path &file)
 {
     std::error_code error;
-    return std::filesystem::is_regular_file(file, error) && !error;
+    return std::filesystem::is_regular_file(file, error);
 }
 
 struct Command
@@ -360,11 +346,8 @@ struct Command
 
 string loadBuildCachePrefix(const path &file)
 {
-    constexpr uint64_t minimumPrefixSize = sizeof(uint32_t) + sizeof(uint64_t) + 2 * sizeof(uint32_t);
-
     const string fileName = file.string();
-    errno = 0;
-    FILE *input = std::fopen(fileName.c_str(), "rb");
+    FILE *const input = std::fopen(fileName.c_str(), "rb");
     if (input == nullptr)
     {
         if (errno == ENOENT)
@@ -375,94 +358,25 @@ string loadBuildCachePrefix(const path &file)
     }
 
     const auto readBytes = [&](void *destination, const uint64_t size) {
-        errno = 0;
         if (std::fread(destination, 1, size, input) != size)
         {
-            if (std::ferror(input))
-            {
-                const int readError = errno;
-                printErrorMessage("Could not read the build cache: " + fileName + "\nSystem error: " +
-                                  (readError == 0 ? string("I/O error") : std::strerror(readError)));
-            }
-            return false;
+            printErrorMessage("Could not read the complete build-cache prefix: " + fileName);
         }
-        return true;
     };
 
     uint32_t cachedPrefixSize;
-    if (!readBytes(&cachedPrefixSize, sizeof(cachedPrefixSize)))
-    {
-        std::fclose(input);
-        return {};
-    }
+    readBytes(&cachedPrefixSize, sizeof(cachedPrefixSize));
     const uint64_t prefixSize = cachedPrefixSize;
-    const uint64_t maximumPrefixSize =
-        minimumPrefixSize + 2 * static_cast<uint64_t>(nodeIndices.size()) * sizeof(uint32_t);
-    if (prefixSize < minimumPrefixSize || prefixSize > maximumPrefixSize ||
-        (prefixSize - minimumPrefixSize) % sizeof(uint32_t) != 0)
-    {
-        std::fclose(input);
-        return {};
-    }
+    assert(prefixSize >= sizeof(uint32_t) + sizeof(uint64_t) + 2 * sizeof(uint32_t));
 
     string prefix;
     prefix.resize_and_overwrite(prefixSize, [&](char *bytes, const uint64_t) {
         memcpy(bytes, &cachedPrefixSize, sizeof(cachedPrefixSize));
-        return readBytes(bytes + sizeof(cachedPrefixSize), prefixSize - sizeof(cachedPrefixSize)) ? prefixSize : 0;
+        readBytes(bytes + sizeof(cachedPrefixSize), prefixSize - sizeof(cachedPrefixSize));
+        return prefixSize;
     });
     std::fclose(input);
-    if (prefix.empty())
-    {
-        return {};
-    }
-
-    uint64_t cachedConfigurationTime;
-    uint64_t offset = sizeof(cachedPrefixSize);
-    memcpy(&cachedConfigurationTime, prefix.data() + offset, sizeof(cachedConfigurationTime));
-    offset += sizeof(cachedConfigurationTime);
-    auto readIds = [&](flat_hash_set<Node *> &nodes) {
-        if (sizeof(uint32_t) > prefixSize - offset)
-        {
-            return false;
-        }
-        uint32_t count;
-        memcpy(&count, prefix.data() + offset, sizeof(count));
-        offset += sizeof(count);
-        if (count > nodeIndices.size())
-        {
-            return false;
-        }
-        const uint64_t idsSize = static_cast<uint64_t>(count) * sizeof(uint32_t);
-        if (idsSize > prefixSize - offset)
-        {
-            return false;
-        }
-        nodes.reserve(count);
-        for (uint32_t index = 0; index < count; ++index)
-        {
-            uint32_t id;
-            memcpy(&id, prefix.data() + offset, sizeof(id));
-            offset += sizeof(id);
-            if (id >= nodeIndices.size())
-            {
-                return false;
-            }
-            if (!nodes.emplace(Node::getHalfNode(id)).second)
-            {
-                return false;
-            }
-        }
-        return true;
-    };
-    const bool parsed = readIds(recompileNodes) && readIds(reconfigureNodes) && offset == prefixSize;
-    if (!parsed)
-    {
-        recompileNodes.clear();
-        reconfigureNodes.clear();
-        return {};
-    }
-
-    configurationTime = cachedConfigurationTime;
+    readBuildCacheInvalidationPrefix(prefix);
     return prefix;
 }
 
@@ -486,10 +400,7 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
             printErrorMessage("Could not determine the build cache size: " + fileName +
                               "\nSystem error: " + error.message());
         }
-        if (fileSize < cachedPrefix.size())
-        {
-            printErrorMessage("The build cache changed while its target rows were being preserved: " + fileName);
-        }
+        assert(fileSize >= cachedPrefix.size());
         const uint64_t tailSize = fileSize - cachedPrefix.size();
         if (tailSize == 0)
         {
@@ -502,7 +413,6 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
             printErrorMessage("Could not open the build cache to preserve its target rows: " + fileName +
                               "\nSystem error: " + std::strerror(errno));
         }
-        errno = 0;
 #ifdef _WIN32
         const int seekResult = _fseeki64(tailInput, static_cast<int64_t>(cachedPrefix.size()), SEEK_SET);
 #else
@@ -510,34 +420,19 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
 #endif
         if (seekResult != 0)
         {
-            const int seekError = errno;
-            const string errorMessage = seekError == 0 ? "I/O error" : std::strerror(seekError);
-            std::fclose(tailInput);
             printErrorMessage("Could not seek to the build-cache target rows: " + fileName +
-                              "\nSystem error: " + errorMessage);
+                              "\nSystem error: " + std::strerror(errno));
         }
 
         const uint64_t prefixBytes = fileBuffer.size();
-        uint64_t tailBytesRead = 0;
         fileBuffer.resize_and_overwrite(prefixBytes + tailSize, [&](char *bytes, const uint64_t) {
-            errno = 0;
-            tailBytesRead = std::fread(bytes + prefixBytes, 1, tailSize, tailInput);
-            return prefixBytes + tailBytesRead;
-        });
-        const int tailReadError = errno;
-        const bool streamError = std::ferror(tailInput);
-        std::fclose(tailInput);
-        if (tailBytesRead != tailSize)
-        {
-            string error = "Could not read the complete build-cache target rows: " + fileName +
-                           "\nExpected bytes: " + std::to_string(tailSize) +
-                           "\nRead bytes: " + std::to_string(tailBytesRead);
-            if (streamError)
+            if (std::fread(bytes + prefixBytes, 1, tailSize, tailInput) != tailSize)
             {
-                error += "\nSystem error: " + (tailReadError == 0 ? string("I/O error") : std::strerror(tailReadError));
+                printErrorMessage("Could not read the complete build-cache target rows: " + fileName);
             }
-            printErrorMessage(error);
-        }
+            return prefixBytes + tailSize;
+        });
+        std::fclose(tailInput);
     }
     writeCacheFile(fileName, fileBuffer);
 }
@@ -668,10 +563,13 @@ int runBootstrap(const int argc, char **argv)
     }
 
     std::error_code error;
-    const path buildDirectoryPath =
-        options.buildDirectory.empty() ? invocationDirectory : path(normalizePath(options.buildDirectory));
+    path buildDirectoryPath = invocationDirectory;
     if (!options.buildDirectory.empty())
     {
+        STACK_PMR_STRING(normalizedPath, 4 * 1024)
+        normalizedPath = options.buildDirectory;
+        Node::normalize<PathType::NEITHER>(normalizedPath);
+        buildDirectoryPath = normalizedPath;
         std::filesystem::create_directories(buildDirectoryPath, error);
         if (error)
         {
@@ -766,16 +664,16 @@ int runBootstrap(const int argc, char **argv)
 
     const path configFile = buildDirectoryPath / configCacheFileName;
     const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
-    string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
+    const string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
     const bool hmakeWasNotTracked = recompileNodes.emplace(hmakeFile).second;
     const bool projectCacheWasNotTracked = reconfigureNodes.emplace(projectCacheFile).second;
 
-    const bool metadataMissing = nodesCountBefore == 0 || buildCachePrefix.empty();
+    const bool metadataMissing = buildCachePrefix.empty();
     const bool configExistsInitially = isRegularFile(configFile);
     bool mustCompile = options.recompile || !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable) ||
                        metadataMissing || hmakeWasNotTracked;
     bool mustConfigure = options.reconfigure || projectCache.needsWrite || projectCacheWasNotTracked || mustCompile ||
-                         !configExistsInitially;
+                         !configExistsInitially || configurationTime == -1;
 
     if (projectCache.needsWrite)
     {
@@ -789,7 +687,7 @@ int runBootstrap(const int argc, char **argv)
         projectCache.needsWrite = false;
     }
 
-    if (!buildCachePrefix.empty() && !mustCompile)
+    if (!mustCompile)
     {
         STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
         cachedSnapshots.reserve(recompileNodes.size() * 2);
@@ -799,27 +697,37 @@ int runBootstrap(const int argc, char **argv)
             cachedSnapshots.emplace_back(node->lastWriteTime);
             cachedSnapshots.emplace_back(node->contentHash);
         }
-        for (Node *node : reconfigureNodes)
+        if (!mustConfigure)
         {
-            node->doStatFile = true;
+            for (Node *node : reconfigureNodes)
+            {
+                node->doStatFile = true;
+            }
         }
         Builder::checkNodes();
         uint64_t snapshotIndex = 0;
-        bool recompileChanged = false;
         for (const Node *node : recompileNodes)
         {
-            recompileChanged |= node->lastWriteTime != cachedSnapshots[snapshotIndex++];
-            recompileChanged |= node->contentHash != cachedSnapshots[snapshotIndex++];
+            if (node->lastWriteTime != cachedSnapshots[snapshotIndex] ||
+                node->contentHash != cachedSnapshots[snapshotIndex + 1])
+            {
+                mustCompile = true;
+                break;
+            }
+            snapshotIndex += 2;
         }
-        assert(snapshotIndex == cachedSnapshots.size());
-        bool reconfigureChanged = configurationTime == -1;
-        for (const Node *node : reconfigureNodes)
+        mustConfigure = mustConfigure || mustCompile;
+        if (!mustConfigure)
         {
-            reconfigureChanged |=
-                node->fileType != std::filesystem::file_type::regular || node->lastWriteTime > configurationTime;
+            for (const Node *node : reconfigureNodes)
+            {
+                if (node->fileType != std::filesystem::file_type::regular || node->lastWriteTime > configurationTime)
+                {
+                    mustConfigure = true;
+                    break;
+                }
+            }
         }
-        mustCompile = recompileChanged;
-        mustConfigure = mustConfigure || mustCompile || reconfigureChanged;
     }
     if (metadataMissing || options.reconfigure)
     {
