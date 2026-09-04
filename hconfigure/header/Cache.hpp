@@ -29,10 +29,6 @@ struct ProjectCache
     [[nodiscard]] bool parse(string_view contents, string &error);
     /// Serializes the retained layout with normalized LF line endings and one final newline.
     [[nodiscard]] bool serialize(std::pmr::string &contents, string &error) const;
-    /// Hashes graph-affecting cache values in their semantic order. Comments, blank lines, and default jobs are
-    /// deliberately excluded.
-    [[nodiscard]] uint64_t contentCache() const;
-
     template <typename T> T getOrAddVariable(string_view name, T defaultValue);
 
   private:
