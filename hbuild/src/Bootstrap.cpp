@@ -665,15 +665,14 @@ int runBootstrap(const int argc, char **argv)
     const path configFile = buildDirectoryPath / configCacheFileName;
     const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
     const string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
-    const bool hmakeWasNotTracked = recompileNodes.emplace(hmakeFile).second;
-    const bool projectCacheWasNotTracked = reconfigureNodes.emplace(projectCacheFile).second;
-
     const bool metadataMissing = buildCachePrefix.empty();
-    const bool configExistsInitially = isRegularFile(configFile);
-    bool mustCompile = options.recompile || !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable) ||
-                       metadataMissing || hmakeWasNotTracked;
-    bool mustConfigure = options.reconfigure || projectCache.needsWrite || projectCacheWasNotTracked || mustCompile ||
-                         !configExistsInitially || configurationTime == -1;
+    const bool preserveOrdinaryTail = !metadataMissing && !options.reconfigure && isRegularFile(configFile);
+
+    // Keep each insertion first: both inputs must be registered even when rebuilding is already required.
+    bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || metadataMissing ||
+                       !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable);
+    bool mustConfigure = reconfigureNodes.emplace(projectCacheFile).second || mustCompile || projectCache.needsWrite ||
+                         !preserveOrdinaryTail || configurationTime == -1;
 
     if (projectCache.needsWrite)
     {
@@ -774,7 +773,6 @@ int runBootstrap(const int argc, char **argv)
         // The generated configure/build executables may extend both sets. Preserve those registrations and commit the
         // next configuration time only after configuration has completed successfully.
         configurationTime = -1;
-        const bool preserveOrdinaryTail = configExistsInitially && !options.reconfigure && !metadataMissing;
         writeBuildCachePrefix(buildCacheFile, buildCachePrefix, preserveOrdinaryTail);
     }
 
