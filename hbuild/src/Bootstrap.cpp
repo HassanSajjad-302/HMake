@@ -697,13 +697,18 @@ int runBootstrap(const int argc, char **argv)
     path sourceDirectory = buildDirectoryPath.parent_path();
     while (sourceDirectory.has_relative_path() && !isRegularFile(sourceDirectory / "hmake.cpp"))
     {
-        sourceDirectory = sourceDirectory.parent_path();
-    }
-    if (!sourceDirectory.has_relative_path())
-    {
-        printErrorMessage("Could not find hmake.cpp in any parent directory of the build directory.\n"
-                          "Build directory: " +
-                          buildDirectoryPath.string());
+        const path parentDirectory = sourceDirectory.parent_path();
+        if (parentDirectory == sourceDirectory)
+        {
+            printErrorMessage("Could not find hmake.cpp in any parent directory of the build directory.\n"
+                              "Build directory: " +
+                              buildDirectoryPath.string());
+        }
+        sourceDirectory = parentDirectory;
+        if (isRegularFile(sourceDirectory / "hmake.cpp"))
+        {
+            break;
+        }
     }
 
     if (options.listToolchains)
