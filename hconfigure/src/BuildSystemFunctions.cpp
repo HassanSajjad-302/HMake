@@ -753,6 +753,8 @@ namespace
 {
 void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 {
+    assert(cacheBytes.empty());
+    writeUint32(cacheBytes, 0);
     writeUint64(cacheBytes, configurationTime);
     const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
@@ -763,15 +765,19 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     };
     writeNodes(recompileNodes);
     writeNodes(reconfigureNodes);
+
+    const uint32_t prefixSize = static_cast<uint32_t>(cacheBytes.size());
+    memcpy(cacheBytes.data(), &prefixSize, sizeof(prefixSize));
 }
 
 uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
 {
     uint64_t bytesRead = 0;
+    const uint32_t prefixSize = readUint32(cacheBytes.data(), bytesRead);
     configurationTime = readUint64(cacheBytes.data(), bytesRead);
     const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
         const uint32_t count = readUint32(cacheBytes.data(), bytesRead);
-        nodes.reserve(count);
+        nodes.reserve(nodes.size() + count);
         for (uint32_t index = 0; index < count; ++index)
         {
             nodes.emplace(nodeIndices[readUint32(cacheBytes.data(), bytesRead)]);
@@ -779,7 +785,8 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
     };
     readNodes(recompileNodes);
     readNodes(reconfigureNodes);
-    return bytesRead;
+    assert(bytesRead == prefixSize);
+    return prefixSize;
 }
 
 void readConfigCache()
@@ -960,7 +967,7 @@ string getBuildCache()
     string buildCache;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // With empty sets and no target rows, the prefix is one configuration time followed by two zero u32 counts.
+        // With empty sets and no target rows, the prefix is its size, one configuration time, and two zero u32 counts.
         writeBuildCacheInvalidationPrefix(buildCache);
         for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
@@ -1012,9 +1019,8 @@ string getBuildCache()
     }
 
     writeBuildCacheInvalidationPrefix(buildCache);
-    const uint64_t cachedPrefixSize =
-        bTargetCaches.empty() ? buildCacheGlobal.size()
-                              : static_cast<uint64_t>(bTargetCaches.front().depsCache.data() - buildCacheGlobal.data());
+    uint32_t cachedPrefixSize;
+    memcpy(&cachedPrefixSize, buildCacheGlobal.data(), sizeof(cachedPrefixSize));
     const bool prefixUpdated =
         buildCache.size() != cachedPrefixSize || buildCache != string_view(buildCacheGlobal.data(), cachedPrefixSize);
 
