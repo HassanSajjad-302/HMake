@@ -857,7 +857,12 @@ int runBootstrap(const int argc, char **argv)
 
     const Toolchain *const bootstrapToolchain = toolchains.registryOrder.front();
     const Toolchain *projectToolchain = bootstrapToolchain;
-    if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain->name)
+    if (projectCache.toolchainName.empty())
+    {
+        projectCache.toolchainName = bootstrapToolchain->name;
+        projectCache.needsWrite = true;
+    }
+    else if (projectCache.toolchainName != bootstrapToolchain->name)
     {
         const auto selectedToolchain = toolchains.entries.find(projectCache.toolchainName);
         if (selectedToolchain == toolchains.entries.end())
@@ -867,8 +872,6 @@ int runBootstrap(const int argc, char **argv)
         }
         projectToolchain = &selectedToolchain->second;
     }
-    projectCache.needsWrite = projectCache.needsWrite || projectCache.toolchainName != projectToolchain->name;
-    projectCache.toolchainName = projectToolchain->name;
     if (projectCache.needsWrite)
     {
         STACK_PMR_STRING(cacheContents, 4 * 1024)
