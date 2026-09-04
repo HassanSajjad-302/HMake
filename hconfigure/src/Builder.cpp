@@ -377,7 +377,8 @@ void Builder::executeRoundZero()
                 const string buildCache = getBuildCache();
                 Builder::checkNodes();
                 writeNodesCache();
-                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // getBuildCache() deliberately returns an empty string when neither target data nor the invalidation
+                // prefix changed.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
@@ -462,7 +463,8 @@ void Builder::executeRoundZero()
                 const string buildCache = getBuildCache();
                 Builder::checkNodes();
                 writeNodesCache();
-                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // getBuildCache() deliberately returns an empty string when neither target data nor the invalidation
+                // prefix changed.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
