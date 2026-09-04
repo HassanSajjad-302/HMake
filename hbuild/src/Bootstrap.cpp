@@ -855,7 +855,7 @@ int runBootstrap(const int argc, char **argv)
     normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
 
-    const Toolchain &bootstrapToolchain = toolchains.entries.find(toolchains.registryOrder.front())->second;
+    const Toolchain &bootstrapToolchain = *toolchains.registryOrder.front();
     const Toolchain *projectToolchain = &bootstrapToolchain;
     if (!projectCache.toolchainName.empty() && projectCache.toolchainName != bootstrapToolchain.name)
     {

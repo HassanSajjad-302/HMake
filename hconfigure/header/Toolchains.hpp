@@ -42,7 +42,7 @@ struct Toolchains
     string toJson() const;
 
     std::map<string, Toolchain, std::less<>> entries;
-    std::vector<string> registryOrder;
+    std::vector<Toolchain *> registryOrder;
 
   private:
     path userToolchainsFilePath;

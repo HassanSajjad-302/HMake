@@ -373,8 +373,7 @@ Toolchains::Toolchains()
     assert(!builtIn.compiler.bTPath.empty() && !builtIn.linker.bTPath.empty() && !builtIn.archiver.bTPath.empty() &&
            !builtIn.family.empty() && !builtIn.style.empty() && !builtIn.version.empty() && !builtIn.target.empty());
     initializeBuildTools(builtIn, sourceFile);
-    entries.emplace(name, std::move(builtIn));
-    registryOrder.emplace_back(name);
+    registryOrder.emplace_back(&entries.emplace(name, std::move(builtIn)).first->second);
 }
 
 void Toolchains::loadFile(const path &filePath)
@@ -535,8 +534,7 @@ void Toolchains::loadFile(const path &filePath)
             toolchainError(filePath, name, "Required string fields must not be empty after inheritance.");
         }
         initializeBuildTools(toolchain, filePath);
-        entries.emplace(name, std::move(toolchain));
-        registryOrder.emplace_back(name);
+        registryOrder.emplace_back(&entries.emplace(name, std::move(toolchain)).first->second);
     }
 }
 
@@ -550,35 +548,35 @@ string Toolchains::toJson() const
 {
     rapidjson::Document document(rapidjson::kObjectType);
     auto &allocator = document.GetAllocator();
-    for (const string &name : registryOrder)
+    for (const Toolchain *const toolchain : registryOrder)
     {
-        const Toolchain &toolchain = entries.find(name)->second;
         rapidjson::Value jsonToolchain(rapidjson::kObjectType);
-        addJsonString(jsonToolchain, compilerField, toolchain.compiler.bTPath, allocator);
-        addJsonString(jsonToolchain, linkerField, toolchain.linker.bTPath, allocator);
-        addJsonString(jsonToolchain, archiverField, toolchain.archiver.bTPath, allocator);
-        addJsonString(jsonToolchain, familyField, toolchain.family, allocator);
-        addJsonString(jsonToolchain, styleField, toolchain.style, allocator);
-        addJsonString(jsonToolchain, versionField, toolchain.version, allocator);
-        addJsonString(jsonToolchain, targetField, toolchain.target, allocator);
+        addJsonString(jsonToolchain, compilerField, toolchain->compiler.bTPath, allocator);
+        addJsonString(jsonToolchain, linkerField, toolchain->linker.bTPath, allocator);
+        addJsonString(jsonToolchain, archiverField, toolchain->archiver.bTPath, allocator);
+        addJsonString(jsonToolchain, familyField, toolchain->family, allocator);
+        addJsonString(jsonToolchain, styleField, toolchain->style, allocator);
+        addJsonString(jsonToolchain, versionField, toolchain->version, allocator);
+        addJsonString(jsonToolchain, targetField, toolchain->target, allocator);
 
-        rapidjson::Value includeDirectories = makeJsonStringArray(toolchain.includeDirs, allocator);
+        rapidjson::Value includeDirectories = makeJsonStringArray(toolchain->includeDirs, allocator);
         rapidjson::Value includeDirectoriesName(includeDirsField.data(),
                                                 static_cast<rapidjson::SizeType>(includeDirsField.size()), allocator);
         jsonToolchain.AddMember(includeDirectoriesName, includeDirectories, allocator);
 
-        rapidjson::Value libraryDirectories = makeJsonStringArray(toolchain.libraryDirs, allocator);
+        rapidjson::Value libraryDirectories = makeJsonStringArray(toolchain->libraryDirs, allocator);
         rapidjson::Value libraryDirectoriesName(libraryDirsField.data(),
                                                 static_cast<rapidjson::SizeType>(libraryDirsField.size()), allocator);
         jsonToolchain.AddMember(libraryDirectoriesName, libraryDirectories, allocator);
 
-        rapidjson::Value bootstrapArguments = makeJsonStringArray(toolchain.bootstrapArguments, allocator);
+        rapidjson::Value bootstrapArguments = makeJsonStringArray(toolchain->bootstrapArguments, allocator);
         rapidjson::Value bootstrapArgumentsName(bootstrapArgumentsField.data(),
                                                 static_cast<rapidjson::SizeType>(bootstrapArgumentsField.size()),
                                                 allocator);
         jsonToolchain.AddMember(bootstrapArgumentsName, bootstrapArguments, allocator);
 
-        rapidjson::Value jsonName(name.data(), static_cast<rapidjson::SizeType>(name.size()), allocator);
+        rapidjson::Value jsonName(toolchain->name.data(), static_cast<rapidjson::SizeType>(toolchain->name.size()),
+                                  allocator);
         document.AddMember(jsonName, jsonToolchain, allocator);
     }
 
