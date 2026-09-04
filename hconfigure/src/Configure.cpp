@@ -164,7 +164,7 @@ void callConfigurationSpecification()
     }
 }
 
-void printHashMapFile()
+static void printHashMapFile()
 {
     string buffer;
     for (Configuration *configPointer : allConfigurations)
