@@ -495,6 +495,9 @@ void loadNodesCache(const path &fileName);
 void writeNodesCache();
 /// Appends the build-cache invalidation prefix, including its four-byte total-size field, to an empty buffer.
 void writeBuildCacheInvalidationPrefix(string &cacheBytes);
+/// Restores invalidation state and returns the prefix size. Shared cache readers trust HMake-written files;
+/// format checks are debug invariants.
+uint64_t readBuildCacheInvalidationPrefix(string_view cacheBytes);
 string getBuildCache();
 string getThreadId();
 

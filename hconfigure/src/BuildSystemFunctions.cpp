@@ -769,8 +769,6 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     memcpy(cacheBytes.data(), &prefixSize, sizeof(prefixSize));
 }
 
-namespace
-{
 uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
 {
     uint64_t bytesRead = 0;
@@ -790,6 +788,8 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
     return prefixSize;
 }
 
+namespace
+{
 void readConfigCache()
 {
     string_view configCache = configCacheGlobal;
