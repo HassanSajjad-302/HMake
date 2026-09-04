@@ -694,8 +694,8 @@ int runBootstrap(const int argc, char **argv)
                               "\nSystem error: " + error.message());
         }
     }
-    path sourceDirectory = buildDirectoryPath.parent_path();
-    while (sourceDirectory.has_relative_path() && !isRegularFile(sourceDirectory / "hmake.cpp"))
+    path sourceDirectory = buildDirectoryPath;
+    while (true)
     {
         const path parentDirectory = sourceDirectory.parent_path();
         if (parentDirectory == sourceDirectory)
