@@ -77,19 +77,18 @@ inline constexpr string_view nodesCacheFileName = "nodes-cache.bin";
 inline constexpr string_view configCacheFileName = "config-cache.bin";
 inline constexpr string_view buildCacheFileName = "build-cache.bin";
 
-/// Take-off command hashes/content caches stored at the start of `build-cache.bin`.
-/// Generated configure/build executables preserve these values when rewriting ordinary target rows.
-extern uint64_t buildExeCommandHash;
-extern uint64_t configureExeCommandHash;
-extern uint64_t selectedToolchainCommandCache;
-extern uint64_t projectCacheContentCache;
+/// Wall-clock time of the last successful configuration; `-1` marks configuration in progress.
+/// Generated build executables preserve this value when rewriting ordinary target rows.
+extern uint64_t configurationTime;
 
 /// Number of Nodes backed by the retained nodes-cache buffer loaded at process start. This remains fixed after a
 /// write because cached Node path views continue to borrow from that buffer.
 extern uint32_t nodesCountBefore;
 
-/// Files whose content changes require rebuilding the generated executables or rerunning configuration.
+/// Files whose timestamp/content snapshots require rebuilding the generated executables.
 extern flat_hash_set<Node *> recompileNodes;
+/// Existing regular files whose last-write time is newer than `configurationTime` require configuration.
+/// hbuild always includes the project `cache.txt`; generated configure/build code may add more inputs.
 extern flat_hash_set<Node *> reconfigureNodes;
 
 /// Node representing the project source directory. It always has node ID 0.
@@ -454,7 +453,6 @@ inline const char *getColorCode(ColorIndex c)
 void writeCacheFile(const string &fileName, string_view fileBuffer);
 /// Replaces destination with a fully written and closed temporary sibling on the same filesystem.
 void replaceFileAtomically(const string &temporaryFile, const string &destinationFile);
-
 /// Compares equal-length byte strings from the end, which is favorable for normalized paths sharing long roots.
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
 /// Returns true when an already-normalized child path is strictly inside an already-normalized parent directory.

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cctype>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -34,10 +35,7 @@ void setIsConsol()
 #endif
 }
 
-uint64_t buildExeCommandHash = 0;
-uint64_t configureExeCommandHash = 0;
-uint64_t selectedToolchainCommandCache = 0;
-uint64_t projectCacheContentCache = 0;
+uint64_t configurationTime = -1;
 uint32_t nodesCountBefore = 0;
 flat_hash_set<Node *> recompileNodes;
 flat_hash_set<Node *> reconfigureNodes;
@@ -226,17 +224,26 @@ bool configureOrBuild()
                     printErrorMessage(FORMAT("Invalid project cache.\nFile: {}\n{}", cachePath(projectCacheFileName),
                                              projectCacheError));
                 }
-                writeCacheFile(cachePath(projectCacheFileName), projectCacheContents);
+                const string projectCachePath = cachePath(projectCacheFileName);
+                writeCacheFile(projectCachePath, projectCacheContents);
                 projectCache.needsWrite = false;
             }
-            const string configCache = getConfigCache();
-            const string buildCache = getBuildCache();
-            writeNodesCache();
-            const string configCachePath = cachePath(configCacheFileName);
-            if (configCache != configCacheGlobal || !std::filesystem::exists(configCachePath))
+
             {
-                writeCacheFile(configCachePath, configCache);
+                const string configCache = getConfigCache();
+                writeNodesCache();
+                const string configCachePath = cachePath(configCacheFileName);
+                if (configCache != configCacheGlobal || !std::filesystem::exists(configCachePath))
+                {
+                    writeCacheFile(configCachePath, configCache);
+                }
             }
+            // build-cache.bin is the final configuration commit. Until this atomic write succeeds, hbuild continues
+            // to observe the in-progress -1 value written before launching configure.
+            configurationTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count();
+            const string buildCache = getBuildCache();
             if (!buildCache.empty())
             {
                 writeCacheFile(cachePath(buildCacheFileName), buildCache);
@@ -265,10 +272,7 @@ void constructGlobals()
     buildCacheGlobal = {};
     recompileNodes.clear();
     reconfigureNodes.clear();
-    buildExeCommandHash = 0;
-    configureExeCommandHash = 0;
-    selectedToolchainCommandCache = 0;
-    projectCacheContentCache = 0;
+    configurationTime = -1;
     nodesCountBefore = 0;
     buildJobsOverride = 0;
 #ifdef _WIN32
@@ -500,8 +504,7 @@ string decodeBackslashEscapes(string value)
         case 'f':
             value[writeOffset++] = '\f';
             break;
-        case 'x':
-        {
+        case 'x': {
             if (readOffset + 2 >= size)
             {
                 printErrorMessage(FORMAT("Incomplete hexadecimal escape.\nByte offset: {}\n"
@@ -536,8 +539,7 @@ string decodeBackslashEscapes(string value)
             break;
         }
         default:
-            printErrorMessage(FORMAT("Unknown backslash escape.\nByte offset: {}\nEscape byte: 0x{:02X}",
-                                     escapeOffset,
+            printErrorMessage(FORMAT("Unknown backslash escape.\nByte offset: {}\nEscape byte: 0x{:02X}", escapeOffset,
                                      static_cast<uint32_t>(static_cast<unsigned char>(value[readOffset]))));
         }
     }
@@ -730,9 +732,8 @@ void loadNodesCache(const path &fileName)
         offset += sizeof(pathSize);
         const string_view nodePath(bytes + offset, pathSize);
         assert(bytes[offset + pathSize] == '\0');
-        const auto iterator = nodeAllFiles.lazy_emplace(nodePath, [&](const auto &constructor) {
-            constructor(nodePath);
-        });
+        const auto iterator =
+            nodeAllFiles.lazy_emplace(nodePath, [&](const auto &constructor) { constructor(nodePath); });
         Node *node = &const_cast<Node &>(*iterator);
         offset += pathSize + 1;
         memcpy(&node->lastWriteTime, bytes + offset, sizeof(node->lastWriteTime));
@@ -752,11 +753,7 @@ namespace
 {
 void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 {
-    projectCacheContentCache = projectCache.contentCache();
-    writeUint64(cacheBytes, buildExeCommandHash);
-    writeUint64(cacheBytes, configureExeCommandHash);
-    writeUint64(cacheBytes, selectedToolchainCommandCache);
-    writeUint64(cacheBytes, projectCacheContentCache);
+    writeUint64(cacheBytes, configurationTime);
     const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
         for (const Node *node : nodes)
@@ -771,12 +768,7 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
 {
     uint64_t bytesRead = 0;
-    buildExeCommandHash = readUint64(cacheBytes.data(), bytesRead);
-    configureExeCommandHash = readUint64(cacheBytes.data(), bytesRead);
-    selectedToolchainCommandCache = readUint64(cacheBytes.data(), bytesRead);
-    projectCacheContentCache = readUint64(cacheBytes.data(), bytesRead);
-    recompileNodes.clear();
-    reconfigureNodes.clear();
+    configurationTime = readUint64(cacheBytes.data(), bytesRead);
     const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
         const uint32_t count = readUint32(cacheBytes.data(), bytesRead);
         nodes.reserve(count);
@@ -863,11 +855,10 @@ void writeNodesCache()
                 uint64_t cachedLastWriteTime;
                 uint64_t cachedContentHash;
                 memcpy(&cachedLastWriteTime, nodesCacheGlobal.data() + cachedOffset, sizeof(cachedLastWriteTime));
-                memcpy(&cachedContentHash,
-                       nodesCacheGlobal.data() + cachedOffset + sizeof(cachedLastWriteTime),
+                memcpy(&cachedContentHash, nodesCacheGlobal.data() + cachedOffset + sizeof(cachedLastWriteTime),
                        sizeof(cachedContentHash));
-                cachedMetadataChanged = cachedLastWriteTime != node.lastWriteTime ||
-                                        cachedContentHash != node.contentHash;
+                cachedMetadataChanged =
+                    cachedLastWriteTime != node.lastWriteTime || cachedContentHash != node.contentHash;
             }
             memcpy(nodesCacheGlobal.data() + cachedOffset, &node.lastWriteTime, sizeof(node.lastWriteTime));
             memcpy(nodesCacheGlobal.data() + cachedOffset + sizeof(node.lastWriteTime), &node.contentHash,
@@ -969,7 +960,7 @@ string getBuildCache()
     string buildCache;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // With empty sets and no target rows, the prefix is four u64 caches followed by two zero u32 counts.
+        // With empty sets and no target rows, the prefix is one configuration time followed by two zero u32 counts.
         writeBuildCacheInvalidationPrefix(buildCache);
         for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
@@ -1020,25 +1011,32 @@ string getBuildCache()
         return buildCache;
     }
 
-    bool cacheUpdated = false;
-    for (const BTargetCache &fileCacheTarget : bTargetCaches)
+    writeBuildCacheInvalidationPrefix(buildCache);
+    const uint64_t cachedPrefixSize =
+        bTargetCaches.empty() ? buildCacheGlobal.size()
+                              : static_cast<uint64_t>(bTargetCaches.front().depsCache.data() - buildCacheGlobal.data());
+    const bool prefixUpdated =
+        buildCache.size() != cachedPrefixSize || buildCache != string_view(buildCacheGlobal.data(), cachedPrefixSize);
+
+    if (!prefixUpdated)
     {
-        if (fileCacheTarget.bTarget)
+        bool cacheUpdated = false;
+        for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
-            if (fileCacheTarget.bTarget->buildCacheUpdated || fileCacheTarget.bTarget->buildFooterUpdated)
+            if (const BTarget *bTarget = fileCacheTarget.bTarget;
+                bTarget && (bTarget->buildCacheUpdated || bTarget->buildFooterUpdated))
             {
                 cacheUpdated = true;
                 break;
             }
         }
-    }
-    if (!cacheUpdated)
-    {
-        return buildCache;
+        if (!cacheUpdated)
+        {
+            return {};
+        }
     }
 
     Builder::checkNodes();
-    writeBuildCacheInvalidationPrefix(buildCache);
     for (const BTargetCache &fileCacheTarget : bTargetCaches)
     {
         if (fileCacheTarget.depsCache.empty())
