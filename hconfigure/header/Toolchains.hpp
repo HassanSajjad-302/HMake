@@ -39,17 +39,13 @@ struct Toolchains
 
     void initialize(const path &sourceDirectory);
 
-    string_view defaultName() const
-    {
-        return registryOrder.front();
-    }
     string toJson() const;
 
     std::map<string, Toolchain, std::less<>> entries;
+    std::vector<string> registryOrder;
 
   private:
     path userToolchainsFilePath;
-    std::vector<string> registryOrder;
 
     void loadFile(const path &filePath);
 };
