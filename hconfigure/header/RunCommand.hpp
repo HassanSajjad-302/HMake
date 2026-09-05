@@ -47,7 +47,8 @@ struct RunCommand
     RunCommand(RunCommand &&) = delete;
     RunCommand &operator=(RunCommand &&) = delete;
 
-    /// Runs a command synchronously with inherited stdin and stdout/stderr captured through one pipe.
+    /// Runs a noninteractive command synchronously with stdout/stderr captured through one pipe.
+    /// Stdin reads EOF from NUL on Windows or /dev/null on Linux; the parent's input is never consumed.
     /// Concurrent calls own independent process handles and output; no pooled asynchronous state is used.
     /// The command view is copied before launching and therefore need not be null-terminated.
     /// Waits for the child to exit and all inherited output writers to close, including those held by descendants.

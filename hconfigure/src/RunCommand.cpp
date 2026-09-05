@@ -178,25 +178,12 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
             FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}", P2978::getErrorString()));
     }
 
-    const HANDLE standardInput = GetStdHandle(STD_INPUT_HANDLE);
-    if (standardInput != nullptr && standardInput != INVALID_HANDLE_VALUE)
+    inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                      &inheritableAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
     {
-        if (!DuplicateHandle(GetCurrentProcess(), standardInput, GetCurrentProcess(), &inheritedHandles[0], 0, TRUE,
-                             DUPLICATE_SAME_ACCESS))
-        {
-            return finish(
-                FORMAT("Could not inherit synchronous process input.\nSystem error: {}", P2978::getErrorString()));
-        }
-    }
-    else
-    {
-        inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                          &inheritableAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
-        {
-            return finish(
-                FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}", P2978::getErrorString()));
-        }
+        return finish(
+            FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}", P2978::getErrorString()));
     }
 
     startupInfo.StartupInfo.cb = sizeof(startupInfo);
@@ -381,7 +368,8 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
                              std::strerror(spawnError)));
     }
     actionsInitialized = true;
-    if ((spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDOUT_FILENO)) != 0 ||
+    if ((spawnError = posix_spawn_file_actions_addopen(&fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)) != 0 ||
+        (spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDOUT_FILENO)) != 0 ||
         (spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDERR_FILENO)) != 0)
     {
         return finish(
