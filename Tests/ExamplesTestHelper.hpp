@@ -16,7 +16,8 @@ static string hconfigureOnlyStr = hbuildBuildStr + " --reconfigure --configure-o
 struct ExamplesTestHelper
 {
     static void cleanBuild();
-    static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
+    static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput,
+                                        const char *workingDirectory = nullptr);
     static void getCleanBuildOutputAndStatus(string &output, int32_t &exitStatus);
     static void runCommandAndGetOutput(const string &command, string &output);
     static void getCommandOutputInDir(const string &dir, const string &command, string &output);

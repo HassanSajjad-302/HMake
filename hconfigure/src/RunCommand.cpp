@@ -122,9 +122,12 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
-RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const bool useShell,
-                                                   const char *workingDirectory)
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const char *workingDirectory)
 {
+    if (workingDirectory != nullptr && workingDirectory[0] == '\0')
+    {
+        workingDirectory = nullptr;
+    }
     OutputAndStatus result;
     string commandLine(command);
     char buffer[16 * 1024];
@@ -215,26 +218,7 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
                              P2978::getErrorString()));
     }
 
-    string shellPath;
-    if (useShell)
-    {
-        char systemDirectory[MAX_PATH];
-        const uint64_t directoryLength = GetSystemDirectoryA(systemDirectory, sizeof(systemDirectory));
-        if (directoryLength == 0)
-        {
-            return finish(
-                FORMAT("Could not locate the Windows command interpreter.\nSystem error: {}", P2978::getErrorString()));
-        }
-        if (directoryLength >= sizeof(systemDirectory))
-        {
-            return finish("Could not locate the Windows command interpreter: system directory path is too long.");
-        }
-        shellPath.assign(systemDirectory, directoryLength);
-        shellPath += "\\cmd.exe";
-        commandLine = FORMAT("\"{}\" /d /s /c \"{}\"", shellPath, command);
-    }
-
-    if (!CreateProcessA(useShell ? shellPath.c_str() : nullptr, commandLine.data(), nullptr, nullptr, TRUE,
+    if (!CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE,
                         EXTENDED_STARTUPINFO_PRESENT, nullptr, workingDirectory, &startupInfo.StartupInfo,
                         &processInfo))
     {
@@ -295,82 +279,73 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
         }
         return finishOutput(error);
     };
-    STACK_PMR_VECTOR(char *, arguments, 64)
-    char shellName[] = "sh";
-    char shellOption[] = "-c";
-    if (useShell)
+    STACK_PMR_VECTOR(char *, arguments, 128)
+    // Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
+    uint64_t readOffset = 0;
+    uint64_t writeOffset = 0;
+    while (readOffset < commandLine.size())
     {
-        arguments = {shellName, shellOption, commandLine.data()};
-    }
-    else
-    {
-        // Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
-        uint64_t readOffset = 0;
-        uint64_t writeOffset = 0;
+        const uint64_t argumentOffset = writeOffset;
+        bool haveArgument = false;
+        char quote = '\0';
         while (readOffset < commandLine.size())
         {
-            const uint64_t argumentOffset = writeOffset;
-            bool haveArgument = false;
-            char quote = '\0';
-            while (readOffset < commandLine.size())
+            char value = commandLine[readOffset++];
+            if (value == '\0')
             {
-                char value = commandLine[readOffset++];
+                return finish("Could not parse the synchronous command: embedded null byte.");
+            }
+            if (quote == '\0' && (value == ' ' || (value >= '\t' && value <= '\r')))
+            {
+                break;
+            }
+            if (value == '\\' && quote != '\'')
+            {
+                if (readOffset == commandLine.size())
+                {
+                    return finish("Could not parse the synchronous command: unfinished escape.");
+                }
+                value = commandLine[readOffset++];
+                if (value == '\n')
+                {
+                    continue;
+                }
                 if (value == '\0')
                 {
                     return finish("Could not parse the synchronous command: embedded null byte.");
                 }
-                if (quote == '\0' && string_view(" \t\r\n\f\v").find(value) != string_view::npos)
+                if (quote == '"' && value != '$' && value != '`' && value != '"' && value != '\\')
                 {
-                    break;
+                    commandLine[writeOffset++] = '\\';
                 }
-                if (value == '\\' && quote != '\'')
-                {
-                    if (readOffset == commandLine.size())
-                    {
-                        return finish("Could not parse the synchronous command: unfinished escape.");
-                    }
-                    value = commandLine[readOffset++];
-                    if (value == '\n')
-                    {
-                        continue;
-                    }
-                    if (value == '\0')
-                    {
-                        return finish("Could not parse the synchronous command: embedded null byte.");
-                    }
-                    if (quote == '"' && string_view("$`\"\\").find(value) == string_view::npos)
-                    {
-                        commandLine[writeOffset++] = '\\';
-                    }
-                }
-                else if (value == quote)
-                {
-                    quote = '\0';
-                    continue;
-                }
-                else if (quote == '\0' && (value == '\'' || value == '"'))
-                {
-                    quote = value;
-                    haveArgument = true;
-                    continue;
-                }
-                commandLine[writeOffset++] = value;
+            }
+            else if (value == quote)
+            {
+                quote = '\0';
+                continue;
+            }
+            else if (quote == '\0' && (value == '\'' || value == '"'))
+            {
+                quote = value;
                 haveArgument = true;
+                continue;
             }
-            if (quote != '\0')
-            {
-                return finish("Could not parse the synchronous command: unterminated quote.");
-            }
-            if (haveArgument)
-            {
-                arguments.push_back(commandLine.data() + argumentOffset);
-                commandLine[writeOffset++] = '\0';
-            }
+            commandLine[writeOffset++] = value;
+            haveArgument = true;
         }
-        if (arguments.empty() || arguments.front()[0] == '\0')
+        if (quote != '\0')
         {
-            return finish("Could not parse the synchronous command: empty executable.");
+            return finish("Could not parse the synchronous command: unterminated quote.");
         }
+        if (haveArgument)
+        {
+            arguments.push_back(commandLine.data() + argumentOffset);
+            commandLine[writeOffset++] = '\0';
+        }
+    }
+    if (arguments.empty() || arguments.front()[0] == '\0')
+    {
+        return finish("Could not parse the synchronous command: empty executable.");
     }
     arguments.push_back(nullptr);
     if (pipe2(outputPipes, O_CLOEXEC) == -1)
@@ -416,8 +391,7 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
     }
 
     pid_t processId;
-    spawnError = useShell ? posix_spawn(&processId, "/bin/sh", &fileActions, nullptr, arguments.data(), environ)
-                          : posix_spawnp(&processId, arguments.front(), &fileActions, nullptr, arguments.data(), environ);
+    spawnError = posix_spawnp(&processId, arguments.front(), &fileActions, nullptr, arguments.data(), environ);
     posix_spawn_file_actions_destroy(&fileActions);
     actionsInitialized = false;
     close(outputPipes[1]);

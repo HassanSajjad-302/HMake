@@ -247,7 +247,8 @@ void printUsage()
 struct Command
 {
     string value;
-    string directory;
+    // Borrows NUL-terminated storage that must remain valid until run() finishes.
+    string_view directory;
 
     Command(const string_view executable, const string_view workingDirectory, const uint64_t capacity = 0)
         : directory(workingDirectory)
@@ -258,7 +259,7 @@ struct Command
 
     RunCommand::OutputAndStatus run() const
     {
-        return RunCommand::runProcess(value, /*useShell=*/false, directory.c_str());
+        return RunCommand::runProcess(value, directory.empty() ? nullptr : directory.data());
     }
 
     void append(const string_view argument)
@@ -498,9 +499,9 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
     return command;
 }
 
-void runGeneratedConfigure(const path &executable, const path &buildDirectory, const path &configFile)
+void runGeneratedConfigure(const path &executable, const string_view buildDirectory, const path &configFile)
 {
-    const Command command(executable.string(), buildDirectory.string());
+    const Command command(executable.string(), buildDirectory);
     printMessage("Running configure\n");
     const auto started = std::chrono::steady_clock::now();
     const RunCommand::OutputAndStatus result = command.run();
@@ -514,7 +515,7 @@ void runGeneratedConfigure(const path &executable, const path &buildDirectory, c
     {
         string diagnostic =
             "Generated configure executable failed with exit code " + std::to_string(result.exitStatus) +
-            ".\nDelete the build directory and run hbuild again.\nBuild directory: " + buildDirectory.string();
+            ".\nDelete the build directory and run hbuild again.\nBuild directory: " + string(buildDirectory);
         std::error_code error;
         // Failed configuration may have replaced configuration rows without committing their matching build rows.
         std::filesystem::remove(configFile, error);
@@ -813,7 +814,7 @@ int runBootstrap(const int argc, char **argv)
     writeNodesCache();
     if (mustConfigure)
     {
-        runGeneratedConfigure(configureExecutable, buildDirectoryPath, configCacheFile);
+        runGeneratedConfigure(configureExecutable, configureNode->filePath, configCacheFile);
     }
 
     int result = 0;

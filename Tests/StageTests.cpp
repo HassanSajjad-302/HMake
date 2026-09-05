@@ -84,11 +84,11 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 static void executeSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     const path p = current_path();
-    current_path(hbuildExecutionPath);
+    const string executionDir = hbuildExecutionPath.string();
     Snapshot snapshot(p);
 
     {
-        const auto result = RunCommand::runProcess(hbuildBuildStr);
+        const auto result = RunCommand::runProcess(hbuildBuildStr, executionDir.c_str());
         printMessage(result.output);
         ASSERT_EQ(result.exitStatus, 0) << hbuildBuildStr + " command failed.";
     }
@@ -99,13 +99,12 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     snapshot.before(p);
 
     {
-        const auto result = RunCommand::runProcess(hbuildBuildStr);
+        const auto result = RunCommand::runProcess(hbuildBuildStr, executionDir.c_str());
         printMessage(result.output);
         ASSERT_EQ(result.exitStatus, 0) << hbuildBuildStr + " command failed.";
     }
 
     snapshot.after(p);
-    current_path(p);
     ASSERT_EQ(snapshot.snapshotBalances(Updates{}), true);
 }
 
@@ -116,12 +115,12 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
 static void executeErroneousSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     const path p = current_path();
-    current_path(hbuildExecutionPath);
+    const string executionDir = hbuildExecutionPath.string();
     Snapshot snapshot(p);
-    system(hbuildBuildStr.c_str());
+    const auto result = RunCommand::runProcess(hbuildBuildStr, executionDir.c_str());
+    printMessage(result.output);
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates), true);
-    current_path(p);
 }
 
 // Tests Hello-World and rebuild in different dirs on touching file.
@@ -131,9 +130,9 @@ TEST(StageTests, Test1)
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/hmakev0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::cleanBuild();
-    current_path("Release/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
-    current_path("../../");
+    const path appDirectory = testSourcePath / "Build/Release/app";
+    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "Hello World\n",
+                                               appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -234,9 +233,9 @@ TEST(StageTests, Test2)
     setupTest2Default();
 
     ExamplesTestHelper::cleanBuild();
-    current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
-    current_path("../../");
+    const path appDirectory = testSourcePath / "Build/Debug/app";
+    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
+                                               appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -457,9 +456,9 @@ TEST(StageTests, Test3)
     setupTest3Default(testSourcePath);
 
     ExamplesTestHelper::cleanBuild();
-    current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
-    current_path("../../");
+    const path appDirectory = testSourcePath / "Build/Debug/app";
+    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
+                                               appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -570,9 +569,9 @@ TEST(StageTests, Test4)
     setupTest3Default(testSourcePath);
 
     ExamplesTestHelper::cleanBuild();
-    current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
-    current_path("../../");
+    const path appDirectory = testSourcePath / "Build/Debug/app";
+    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
+                                               appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -697,8 +696,7 @@ TEST(StageTests, Test5)
         string twoPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm")).string();
         string tenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm")).string();
 
-        current_path(example8Path / "Build");
-        auto processResult = RunCommand::runProcess("hbuild");
+        auto processResult = RunCommand::runProcess("hbuild", (example8Path / "Build").string().c_str());
         erase_if(processResult.output, [](const char c) { return c == '\r'; });
         const int exitStatus = processResult.exitStatus;
         string output = std::move(processResult.output);
@@ -726,8 +724,7 @@ TEST(StageTests, Test5)
         string fourteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm")).string();
         string fifteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm")).string();
 
-        current_path(example8Path / "Build");
-        auto processResult = RunCommand::runProcess("hbuild");
+        auto processResult = RunCommand::runProcess("hbuild", (example8Path / "Build").string().c_str());
         erase_if(processResult.output, [](const char c) { return c == '\r'; });
         const int exitStatus = processResult.exitStatus;
         string output = std::move(processResult.output);

@@ -293,29 +293,30 @@ TEST(AExamplesTest, Example_A9)
 
 TEST(AExamplesTest, Example_A10)
 {
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A10"));
+    const path buildDirectory = path(SOURCE_DIRECTORY) / "Examples/Example-A10/Build";
+    const string workingDirectory = buildDirectory.string();
     string output;
     int exitStatus;
 
-    if (exists(path("Build")))
+    if (exists(buildDirectory))
     {
-        remove_all(path("Build"));
+        remove_all(buildDirectory);
     }
-    create_directory("Build");
-    current_path("Build");
+    create_directory(buildDirectory);
 
     {
-        const auto result = RunCommand::runProcess(hconfigureOnlyStr);
+        const auto result = RunCommand::runProcess(hconfigureOnlyStr, workingDirectory.c_str());
         ASSERT_EQ(result.exitStatus, EXIT_SUCCESS)
             << FORMAT("hbuild configuration failed with output\n{}\n.", result.output);
     }
 
     {
-        ASSERT_EQ(system("c++ ../main.cpp"), EXIT_SUCCESS) << "c++ ../main.cpp failed\n";
+        const auto result = RunCommand::runProcess("c++ ../main.cpp", workingDirectory.c_str());
+        ASSERT_EQ(result.exitStatus, EXIT_SUCCESS) << "c++ ../main.cpp failed\n" << result.output;
     }
 
     {
-        auto result = RunCommand::runProcess("hbuild");
+        auto result = RunCommand::runProcess("hbuild", workingDirectory.c_str());
         erase_if(result.output, [](const char c) { return c == '\r'; });
         exitStatus = result.exitStatus;
         output = std::move(result.output);

@@ -52,11 +52,10 @@ struct RunCommand
     /// The command view is copied before launching and therefore need not be null-terminated.
     /// Waits for the child to exit and all inherited output writers to close, including those held by descendants.
     /// Launch/capture failures return EXIT_FAILURE with a diagnostic appended to any captured output.
-    /// Shell mode uses /bin/sh on Linux and cmd.exe on Windows. Pass useShell=false for a native command:
     /// Linux splits quotes/backslash escapes without shell expansion; Windows uses native command-line quoting.
-    /// workingDirectory selects the child's directory without changing the parent's directory.
-    [[nodiscard]] static OutputAndStatus runProcess(string_view command, bool useShell = true,
-                                                   const char *workingDirectory = nullptr);
+    /// Invoke a shell explicitly if the command needs shell operators or built-ins.
+    /// workingDirectory selects the child's directory; nullptr or an empty string inherits the parent's directory.
+    [[nodiscard]] static OutputAndStatus runProcess(string_view command, const char *workingDirectory = nullptr);
 
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing

@@ -255,6 +255,8 @@ export PATH=$PATH:/path/to/HMake/build
 `hbuild` owns the complete take-off. It creates project metadata, compiles the generated
 configure/build executables in parallel when necessary, waits for both compilations, configures, and then builds.
 Each command captures merged stdout/stderr through its own pipe; compilation output is printed separately per command.
+`RunCommand::runProcess` launches executables directly and accepts an optional child working directory. Commands needing
+shell operators must invoke their shell explicitly.
 
 ```bash
 cd HMake/Examples/Example1

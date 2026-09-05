@@ -2214,9 +2214,8 @@ void AdaptiveManager::prepareWorkingSet()
         {
             if (adaptiveBuildWorkingSetProvider == WorkingSetProvider::GIT)
             {
-                const string commandLine =
-                    "git -C " + addQuotes(srcNode->filePath) + " status --porcelain=v1 -z --untracked-files=all -- .";
-                const auto result = RunCommand::runProcess(commandLine);
+                const auto result = RunCommand::runProcess("git status --porcelain=v1 -z --untracked-files=all -- .",
+                                                           srcNode->filePath.data());
                 if (result.exitStatus != EXIT_SUCCESS)
                 {
                     printErrorMessage(

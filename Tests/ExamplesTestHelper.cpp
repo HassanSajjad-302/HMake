@@ -17,7 +17,9 @@ void ExamplesTestHelper::cleanBuild()
     if (exists(path("Build")))
     {
         for (const auto &entry : std::filesystem::directory_iterator("Build"))
+        {
             std::filesystem::remove_all(entry.path());
+        }
     }
     create_directory("Build");
     current_path("Build");
@@ -28,9 +30,10 @@ void ExamplesTestHelper::cleanBuild()
     }
 }
 
-void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
+void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput,
+                                                const char *workingDirectory)
 {
-    auto result = RunCommand::runProcess(appName);
+    auto result = RunCommand::runProcess(appName, workingDirectory);
     erase_if(result.output, [](const char c) { return c == '\r'; });
     ASSERT_EQ(result.exitStatus, EXIT_SUCCESS)
         << FORMAT("Running {} failed\n. Error {}\n", appName, result.exitStatus);
@@ -65,10 +68,7 @@ void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &o
 
 void ExamplesTestHelper::getCommandOutputInDir(const string &dir, const string &command, string &output)
 {
-    const path previousDirectory = current_path();
-    current_path(dir);
-    auto result = RunCommand::runProcess(command);
-    current_path(previousDirectory);
+    auto result = RunCommand::runProcess(command, dir.c_str());
     ASSERT_EQ(result.exitStatus, EXIT_SUCCESS) << "Could Not Run " << command;
     output = std::move(result.output);
     erase_if(output, [](const char c) { return c == '\r'; });
