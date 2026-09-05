@@ -16,8 +16,6 @@
 #include <system_error>
 #include <thread>
 
-using std::filesystem::current_path;
-
 #ifdef _WIN32
 #include <Windows.h>
 #include <io.h> // For _isatty on Windows
@@ -97,49 +95,28 @@ void initializeCache()
 
     toolchains.initialize(srcNode->filePath);
 
-    currentNode = Node::getHalfNode<PathType::ABSOLUTE>(current_path().string());
-    if (currentNode->filePath.size() < configureNode->filePath.size())
+    assert(currentNode == configureNode || isPathInDirectory(currentNode->filePath, configureNode->filePath));
+    if (currentNode != configureNode)
     {
-        printErrorMessage(
-            FORMAT("Internal path invariant failed: current path is shorter than configure path.\n"
-                   "Configure path: {}\nConfigure path length: {}\nCurrent path: {}\nCurrent path length: {}",
-                   configureNode->filePath, configureNode->filePath.size(), currentNode->filePath,
-                   currentNode->filePath.size()));
-    }
-    if (currentNode->filePath.size() != configureNode->filePath.size())
-    {
-        currentMinusConfigure = string_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
-                                            currentNode->filePath.end());
+        currentMinusConfigure = currentNode->filePath.substr(configureNode->filePath.size() + 1);
     }
 
-    if (const path p = cachePath(configCacheFileName); exists(p))
+    const string configCachePath = cachePath(configCacheFileName);
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        configCacheGlobal = fileToString(p.string());
+        configCacheGlobal = fileToString(configCachePath);
     }
     else
     {
-        if constexpr (bsMode == BSMode::BUILD)
+        if (std::filesystem::exists(configCachePath))
         {
-            printErrorMessage(FORMAT("Required cache file does not exist.\nPath: {}\nBuild mode: BUILD", p.string()));
-            errorExit();
+            configCacheGlobal = fileToString(configCachePath);
         }
     }
 
     readConfigCache();
-
-    if (const path p = cachePath(buildCacheFileName); exists(p))
-    {
-        buildCacheGlobal = fileToString(p.string());
-        readBuildCache();
-    }
-    else
-    {
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            printErrorMessage(FORMAT("Required cache file does not exist.\nPath: {}\nBuild mode: BUILD", p.string()));
-            errorExit();
-        }
-    }
+    buildCacheGlobal = fileToString(cachePath(buildCacheFileName));
+    readBuildCache();
 }
 
 void printDebugMessage(const string &message)
