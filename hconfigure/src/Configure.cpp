@@ -1,4 +1,5 @@
 #include "Configure.hpp"
+#include <cassert>
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
@@ -48,6 +49,15 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
     lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
     loadNodesCache(path(configurePathString) / string(nodesCacheFileName));
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        assert(configureNode->filePath == configurePathString);
+        currentNode = configureNode;
+    }
+    else
+    {
+        currentNode = Node::getHalfNode<PathType::ABSOLUTE>(currentDirectory.string());
+    }
 
     if constexpr (bsMode != BSMode::BUILD)
     {
@@ -55,6 +65,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 
     bool positionalOnly = false;
+    STACK_PMR_STRING(targetArgFullPath, 4 * 1024)
     for (int i = 1; i < argc; ++i)
     {
         const string_view argument{argv[i]};
@@ -109,16 +120,13 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
             }
         }
 
-        const string currentDirectoryString = currentDirectory.string();
-        STACK_PMR_STRING(targetArgFullPath, 4 * 1024)
-        targetArgFullPath.clear();
         if (Node::isAbsolute(argument))
         {
             targetArgFullPath.assign(argument);
         }
         else
         {
-            targetArgFullPath.assign(currentDirectoryString);
+            targetArgFullPath.assign(currentNode->filePath);
             targetArgFullPath += slashc;
             targetArgFullPath.append(argument);
         }
