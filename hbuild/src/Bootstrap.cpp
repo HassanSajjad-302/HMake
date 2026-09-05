@@ -18,6 +18,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -246,37 +247,18 @@ void printUsage()
 struct Command
 {
     string value;
-#ifdef _WIN32
     string directory;
-#endif
 
     Command(const string_view executable, const string_view workingDirectory, const uint64_t capacity = 0)
-#ifdef _WIN32
         : directory(workingDirectory)
-#endif
     {
-        value.reserve(capacity == 0 ? executable.size() + workingDirectory.size() + 256 : capacity);
-#ifndef _WIN32
-        value = "cd ";
-        appendValue(workingDirectory);
-        value += " && ";
-#endif
+        value.reserve(capacity == 0 ? executable.size() + 256 : capacity);
         appendValue(executable);
     }
 
     RunCommand::OutputAndStatus run() const
     {
-#ifdef _WIN32
-        // hbuild runs commands sequentially; set the directory here so RunCommand needs no directory parameter.
-        if (!SetCurrentDirectoryA(directory.c_str()))
-        {
-            printErrorMessage("Could not select the command directory: " + directory +
-                              "\nWindows error: " + std::to_string(GetLastError()));
-        }
-        return RunCommand::runProcess(value, /*useShell=*/false);
-#else
-        return RunCommand::runProcess(value);
-#endif
+        return RunCommand::runProcess(value, /*useShell=*/false, directory.c_str());
     }
 
     void append(const string_view argument)
@@ -498,6 +480,11 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
         }
         command.append(sourceFile);
         appendPrefixed("/Fo", objectFile);
+        // Keep compiler debug data separate when bootstrap arguments enable /Zi or /ZI.
+        argument.assign("/Fd");
+        argument += objectFile;
+        argument += ".pdb";
+        command.append(argument);
         command.value += " /link /SUBSYSTEM:CONSOLE /NOLOGO";
         for (const string &directory : toolchain.libraryDirs)
         {
@@ -778,31 +765,41 @@ int runBootstrap(const int argc, char **argv)
     }
     if (mustCompile)
     {
-        const auto compile = [&](const bool configureMode, const path &executable) {
-            const string label = configureMode ? "configure" : "build";
-            const string objectFile =
-                bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (label + ".obj")).string() : string{};
-            const Command command = makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath,
-                                                       executable.string(), objectFile, configureNode->filePath);
+        const Command commands[] = {
+            makeCompileCommand(*bootstrapToolchain, true, hmakeFile->filePath, configureExecutable.string(),
+                               (bootstrapDirectory / "configure.obj").string(), configureNode->filePath),
+            makeCompileCommand(*bootstrapToolchain, false, hmakeFile->filePath, buildExecutable.string(),
+                               (bootstrapDirectory / "build.obj").string(), configureNode->filePath)};
+        RunCommand::OutputAndStatus results[2];
+        double elapsedSeconds[2];
+        const auto compile = [&](const uint64_t index) {
             const auto started = std::chrono::steady_clock::now();
-            RunCommand::OutputAndStatus result = command.run();
-            const double elapsedSeconds =
+            results[index] = commands[index].run();
+            elapsedSeconds[index] =
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-            if (result.exitStatus != 0)
-            {
-                printErrorMessage("Could not compile the generated " + label +
-                                  " executable.\nExit code: " + std::to_string(result.exitStatus) +
-                                  "\nCommand: " + command.value + "\nCompiler output:\n" + result.output);
-            }
-            if (!result.output.empty())
-            {
-                printMessage(result.output);
-            }
-            printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", label, elapsedSeconds));
         };
-        printMessage("Compiling configure and build executables\n");
-        compile(true, configureExecutable);
-        compile(false, buildExecutable);
+        printMessage("Compiling configure and build executables in parallel\n");
+        std::thread configureCompilation(compile, 0);
+        compile(1);
+        configureCompilation.join();
+
+        // Join both compilations before reporting errors or touching caches: neither child may outlive this step.
+        for (uint64_t index = 0; index < std::size(commands); ++index)
+        {
+            const string_view label = index == 0 ? "configure" : "build";
+            if (results[index].exitStatus != 0)
+            {
+                printErrorMessage(FORMAT("Could not compile the generated {} executable.\nExit code: {}\n"
+                                         "Command: {}\nCompiler output:\n{}",
+                                         label, results[index].exitStatus, commands[index].value,
+                                         results[index].output));
+            }
+            if (!results[index].output.empty())
+            {
+                printMessage(results[index].output);
+            }
+            printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", label, elapsedSeconds[index]));
+        }
     }
 
     if (mustConfigure)

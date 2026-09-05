@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <filesystem>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #ifndef _WIN32
@@ -17,6 +17,8 @@
 #include "wordexp.h"
 #include <cerrno>
 #include <fcntl.h>
+#include <spawn.h>
+#include <unistd.h>
 #endif
 
 #ifdef _WIN32
@@ -25,31 +27,6 @@
 
 namespace
 {
-string quoteShellPath(const std::filesystem::path &value)
-{
-#ifdef _WIN32
-    return FORMAT("\"{}\"", value.string());
-#else
-    const string text = value.string();
-    string quoted;
-    quoted.reserve(text.size() + 2);
-    quoted.push_back('\'');
-    for (const char character : text)
-    {
-        if (character == '\'')
-        {
-            quoted += "'\\''";
-        }
-        else
-        {
-            quoted.push_back(character);
-        }
-    }
-    quoted.push_back('\'');
-    return quoted;
-#endif
-}
-
 std::vector<string *> &getOutputPool()
 {
     // Asynchronous RunCommand users share Builder's single scheduler thread. Keep the pool alive for the process
@@ -145,164 +122,352 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
-#ifdef _WIN32
-RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const bool useShell)
-#else
-RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command)
-#endif
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const bool useShell,
+                                                   const char *workingDirectory)
 {
-    std::error_code error;
-    const std::filesystem::path captureDirectory = std::filesystem::temp_directory_path(error);
-    if (error)
+    OutputAndStatus result;
+    string commandLine(command);
+    char buffer[16 * 1024];
+    string captureError;
+    const auto finishOutput = [&](const string_view error) {
+        if (!error.empty())
+        {
+            result.exitStatus = EXIT_FAILURE;
+            if (!result.output.empty() && result.output.back() != '\n')
+            {
+                result.output.push_back('\n');
+            }
+            result.output += error;
+            result.output.push_back('\n');
+        }
+        return std::move(result);
+    };
+#ifdef _WIN32
+    SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE outputRead = nullptr;
+    HANDLE inheritedHandles[2]{};
+    STARTUPINFOEXA startupInfo{};
+    PROCESS_INFORMATION processInfo{};
+    bool attributesInitialized = false;
+    const auto finish = [&](const string_view error) {
+        if (attributesInitialized)
+        {
+            DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
+        }
+        for (const HANDLE handle :
+             {outputRead, inheritedHandles[0], inheritedHandles[1], processInfo.hThread, processInfo.hProcess})
+        {
+            if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(handle);
+            }
+        }
+        return finishOutput(error);
+    };
+    if (!CreatePipe(&outputRead, &inheritedHandles[1], &inheritableAttributes, sizeof(buffer)) ||
+        !SetHandleInformation(outputRead, HANDLE_FLAG_INHERIT, 0))
     {
-        printErrorMessage(FORMAT("Could not use the synchronous process capture directory.\nSystem error: {}",
-                                 error.message()));
+        return finish(
+            FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}", P2978::getErrorString()));
     }
 
-#ifdef _WIN32
-    const uint64_t processId = GetCurrentProcessId();
-#else
-    const uint64_t processId = static_cast<uint64_t>(getpid());
-#endif
-    const string uniqueStem = FORMAT(".hmake-process-{}", processId);
-    const std::filesystem::path stdoutFile = captureDirectory / (uniqueStem + "-stdout.txt");
-    const std::filesystem::path stderrFile = captureDirectory / (uniqueStem + "-stderr.txt");
-
-    OutputAndStatus result;
-#ifdef _WIN32
-    if (!useShell)
+    const HANDLE standardInput = GetStdHandle(STD_INPUT_HANDLE);
+    if (standardInput != nullptr && standardInput != INVALID_HANDLE_VALUE)
     {
-        SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
-        HANDLE inheritedHandles[3];
-        for (uint64_t index = 1; index < 3; ++index)
+        if (!DuplicateHandle(GetCurrentProcess(), standardInput, GetCurrentProcess(), &inheritedHandles[0], 0, TRUE,
+                             DUPLICATE_SAME_ACCESS))
         {
-            const string fileName = (index == 1 ? stdoutFile : stderrFile).string();
-            inheritedHandles[index] = CreateFileA(fileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                                  &inheritableAttributes, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-                                                  nullptr);
-            if (inheritedHandles[index] == INVALID_HANDLE_VALUE)
-            {
-                printErrorMessage(FORMAT("Could not create synchronous process capture file: {}\nSystem error: {}",
-                                         fileName, P2978::getErrorString()));
-            }
+            return finish(
+                FORMAT("Could not inherit synchronous process input.\nSystem error: {}", P2978::getErrorString()));
         }
-
-        const HANDLE standardInput = GetStdHandle(STD_INPUT_HANDLE);
-        if (standardInput != nullptr && standardInput != INVALID_HANDLE_VALUE)
-        {
-            if (!DuplicateHandle(GetCurrentProcess(), standardInput, GetCurrentProcess(), &inheritedHandles[0], 0,
-                                  TRUE, DUPLICATE_SAME_ACCESS))
-            {
-                printErrorMessage(FORMAT("Could not inherit synchronous process input.\nSystem error: {}",
-                                         P2978::getErrorString()));
-            }
-        }
-        else
-        {
-            inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                             &inheritableAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-            if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
-            {
-                printErrorMessage(FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}",
-                                         P2978::getErrorString()));
-            }
-        }
-
-        STARTUPINFOEXA startupInfo{};
-        startupInfo.StartupInfo.cb = sizeof(startupInfo);
-        startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        startupInfo.StartupInfo.hStdInput = inheritedHandles[0];
-        startupInfo.StartupInfo.hStdOutput = inheritedHandles[1];
-        startupInfo.StartupInfo.hStdError = inheritedHandles[2];
-
-        uint64_t attributeBytes = 0;
-        InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
-        std::vector<unsigned char> attributeStorage(attributeBytes);
-        startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeStorage.data());
-        if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 1, 0, &attributeBytes) ||
-            !UpdateProcThreadAttribute(startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                       inheritedHandles, sizeof(inheritedHandles), nullptr, nullptr))
-        {
-            printErrorMessage(FORMAT("Could not restrict synchronous process handle inheritance.\nSystem error: {}",
-                                     P2978::getErrorString()));
-        }
-
-        string commandLine(command);
-        PROCESS_INFORMATION processInfo{};
-        if (!CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT,
-                            nullptr, nullptr, &startupInfo.StartupInfo, &processInfo))
-        {
-            printErrorMessage(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}",
-                                     command, P2978::getErrorString()));
-        }
-        DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
-        for (const HANDLE handle : inheritedHandles)
-        {
-            CloseHandle(handle);
-        }
-        CloseHandle(processInfo.hThread);
-
-        DWORD exitCode = EXIT_FAILURE;
-        if (WaitForSingleObject(processInfo.hProcess, INFINITE) != WAIT_OBJECT_0 ||
-            !GetExitCodeProcess(processInfo.hProcess, &exitCode))
-        {
-            printErrorMessage(FORMAT("Could not wait for the synchronous process.\nSystem error: {}",
-                                     P2978::getErrorString()));
-        }
-        CloseHandle(processInfo.hProcess);
-        result.exitStatus = static_cast<int>(exitCode);
     }
     else
     {
-#endif
-        const string finalCommand =
-            FORMAT("({}) > {} 2> {}", command, quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
-        const int systemStatus = system(finalCommand.c_str());
-#ifdef _WIN32
-        result.exitStatus = systemStatus == -1 ? EXIT_FAILURE : systemStatus;
-    }
-#else
-    if (systemStatus == -1)
-    {
-        result.exitStatus = EXIT_FAILURE;
-    }
-    else if (WIFEXITED(systemStatus))
-    {
-        result.exitStatus = WEXITSTATUS(systemStatus);
-    }
-    else if (WIFSIGNALED(systemStatus))
-    {
-        result.exitStatus = 128 + WTERMSIG(systemStatus);
-    }
-#endif
-
-    if (std::filesystem::is_regular_file(stdoutFile, error))
-    {
-        result.output = fileToString(stdoutFile.string());
-    }
-    error.clear();
-    string errorOutput;
-    if (std::filesystem::is_regular_file(stderrFile, error))
-    {
-        errorOutput = fileToString(stderrFile.string());
-    }
-    if (!errorOutput.empty())
-    {
-        constexpr string_view stderrSeparator = "\n--- STDERR ---\n";
-        result.output.reserve(result.output.size() + errorOutput.size() +
-                              (result.output.empty() ? 0 : stderrSeparator.size()));
-        if (!result.output.empty())
+        inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          &inheritableAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
         {
-            result.output += stderrSeparator;
+            return finish(
+                FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}", P2978::getErrorString()));
         }
-        result.output += errorOutput;
     }
 
-    error.clear();
-    std::filesystem::remove(stdoutFile, error);
-    error.clear();
-    std::filesystem::remove(stderrFile, error);
-    return result;
+    startupInfo.StartupInfo.cb = sizeof(startupInfo);
+    startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startupInfo.StartupInfo.hStdInput = inheritedHandles[0];
+    startupInfo.StartupInfo.hStdOutput = inheritedHandles[1];
+    startupInfo.StartupInfo.hStdError = inheritedHandles[1];
+
+    uint64_t attributeBytes = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+    std::vector<unsigned char> attributeStorage(attributeBytes);
+    startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeStorage.data());
+    if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 1, 0, &attributeBytes))
+    {
+        return finish(FORMAT("Could not initialize synchronous process handle inheritance.\nSystem error: {}",
+                             P2978::getErrorString()));
+    }
+    attributesInitialized = true;
+    if (!UpdateProcThreadAttribute(startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inheritedHandles,
+                                   sizeof(inheritedHandles), nullptr, nullptr))
+    {
+        return finish(FORMAT("Could not restrict synchronous process handle inheritance.\nSystem error: {}",
+                             P2978::getErrorString()));
+    }
+
+    string shellPath;
+    if (useShell)
+    {
+        char systemDirectory[MAX_PATH];
+        const uint64_t directoryLength = GetSystemDirectoryA(systemDirectory, sizeof(systemDirectory));
+        if (directoryLength == 0)
+        {
+            return finish(
+                FORMAT("Could not locate the Windows command interpreter.\nSystem error: {}", P2978::getErrorString()));
+        }
+        if (directoryLength >= sizeof(systemDirectory))
+        {
+            return finish("Could not locate the Windows command interpreter: system directory path is too long.");
+        }
+        shellPath.assign(systemDirectory, directoryLength);
+        shellPath += "\\cmd.exe";
+        commandLine = FORMAT("\"{}\" /d /s /c \"{}\"", shellPath, command);
+    }
+
+    if (!CreateProcessA(useShell ? shellPath.c_str() : nullptr, commandLine.data(), nullptr, nullptr, TRUE,
+                        EXTENDED_STARTUPINFO_PRESENT, nullptr, workingDirectory, &startupInfo.StartupInfo,
+                        &processInfo))
+    {
+        return finish(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}", command,
+                             P2978::getErrorString()));
+    }
+    DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
+    attributesInitialized = false;
+    for (HANDLE &handle : inheritedHandles)
+    {
+        CloseHandle(handle);
+        handle = nullptr;
+    }
+    CloseHandle(processInfo.hThread);
+    processInfo.hThread = nullptr;
+
+    // Drain while the child runs so a full pipe cannot block its exit.
+    while (true)
+    {
+        DWORD bytesRead = 0;
+        if (!ReadFile(outputRead, buffer, sizeof(buffer), &bytesRead, nullptr))
+        {
+            if (GetLastError() == ERROR_BROKEN_PIPE)
+            {
+                break;
+            }
+            captureError =
+                FORMAT("Could not read synchronous process output.\nSystem error: {}", P2978::getErrorString());
+            break;
+        }
+        result.output.append(buffer, bytesRead);
+    }
+    CloseHandle(outputRead);
+    outputRead = nullptr;
+
+    DWORD exitCode = EXIT_FAILURE;
+    if (WaitForSingleObject(processInfo.hProcess, INFINITE) != WAIT_OBJECT_0 ||
+        !GetExitCodeProcess(processInfo.hProcess, &exitCode))
+    {
+        return finish(FORMAT("Could not wait for the synchronous process.\nSystem error: {}", P2978::getErrorString()));
+    }
+    result.exitStatus = static_cast<int>(exitCode);
+#else
+    int outputPipes[2] = {-1, -1};
+    posix_spawn_file_actions_t fileActions;
+    bool actionsInitialized = false;
+    const auto finish = [&](const string_view error) {
+        if (actionsInitialized)
+        {
+            posix_spawn_file_actions_destroy(&fileActions);
+        }
+        for (const int descriptor : outputPipes)
+        {
+            if (descriptor != -1)
+            {
+                close(descriptor);
+            }
+        }
+        return finishOutput(error);
+    };
+    STACK_PMR_VECTOR(char *, arguments, 64)
+    char shellName[] = "sh";
+    char shellOption[] = "-c";
+    if (useShell)
+    {
+        arguments = {shellName, shellOption, commandLine.data()};
+    }
+    else
+    {
+        // Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
+        uint64_t readOffset = 0;
+        uint64_t writeOffset = 0;
+        while (readOffset < commandLine.size())
+        {
+            const uint64_t argumentOffset = writeOffset;
+            bool haveArgument = false;
+            char quote = '\0';
+            while (readOffset < commandLine.size())
+            {
+                char value = commandLine[readOffset++];
+                if (value == '\0')
+                {
+                    return finish("Could not parse the synchronous command: embedded null byte.");
+                }
+                if (quote == '\0' && string_view(" \t\r\n\f\v").find(value) != string_view::npos)
+                {
+                    break;
+                }
+                if (value == '\\' && quote != '\'')
+                {
+                    if (readOffset == commandLine.size())
+                    {
+                        return finish("Could not parse the synchronous command: unfinished escape.");
+                    }
+                    value = commandLine[readOffset++];
+                    if (value == '\n')
+                    {
+                        continue;
+                    }
+                    if (value == '\0')
+                    {
+                        return finish("Could not parse the synchronous command: embedded null byte.");
+                    }
+                    if (quote == '"' && string_view("$`\"\\").find(value) == string_view::npos)
+                    {
+                        commandLine[writeOffset++] = '\\';
+                    }
+                }
+                else if (value == quote)
+                {
+                    quote = '\0';
+                    continue;
+                }
+                else if (quote == '\0' && (value == '\'' || value == '"'))
+                {
+                    quote = value;
+                    haveArgument = true;
+                    continue;
+                }
+                commandLine[writeOffset++] = value;
+                haveArgument = true;
+            }
+            if (quote != '\0')
+            {
+                return finish("Could not parse the synchronous command: unterminated quote.");
+            }
+            if (haveArgument)
+            {
+                arguments.push_back(commandLine.data() + argumentOffset);
+                commandLine[writeOffset++] = '\0';
+            }
+        }
+        if (arguments.empty() || arguments.front()[0] == '\0')
+        {
+            return finish("Could not parse the synchronous command: empty executable.");
+        }
+    }
+    arguments.push_back(nullptr);
+    if (pipe2(outputPipes, O_CLOEXEC) == -1)
+    {
+        return finish(
+            FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}", P2978::getErrorString()));
+    }
+
+    // Keep spawn redirections distinct even when the parent started with standard descriptors closed.
+    for (int &descriptor : outputPipes)
+    {
+        if (descriptor <= STDERR_FILENO)
+        {
+            const int replacement = fcntl(descriptor, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+            if (replacement == -1)
+            {
+                return finish(FORMAT("Could not prepare the synchronous process output pipe.\nSystem error: {}",
+                                     P2978::getErrorString()));
+            }
+            close(descriptor);
+            descriptor = replacement;
+        }
+    }
+
+    int spawnError = posix_spawn_file_actions_init(&fileActions);
+    if (spawnError != 0)
+    {
+        return finish(FORMAT("Could not initialize synchronous process redirection.\nSystem error: {}",
+                             std::strerror(spawnError)));
+    }
+    actionsInitialized = true;
+    if ((spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDOUT_FILENO)) != 0 ||
+        (spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDERR_FILENO)) != 0)
+    {
+        return finish(
+            FORMAT("Could not prepare synchronous process redirection.\nSystem error: {}", std::strerror(spawnError)));
+    }
+    if (workingDirectory != nullptr &&
+        (spawnError = posix_spawn_file_actions_addchdir_np(&fileActions, workingDirectory)) != 0)
+    {
+        return finish(FORMAT("Could not set the synchronous process working directory.\nSystem error: {}",
+                             std::strerror(spawnError)));
+    }
+
+    pid_t processId;
+    spawnError = useShell ? posix_spawn(&processId, "/bin/sh", &fileActions, nullptr, arguments.data(), environ)
+                          : posix_spawnp(&processId, arguments.front(), &fileActions, nullptr, arguments.data(), environ);
+    posix_spawn_file_actions_destroy(&fileActions);
+    actionsInitialized = false;
+    close(outputPipes[1]);
+    outputPipes[1] = -1;
+    if (spawnError != 0)
+    {
+        return finish(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}", command,
+                             std::strerror(spawnError)));
+    }
+
+    while (true)
+    {
+        const int64_t bytesRead = read(outputPipes[0], buffer, sizeof(buffer));
+        if (bytesRead > 0)
+        {
+            result.output.append(buffer, bytesRead);
+        }
+        else if (bytesRead == 0)
+        {
+            break;
+        }
+        else if (errno != EINTR)
+        {
+            captureError =
+                FORMAT("Could not read synchronous process output.\nSystem error: {}", P2978::getErrorString());
+            break;
+        }
+    }
+    close(outputPipes[0]);
+    outputPipes[0] = -1;
+
+    int processStatus;
+    while (waitpid(processId, &processStatus, 0) == -1)
+    {
+        if (errno != EINTR)
+        {
+            return finish(
+                FORMAT("Could not wait for the synchronous process.\nSystem error: {}", P2978::getErrorString()));
+        }
+    }
+    if (WIFEXITED(processStatus))
+    {
+        result.exitStatus = WEXITSTATUS(processStatus);
+    }
+    else if (WIFSIGNALED(processStatus))
+    {
+        result.exitStatus = 128 + WTERMSIG(processStatus);
+    }
+#endif
+    return finish(captureError);
 }
 
 void RunCommand::reset()
