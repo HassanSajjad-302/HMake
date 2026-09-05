@@ -666,13 +666,13 @@ int runBootstrap(const int argc, char **argv)
     const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
     const string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
     const bool metadataMissing = buildCachePrefix.empty();
-    const bool preserveOrdinaryTail = !metadataMissing && !options.reconfigure && isRegularFile(configFile);
+    const bool preserveOrdinaryTail = !metadataMissing && isRegularFile(configFile);
 
     // Keep each insertion first: both inputs must be registered even when rebuilding is already required.
     bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || metadataMissing ||
                        !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable);
     bool mustConfigure = reconfigureNodes.emplace(projectCacheFile).second || mustCompile || projectCache.needsWrite ||
-                         !preserveOrdinaryTail || configurationTime == -1;
+                         options.reconfigure || !preserveOrdinaryTail || configurationTime == -1;
 
     if (projectCache.needsWrite)
     {
@@ -728,8 +728,9 @@ int runBootstrap(const int argc, char **argv)
             }
         }
     }
-    if (metadataMissing || options.reconfigure)
+    if (metadataMissing)
     {
+        // Configuration rows cannot be reused without their matching node and build caches.
         std::error_code error;
         std::filesystem::remove(configFile, error);
         if (error)
