@@ -131,8 +131,9 @@ TEST(StageTests, Test1)
     copyFilePath(testSourcePath / "Version/hmakev0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::cleanBuild();
     const path appDirectory = testSourcePath / "Build/Release/app";
-    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "Hello World\n",
-                                               appDirectory.string().c_str());
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (appDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(), "Hello World\n",
+        appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -234,8 +235,9 @@ TEST(StageTests, Test2)
 
     ExamplesTestHelper::cleanBuild();
     const path appDirectory = testSourcePath / "Build/Debug/app";
-    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
-                                               appDirectory.string().c_str());
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (appDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(), "36\n",
+        appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -457,8 +459,9 @@ TEST(StageTests, Test3)
 
     ExamplesTestHelper::cleanBuild();
     const path appDirectory = testSourcePath / "Build/Debug/app";
-    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
-                                               appDirectory.string().c_str());
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (appDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(), "36\n",
+        appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -570,8 +573,9 @@ TEST(StageTests, Test4)
 
     ExamplesTestHelper::cleanBuild();
     const path appDirectory = testSourcePath / "Build/Debug/app";
-    ExamplesTestHelper::runAppWithExpectedOutput((appDirectory / "app").string(), "36\n",
-                                               appDirectory.string().c_str());
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (appDirectory / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(), "36\n",
+        appDirectory.string().c_str());
 
     BALANCES(Updates{});
 
@@ -763,7 +767,9 @@ TEST(StageTests, Test6)
     current_path(testSourcePath);
     ExamplesTestHelper::cleanBuild();
 
-    ExamplesTestHelper::runAppWithExpectedOutput(testSourcePath / "Build/Release/app/app", "20\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (testSourcePath / "Build/Release/app" / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(),
+        "20\n");
 
     BALANCES(Updates{});
 
@@ -825,7 +831,9 @@ TEST(StageTests, Test6)
     BALANCES(Updates{.generatedHeaders = 1, .nodesFile = true}, "Release/IncGen");
     BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 1});
 
-    ExamplesTestHelper::runAppWithExpectedOutput(testSourcePath / "Build/Release/app/app", "30\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        (testSourcePath / "Build/Release/app" / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app")).string(),
+        "30\n");
 }
 
 // TODO

@@ -55,6 +55,8 @@ struct RunCommand
     /// Linux splits quotes/backslash escapes without shell expansion; Windows uses native command-line quoting.
     /// Invoke a shell explicitly if the command needs shell operators or built-ins.
     /// workingDirectory selects the child's directory; nullptr or an empty string inherits the parent's directory.
+    /// On Windows, executable lookup uses the parent's directory, not workingDirectory; use an absolute executable
+    /// path when launching a program from the child's directory.
     [[nodiscard]] static OutputAndStatus runProcess(string_view command, const char *workingDirectory = nullptr);
 
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);

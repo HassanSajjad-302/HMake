@@ -33,7 +33,21 @@ void ExamplesTestHelper::cleanBuild()
 void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput,
                                                 const char *workingDirectory)
 {
-    auto result = RunCommand::runProcess(appName, workingDirectory);
+    STACK_PMR_STRING(command, 4 * 1024)
+    command += '"';
+    for (const char character : appName)
+    {
+        if constexpr (os != OS::NT)
+        {
+            if (character == '\\' || character == '"')
+            {
+                command += '\\';
+            }
+        }
+        command += character;
+    }
+    command += '"';
+    auto result = RunCommand::runProcess(command, workingDirectory);
     erase_if(result.output, [](const char c) { return c == '\r'; });
     ASSERT_EQ(result.exitStatus, EXIT_SUCCESS)
         << FORMAT("Running {} failed\n. Error {}\n", appName, result.exitStatus);

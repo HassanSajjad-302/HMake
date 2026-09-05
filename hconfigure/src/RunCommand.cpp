@@ -146,6 +146,10 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
         return std::move(result);
     };
 #ifdef _WIN32
+    if (command.find('\0') != string_view::npos)
+    {
+        return finishOutput("Could not parse the synchronous command: embedded null byte.");
+    }
     SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
     HANDLE outputRead = nullptr;
     HANDLE inheritedHandles[2]{};
