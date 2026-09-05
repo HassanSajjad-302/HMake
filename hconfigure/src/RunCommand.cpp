@@ -145,7 +145,11 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
+#ifdef _WIN32
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const bool useShell)
+#else
 RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command)
+#endif
 {
     std::error_code error;
     const std::filesystem::path captureDirectory = std::filesystem::temp_directory_path(error);
@@ -164,13 +168,99 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command)
     const std::filesystem::path stdoutFile = captureDirectory / (uniqueStem + "-stdout.txt");
     const std::filesystem::path stderrFile = captureDirectory / (uniqueStem + "-stderr.txt");
 
-    const string finalCommand =
-        FORMAT("({}) > {} 2> {}", command, quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
-
-    const int systemStatus = system(finalCommand.c_str());
     OutputAndStatus result;
 #ifdef _WIN32
-    result.exitStatus = systemStatus == -1 ? EXIT_FAILURE : systemStatus;
+    if (!useShell)
+    {
+        SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+        HANDLE inheritedHandles[3];
+        for (uint64_t index = 1; index < 3; ++index)
+        {
+            const string fileName = (index == 1 ? stdoutFile : stderrFile).string();
+            inheritedHandles[index] = CreateFileA(fileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                                  &inheritableAttributes, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+                                                  nullptr);
+            if (inheritedHandles[index] == INVALID_HANDLE_VALUE)
+            {
+                printErrorMessage(FORMAT("Could not create synchronous process capture file: {}\nSystem error: {}",
+                                         fileName, P2978::getErrorString()));
+            }
+        }
+
+        const HANDLE standardInput = GetStdHandle(STD_INPUT_HANDLE);
+        if (standardInput != nullptr && standardInput != INVALID_HANDLE_VALUE)
+        {
+            if (!DuplicateHandle(GetCurrentProcess(), standardInput, GetCurrentProcess(), &inheritedHandles[0], 0,
+                                  TRUE, DUPLICATE_SAME_ACCESS))
+            {
+                printErrorMessage(FORMAT("Could not inherit synchronous process input.\nSystem error: {}",
+                                         P2978::getErrorString()));
+            }
+        }
+        else
+        {
+            inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                             &inheritableAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
+            {
+                printErrorMessage(FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}",
+                                         P2978::getErrorString()));
+            }
+        }
+
+        STARTUPINFOEXA startupInfo{};
+        startupInfo.StartupInfo.cb = sizeof(startupInfo);
+        startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startupInfo.StartupInfo.hStdInput = inheritedHandles[0];
+        startupInfo.StartupInfo.hStdOutput = inheritedHandles[1];
+        startupInfo.StartupInfo.hStdError = inheritedHandles[2];
+
+        uint64_t attributeBytes = 0;
+        InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+        std::vector<unsigned char> attributeStorage(attributeBytes);
+        startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeStorage.data());
+        if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 1, 0, &attributeBytes) ||
+            !UpdateProcThreadAttribute(startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                       inheritedHandles, sizeof(inheritedHandles), nullptr, nullptr))
+        {
+            printErrorMessage(FORMAT("Could not restrict synchronous process handle inheritance.\nSystem error: {}",
+                                     P2978::getErrorString()));
+        }
+
+        string commandLine(command);
+        PROCESS_INFORMATION processInfo{};
+        if (!CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT,
+                            nullptr, nullptr, &startupInfo.StartupInfo, &processInfo))
+        {
+            printErrorMessage(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}",
+                                     command, P2978::getErrorString()));
+        }
+        DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
+        for (const HANDLE handle : inheritedHandles)
+        {
+            CloseHandle(handle);
+        }
+        CloseHandle(processInfo.hThread);
+
+        DWORD exitCode = EXIT_FAILURE;
+        if (WaitForSingleObject(processInfo.hProcess, INFINITE) != WAIT_OBJECT_0 ||
+            !GetExitCodeProcess(processInfo.hProcess, &exitCode))
+        {
+            printErrorMessage(FORMAT("Could not wait for the synchronous process.\nSystem error: {}",
+                                     P2978::getErrorString()));
+        }
+        CloseHandle(processInfo.hProcess);
+        result.exitStatus = static_cast<int>(exitCode);
+    }
+    else
+    {
+#endif
+        const string finalCommand =
+            FORMAT("({}) > {} 2> {}", command, quoteShellPath(stdoutFile), quoteShellPath(stderrFile));
+        const int systemStatus = system(finalCommand.c_str());
+#ifdef _WIN32
+        result.exitStatus = systemStatus == -1 ? EXIT_FAILURE : systemStatus;
+    }
 #else
     if (systemStatus == -1)
     {

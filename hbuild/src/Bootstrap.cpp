@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -242,27 +243,40 @@ void printUsage()
                  "  --help                  Print this help and exit\n");
 }
 
-bool isRegularFile(const path &file)
-{
-    std::error_code error;
-    return std::filesystem::is_regular_file(file, error);
-}
-
 struct Command
 {
     string value;
+#ifdef _WIN32
+    string directory;
+#endif
 
     Command(const string_view executable, const string_view workingDirectory, const uint64_t capacity = 0)
-    {
 #ifdef _WIN32
-        value = "cd /d ";
-#else
-        value = "cd ";
+        : directory(workingDirectory)
 #endif
+    {
         value.reserve(capacity == 0 ? executable.size() + workingDirectory.size() + 256 : capacity);
+#ifndef _WIN32
+        value = "cd ";
         appendValue(workingDirectory);
         value += " && ";
+#endif
         appendValue(executable);
+    }
+
+    RunCommand::OutputAndStatus run() const
+    {
+#ifdef _WIN32
+        // hbuild runs commands sequentially; set the directory here so RunCommand needs no directory parameter.
+        if (!SetCurrentDirectoryA(directory.c_str()))
+        {
+            printErrorMessage("Could not select the command directory: " + directory +
+                              "\nWindows error: " + std::to_string(GetLastError()));
+        }
+        return RunCommand::runProcess(value, /*useShell=*/false);
+#else
+        return RunCommand::runProcess(value);
+#endif
     }
 
     void append(const string_view argument)
@@ -275,9 +289,8 @@ struct Command
     void appendValue(const string_view argument)
     {
 #ifdef _WIN32
-        // cmd.exe parses this value before the child C runtime. Quote empty arguments and cmd metacharacters;
-        // doubling backslashes before quotes preserves the final child argv.
-        if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"&|<>()^%!") == string_view::npos)
+        // Native execution bypasses cmd.exe: only CRT quoting is needed, and '%'/'!' remain literal.
+        if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"") == string_view::npos)
         {
             value += argument;
             return;
@@ -333,10 +346,6 @@ string loadBuildCachePrefix(const path &file)
     FILE *const input = std::fopen(fileName.c_str(), "rb");
     if (input == nullptr)
     {
-        if (errno == ENOENT)
-        {
-            return {};
-        }
         printErrorMessage("Could not open the build cache: " + fileName + "\nSystem error: " + std::strerror(errno));
     }
 
@@ -420,9 +429,9 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
     writeCacheFile(fileName, fileBuffer);
 }
 
-string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
-                          const string_view outputFile, const string_view objectFile,
-                          const string_view workingDirectory)
+Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
+                           const string_view outputFile, const string_view objectFile,
+                           const string_view workingDirectory)
 {
     const string_view staticLibrary = configureMode ? HCONFIGURE_C_STATIC_LIB_PATH : HCONFIGURE_B_STATIC_LIB_PATH;
     constexpr string_view includePaths[] = {HCONFIGURE_HEADER, THIRD_PARTY_HEADER, RAPIDJSON_HEADER};
@@ -469,7 +478,12 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
             argument += value;
             command.append(argument);
         };
-        command.value += " /std:c++latest /O0 /GR- /EHs-c- /D_HAS_EXCEPTIONS=0 /MT /nologo /X";
+        command.value += " /std:c++latest /Od /GR- /EHs-c- /D_HAS_EXCEPTIONS=0 /nologo /X";
+#ifdef _DEBUG
+        command.value += " /MTd";
+#else
+        command.value += " /MT";
+#endif
         if (!configureMode)
         {
             command.value += " /DBUILD_MODE /DNDEBUG";
@@ -494,7 +508,7 @@ string makeCompileCommand(const Toolchain &toolchain, const bool configureMode, 
                          " ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib";
         appendPrefixed("/OUT:", outputFile);
     }
-    return std::move(command.value);
+    return command;
 }
 
 void runGeneratedConfigure(const path &executable, const path &buildDirectory, const path &configFile)
@@ -502,7 +516,7 @@ void runGeneratedConfigure(const path &executable, const path &buildDirectory, c
     const Command command(executable.string(), buildDirectory.string());
     printMessage("Running configure\n");
     const auto started = std::chrono::steady_clock::now();
-    const RunCommand::OutputAndStatus result = RunCommand::runProcess(command.value);
+    const RunCommand::OutputAndStatus result = command.run();
     const double elapsedSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     if (!result.output.empty())
     {
@@ -512,8 +526,10 @@ void runGeneratedConfigure(const path &executable, const path &buildDirectory, c
     if (result.exitStatus != 0)
     {
         string diagnostic =
-            "Generated configure executable failed with exit code " + std::to_string(result.exitStatus) + ".";
+            "Generated configure executable failed with exit code " + std::to_string(result.exitStatus) +
+            ".\nDelete the build directory and run hbuild again.\nBuild directory: " + buildDirectory.string();
         std::error_code error;
+        // Failed configuration may have replaced configuration rows without committing their matching build rows.
         std::filesystem::remove(configFile, error);
         if (error)
         {
@@ -591,7 +607,56 @@ int runBootstrap(const int argc, char **argv)
     projectLock.acquire(bootstrapDirectory / "lock");
 
     const path cacheFile = buildDirectoryPath / projectCacheFileName;
-    if (isRegularFile(cacheFile))
+    const path nodesFile = buildDirectoryPath / nodesCacheFileName;
+    const path configCacheFile = buildDirectoryPath / configCacheFileName;
+    const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
+    path configureExecutable = buildDirectoryPath / "configure";
+    path buildExecutable = buildDirectoryPath / "build";
+    if constexpr (os == OS::NT)
+    {
+        configureExecutable += ".exe";
+        buildExecutable += ".exe";
+    }
+
+    // Validate once, before reading or modifying caches. Only an entirely fresh or complete state can be used.
+    const path *const requiredFiles[] = {&cacheFile, &configureExecutable, &buildExecutable,
+                                        &nodesFile, &configCacheFile, &buildCacheFile};
+    uint64_t presentCount = 0;
+    for (const path *file : requiredFiles)
+    {
+        const auto status = std::filesystem::status(*file, error);
+        if (status.type() == std::filesystem::file_type::not_found)
+        {
+            continue;
+        }
+        if (error)
+        {
+            printErrorMessage("Could not inspect build artifact: " + file->string() +
+                              "\nSystem error: " + error.message());
+        }
+        if (!std::filesystem::is_regular_file(status))
+        {
+            printErrorMessage("Expected a regular build artifact file: " + file->string());
+        }
+        ++presentCount;
+    }
+    if (presentCount != 0 && presentCount != std::size(requiredFiles))
+    {
+        string diagnostic = "Incomplete build directory: required build artifacts are missing.\n"
+                            "Delete the build directory and run hbuild again.\nBuild directory: " +
+                            buildDirectoryPath.string() + "\nMissing files:";
+        for (const path *file : requiredFiles)
+        {
+            if (!std::filesystem::is_regular_file(*file, error))
+            {
+                diagnostic += "\n  " + file->filename().string();
+            }
+        }
+        printErrorMessage(diagnostic);
+    }
+    const bool freshBuild = presentCount == 0;
+
+    if (!freshBuild)
     {
         string cacheError;
         if (!projectCache.parse(fileToString(cacheFile.string()), cacheError))
@@ -610,12 +675,11 @@ int runBootstrap(const int argc, char **argv)
         projectCache.defaultJobs = options.defaultJobs;
     }
 
-    const path nodesFile = buildDirectoryPath / nodesCacheFileName;
     string sourcePath = sourceDirectory.string();
     string hmakePath = sourcePath;
     hmakePath.push_back(slashc);
     hmakePath += "hmake.cpp";
-    if (isRegularFile(nodesFile))
+    if (!freshBuild)
     {
         loadNodesCache(nodesFile);
         assert(srcNode->filePath == sourcePath);
@@ -637,25 +701,18 @@ int runBootstrap(const int argc, char **argv)
         projectCache.needsWrite = true;
     }
 
-    path configureExecutable = buildDirectoryPath / "configure";
-    path buildExecutable = buildDirectoryPath / "build";
-    if constexpr (os == OS::NT)
+    const string buildCachePrefix = freshBuild ? string{} : loadBuildCachePrefix(buildCacheFile);
+    if (!freshBuild && configurationTime == -1)
     {
-        configureExecutable += ".exe";
-        buildExecutable += ".exe";
+        printErrorMessage("The previous configuration did not complete.\n"
+                          "Delete the build directory and run hbuild again.\nBuild directory: " +
+                          buildDirectoryPath.string());
     }
 
-    const path configCacheFile = buildDirectoryPath / configCacheFileName;
-    const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
-    const string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
-    const bool metadataMissing = buildCachePrefix.empty();
-    const bool preserveOrdinaryTail = !metadataMissing && isRegularFile(configCacheFile);
-
     // Keep each insertion first: both inputs must be registered even when rebuilding is already required.
-    bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || metadataMissing ||
-                       !isRegularFile(configureExecutable) || !isRegularFile(buildExecutable);
+    bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || freshBuild;
     bool mustConfigure = reconfigureNodes.emplace(projectCacheFile).second || mustCompile || projectCache.needsWrite ||
-                         options.reconfigure || !preserveOrdinaryTail || configurationTime == -1;
+                         options.reconfigure;
 
     if (projectCache.needsWrite)
     {
@@ -669,7 +726,15 @@ int runBootstrap(const int argc, char **argv)
         projectCache.needsWrite = false;
     }
 
-    if (!mustCompile)
+    if (mustCompile)
+    {
+        for (Node *node : recompileNodes)
+        {
+            node->doHashFile = true;
+        }
+        Builder::checkNodes();
+    }
+    else
     {
         STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
         cachedSnapshots.reserve(recompileNodes.size() * 2);
@@ -711,35 +776,23 @@ int runBootstrap(const int argc, char **argv)
             }
         }
     }
-    if (metadataMissing)
-    {
-        // Configuration rows cannot be reused without their matching node and build caches.
-        std::error_code error;
-        std::filesystem::remove(configCacheFile, error);
-        if (error)
-        {
-            printErrorMessage("Could not invalidate stale metadata file: " + configCacheFile.string() +
-                              "\nSystem error: " + error.message());
-        }
-    }
-
     if (mustCompile)
     {
         const auto compile = [&](const bool configureMode, const path &executable) {
             const string label = configureMode ? "configure" : "build";
             const string objectFile =
                 bootstrapToolchain->style == "msvc" ? (bootstrapDirectory / (label + ".obj")).string() : string{};
-            const string command = makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath,
-                                                      executable.string(), objectFile, configureNode->filePath);
+            const Command command = makeCompileCommand(*bootstrapToolchain, configureMode, hmakeFile->filePath,
+                                                       executable.string(), objectFile, configureNode->filePath);
             const auto started = std::chrono::steady_clock::now();
-            RunCommand::OutputAndStatus result = RunCommand::runProcess(command);
+            RunCommand::OutputAndStatus result = command.run();
             const double elapsedSeconds =
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
             if (result.exitStatus != 0)
             {
                 printErrorMessage("Could not compile the generated " + label +
                                   " executable.\nExit code: " + std::to_string(result.exitStatus) +
-                                  "\nCommand: " + command + "\nCompiler output:\n" + result.output);
+                                  "\nCommand: " + command.value + "\nCompiler output:\n" + result.output);
             }
             if (!result.output.empty())
             {
@@ -757,17 +810,9 @@ int runBootstrap(const int argc, char **argv)
         // The generated configure/build executables may extend both sets. Preserve those registrations and commit the
         // next configuration time only after configuration has completed successfully.
         configurationTime = -1;
-        writeBuildCachePrefix(buildCacheFile, buildCachePrefix, preserveOrdinaryTail);
+        writeBuildCachePrefix(buildCacheFile, buildCachePrefix, !freshBuild);
     }
 
-    if (mustCompile)
-    {
-        for (Node *node : recompileNodes)
-        {
-            node->doHashFile = true;
-        }
-        Builder::checkNodes();
-    }
     writeNodesCache();
     if (mustConfigure)
     {
@@ -787,7 +832,7 @@ int runBootstrap(const int argc, char **argv)
         {
             command.append(argument);
         }
-        const RunCommand::OutputAndStatus buildResult = RunCommand::runProcess(command.value);
+        const RunCommand::OutputAndStatus buildResult = command.run();
         if (!buildResult.output.empty())
         {
             printMessage(buildResult.output);

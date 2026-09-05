@@ -49,9 +49,14 @@ struct RunCommand
 
     /// Runs a shell command synchronously with inherited stdin and separately captured stdout/stderr.
     /// This path does not use any instance or pooled asynchronous state. Call it from one thread at a time.
-    /// The command view is copied into the shell wrapper and therefore need not be null-terminated.
+    /// The command view is copied before launching and therefore need not be null-terminated.
     /// Captured output is stored temporarily in the operating system's temporary directory.
+#ifdef _WIN32
+    /// Pass useShell=false for a native executable command line, without cmd.exe expansion or shell operators.
+    [[nodiscard]] static OutputAndStatus runProcess(string_view command, bool useShell = true);
+#else
     [[nodiscard]] static OutputAndStatus runProcess(string_view command);
+#endif
 
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing

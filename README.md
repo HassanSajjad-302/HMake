@@ -353,6 +353,16 @@ Compiler-discovered headers, HMake libraries and headers, compiler/linker binari
 bootstrap-command changes are not monitored automatically. `--recompile`, `--reconfigure`, and `--configure-only`
 provide explicit control over the generated executables and configuration.
 
+For a build request, `cache.txt`, `configure`, `build` (the executables have `.exe` extensions on Windows), `nodes-cache.bin`,
+`config-cache.bin`, and `build-cache.bin` must either all exist or all be absent. A partial set is rejected, including
+with `--reconfigure` or `--recompile`; these options preserve existing target cache rows in a complete build directory.
+
+An interrupted or failed first initialization can leave a partial set. A failed generated configuration also removes
+`config-cache.bin`, requiring a clean restart. An existing build whose saved configuration timestamp is still pending
+is rejected even if all six files exist, since configuration may have been interrupted between cache writes. Preserve
+any settings you need from `cache.txt`, then manually delete the build directory and rerun
+`hbuild -B <build-directory>` to initialize it again.
+
 The hmake source filename selects the HMake API generation instead of storing a schema field in local caches.
 The current library pair uses `hmake.cpp`; future generation-specific installations use names such as
 `hmakev1.cpp` with their matching configure/build libraries.
