@@ -24,6 +24,13 @@
 #include <string>
 #include <vector>
 
+#ifndef _WIN32
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 using std::string, std::filesystem::path, std::unique_ptr, std::make_unique, std::vector,
     std::deque, gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
 
@@ -478,7 +485,7 @@ void fileToString(string_view fileName, std::pmr::string &buffer);
  * Leaves \p command unchanged while it fits within \p threshold. For a larger command, writes the final launched
  * arguments (everything except argv[0]) to \p responseFile and replaces \p command with `tool @response-file`.
  *
- * The input command buffer is reused while creating the response file, avoiding another command-sized allocation.
+ * The input command buffer is reused for response-file output; Linux tokenizes a temporary copy to keep argv valid.
  * A zero threshold disables response files. Callers should hash the original command before calling this helper;
  * response files change process transport, not build semantics.
  */
@@ -509,6 +516,31 @@ void printMessage(const std::pmr::string &message);
 [[noreturn]] void printErrorMessage(const string &message);
 /// Prints a standardized error without exiting. Use when assembling a multi-error diagnostic.
 void printErrorMessageNoReturn(const string &message);
+
+/// Call at startup before threads; repaired standard descriptors stay open for the process lifetime.
+inline void sanitizeStandardDescriptors()
+{
+#ifndef _WIN32
+    while (true)
+    {
+        const int fd = open("/dev/null", O_RDWR);
+        if (fd == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            printErrorMessage(FORMAT("Could not initialize standard descriptors.\nSystem error: {}",
+                                     std::strerror(errno)));
+        }
+        if (fd > STDERR_FILENO)
+        {
+            close(fd);
+            return;
+        }
+    }
+#endif
+}
 
 #define HMAKE_HMAKE_INTERNAL_ERROR                                                                                     \
     printErrorMessage(FORMAT("Internal HMake invariant failed.\nSource file: {}\nSource line: {}", __FILE__, __LINE__));

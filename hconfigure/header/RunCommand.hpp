@@ -16,6 +16,8 @@ enum class CompleteReadType
     COMPLETE_MESSAGE,
 };
 
+/// POSIX callers must sanitize standard descriptors once before launching processes and keep descriptors 0-2 open.
+/// HMake's executable entry points call sanitizeStandardDescriptors() before starting any threads.
 struct RunCommand
 {
     struct OutputAndStatus
@@ -60,6 +62,8 @@ struct RunCommand
     /// path when launching a program from the child's directory.
     [[nodiscard]] static OutputAndStatus runProcess(string_view command, const char *workingDirectory = nullptr);
 
+    /// Consumes the writable, NUL-terminated command buffer; its original contents need not survive process launch.
+    /// Linux uses the same literal quoting/escape rules as runProcess, without shell expansion.
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing
     /// this object after an asynchronous process has terminated.

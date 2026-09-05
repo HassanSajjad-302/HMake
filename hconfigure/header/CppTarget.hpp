@@ -140,7 +140,7 @@ class CppTarget : public ObjectFileProducer
     bool useIPC = true;
 
     /// Escapes and quotes a preprocessor define value if it contains spaces or metacharacters,
-    /// ensuring that the generated command string is valid for process launchers (like wordexp).
+    /// ensuring that the generated command string preserves literal values when parsed for process launch.
     static string escapeAndQuoteDefineValue(string_view val);
 
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.

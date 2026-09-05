@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <utility>
@@ -14,7 +15,6 @@
 #ifndef _WIN32
 #include "sys/prctl.h"
 #include "sys/wait.h"
-#include "wordexp.h"
 #include <cerrno>
 #include <fcntl.h>
 #include <spawn.h>
@@ -27,6 +27,82 @@
 
 namespace
 {
+#ifndef _WIN32
+// Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
+// The caller owns the writable, NUL-terminated buffer and keeps it alive until process launch completes.
+string_view parseCommandLineArguments(char *commandLine, const uint64_t commandSize,
+                                            std::pmr::vector<char *> &arguments)
+{
+    uint64_t readOffset = 0;
+    uint64_t writeOffset = 0;
+    while (readOffset < commandSize)
+    {
+        const uint64_t argumentOffset = writeOffset;
+        bool haveArgument = false;
+        char quote = '\0';
+        while (readOffset < commandSize)
+        {
+            char value = commandLine[readOffset++];
+            if (value == '\0')
+            {
+                return "embedded null byte.";
+            }
+            if (quote == '\0' && (value == ' ' || (value >= '\t' && value <= '\r')))
+            {
+                break;
+            }
+            if (value == '\\' && quote != '\'')
+            {
+                if (readOffset == commandSize)
+                {
+                    return "unfinished escape.";
+                }
+                value = commandLine[readOffset++];
+                if (value == '\n')
+                {
+                    continue;
+                }
+                if (value == '\0')
+                {
+                    return "embedded null byte.";
+                }
+                if (quote == '"' && value != '$' && value != '`' && value != '"' && value != '\\')
+                {
+                    commandLine[writeOffset++] = '\\';
+                }
+            }
+            else if (value == quote)
+            {
+                quote = '\0';
+                continue;
+            }
+            else if (quote == '\0' && (value == '\'' || value == '"'))
+            {
+                quote = value;
+                haveArgument = true;
+                continue;
+            }
+            commandLine[writeOffset++] = value;
+            haveArgument = true;
+        }
+        if (quote != '\0')
+        {
+            return "unterminated quote.";
+        }
+        if (haveArgument)
+        {
+            arguments.push_back(commandLine + argumentOffset);
+            commandLine[writeOffset++] = '\0';
+        }
+    }
+    if (arguments.empty() || arguments.front()[0] == '\0')
+    {
+        return "empty executable.";
+    }
+    return {};
+}
+#endif
+
 std::vector<string *> &getOutputPool()
 {
     // Asynchronous RunCommand users share Builder's single scheduler thread. Keep the pool alive for the process
@@ -82,7 +158,162 @@ HANDLE getWriteCompletionEvent()
     return event;
 }
 #endif
+
+template <typename String> void appendResponseArgument(String &responseContents, const string_view argument)
+{
+    if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"\\'") == string_view::npos)
+    {
+        responseContents.append(argument);
+        responseContents.push_back('\n');
+        return;
+    }
+
+    // LLVM's GNU tokenizer removes a backslash before another backslash or quote. Doubling every literal backslash and
+    // escaping every double quote therefore preserves each parsed argument, including consecutive slashes.
+    responseContents.push_back('"');
+    for (const char value : argument)
+    {
+        if (value == '\\' || value == '"')
+        {
+            responseContents.push_back('\\');
+        }
+        responseContents.push_back(value);
+    }
+    responseContents.push_back('"');
+    responseContents.push_back('\n');
+}
+
+void writeResponseFile(const string &fileName, const string_view contents)
+{
+    // A response file is a transient process-transport artifact written immediately before launch. Its timestamp is
+    // not part of HMake's dependency model, so reading it first merely doubles I/O and allocates an old-content buffer.
+    FILE *output = nullptr;
+#ifdef _WIN32
+    fopen_s(&output, fileName.c_str(), "wb");
+#else
+    output = fopen(fileName.c_str(), "wb");
+#endif
+    if (output == nullptr)
+    {
+        printErrorMessage(FORMAT("Could not create response file.\nResponse file: {}", fileName));
+    }
+
+    const uint64_t written = contents.empty() ? 0 : fwrite(contents.data(), 1, contents.size(), output);
+    const int closeResult = fclose(output);
+    if (written != contents.size() || closeResult != 0)
+    {
+        printErrorMessage(FORMAT("Could not write response file.\nResponse file: {}\nRequested bytes: {}\n"
+                                 "Written bytes: {}",
+                                 fileName, contents.size(), written));
+    }
+}
+
+template <typename String>
+void commandWithResponseFileImpl(String &command, const string &responseFile, const uint64_t threshold)
+{
+    if (threshold == 0 || command.size() <= threshold)
+    {
+        return;
+    }
+
+#ifndef _WIN32
+    // Use the launcher's literal tokenizer so response files preserve the same arguments at every command length.
+    // Keep the parsed bytes separate while reusing the original command buffer for the response-file contents.
+    STACK_PMR_STRING(parsedCommand, 16 * 1024)
+    parsedCommand.assign(command.data(), command.size());
+    STACK_PMR_VECTOR(char *, arguments, 1024)
+    const string_view parseError = parseCommandLineArguments(parsedCommand.data(), parsedCommand.size(), arguments);
+    if (!parseError.empty())
+    {
+        printErrorMessage(FORMAT("Could not tokenize an oversized command for its response file.\nCommand: {}\n"
+                                 "Response file: {}\nReason: {}",
+                                 string_view(command.data(), command.size()), responseFile, parseError));
+    }
+
+    command.clear();
+    for (uint64_t index = 1; index < arguments.size(); ++index)
+    {
+        appendResponseArgument(command, arguments[index]);
+    }
+    writeResponseFile(responseFile, string_view(command.data(), command.size()));
+
+    // Reuse the same allocation once more for the smaller executable/response-file command. Single quoting preserves
+    // every executable/response-path byte; the four-character insertion handles a literal quote.
+    command.clear();
+    const auto appendLiteral = [&command](const string_view value) {
+        command.push_back('\'');
+        for (const char character : value)
+        {
+            if (character == '\'')
+            {
+                command.append("'\\''");
+            }
+            else
+            {
+                command.push_back(character);
+            }
+        }
+        command.push_back('\'');
+    };
+    appendLiteral(arguments[0]);
+    command.append(" @");
+    appendLiteral(responseFile);
+#else
+    // CreateProcess receives the original Windows command line directly. Preserve its existing argument spelling in
+    // the response file; only separate argv[0], respecting an ordinary quoted executable path.
+    const string_view commandView(command.data(), command.size());
+    const uint64_t begin = commandView.find_first_not_of(" \t\r\n");
+    if (begin == string_view::npos)
+    {
+        printErrorMessage("Cannot create a response file for an empty command.");
+    }
+
+    STACK_PMR_STRING(executable, 16 * 1024)
+    uint64_t end = begin;
+    if (commandView[begin] == '"')
+    {
+        end = commandView.find('"', begin + 1);
+        if (end == string_view::npos)
+        {
+            printErrorMessage(
+                FORMAT("Oversized command has an unterminated executable quote.\nCommand: {}", commandView));
+        }
+        executable.assign(commandView.substr(begin + 1, end - begin - 1));
+        ++end;
+    }
+    else
+    {
+        end = commandView.find_first_of(" \t\r\n", begin);
+        if (end == string_view::npos)
+        {
+            end = commandView.size();
+        }
+        executable.assign(commandView.substr(begin, end - begin));
+    }
+
+    const uint64_t arguments = commandView.find_first_not_of(" \t\r\n", end);
+    const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
+    writeResponseFile(responseFile, responseContents);
+
+    command.clear();
+    command.push_back('"');
+    command.append(executable.data(), executable.size());
+    command.append("\" @\"");
+    command.append(responseFile);
+    command.push_back('"');
+#endif
+}
 } // namespace
+
+void commandWithResponseFile(std::pmr::string &command, const string &responseFile, const uint64_t threshold)
+{
+    commandWithResponseFileImpl(command, responseFile, threshold);
+}
+
+void commandWithResponseFile(string &command, const string &responseFile, const uint64_t threshold)
+{
+    commandWithResponseFileImpl(command, responseFile, threshold);
+}
 
 RunCommand::~RunCommand()
 {
@@ -271,94 +502,16 @@ RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, co
         return finishOutput(error);
     };
     STACK_PMR_VECTOR(char *, arguments, 128)
-    // Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
-    uint64_t readOffset = 0;
-    uint64_t writeOffset = 0;
-    while (readOffset < commandLine.size())
+    if (const string_view error = parseCommandLineArguments(commandLine.data(), commandLine.size(), arguments);
+        !error.empty())
     {
-        const uint64_t argumentOffset = writeOffset;
-        bool haveArgument = false;
-        char quote = '\0';
-        while (readOffset < commandLine.size())
-        {
-            char value = commandLine[readOffset++];
-            if (value == '\0')
-            {
-                return finish("Could not parse the synchronous command: embedded null byte.");
-            }
-            if (quote == '\0' && (value == ' ' || (value >= '\t' && value <= '\r')))
-            {
-                break;
-            }
-            if (value == '\\' && quote != '\'')
-            {
-                if (readOffset == commandLine.size())
-                {
-                    return finish("Could not parse the synchronous command: unfinished escape.");
-                }
-                value = commandLine[readOffset++];
-                if (value == '\n')
-                {
-                    continue;
-                }
-                if (value == '\0')
-                {
-                    return finish("Could not parse the synchronous command: embedded null byte.");
-                }
-                if (quote == '"' && value != '$' && value != '`' && value != '"' && value != '\\')
-                {
-                    commandLine[writeOffset++] = '\\';
-                }
-            }
-            else if (value == quote)
-            {
-                quote = '\0';
-                continue;
-            }
-            else if (quote == '\0' && (value == '\'' || value == '"'))
-            {
-                quote = value;
-                haveArgument = true;
-                continue;
-            }
-            commandLine[writeOffset++] = value;
-            haveArgument = true;
-        }
-        if (quote != '\0')
-        {
-            return finish("Could not parse the synchronous command: unterminated quote.");
-        }
-        if (haveArgument)
-        {
-            arguments.push_back(commandLine.data() + argumentOffset);
-            commandLine[writeOffset++] = '\0';
-        }
-    }
-    if (arguments.empty() || arguments.front()[0] == '\0')
-    {
-        return finish("Could not parse the synchronous command: empty executable.");
+        return finish(FORMAT("Could not parse the synchronous command: {}", error));
     }
     arguments.push_back(nullptr);
     if (pipe2(outputPipes, O_CLOEXEC) == -1)
     {
         return finish(
             FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}", P2978::getErrorString()));
-    }
-
-    // Keep spawn redirections distinct even when the parent started with standard descriptors closed.
-    for (int &descriptor : outputPipes)
-    {
-        if (descriptor <= STDERR_FILENO)
-        {
-            const int replacement = fcntl(descriptor, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
-            if (replacement == -1)
-            {
-                return finish(FORMAT("Could not prepare the synchronous process output pipe.\nSystem error: {}",
-                                     P2978::getErrorString()));
-            }
-            close(descriptor);
-            descriptor = replacement;
-        }
     }
 
     int spawnError = posix_spawn_file_actions_init(&fileActions);
@@ -805,17 +958,17 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
 {
     haveWritePipe = haveWritePipe_;
 
-    wordexp_t p;
-    if (wordexp(command, &p, WRDE_NOCMD) != 0)
+    STACK_PMR_VECTOR(char *, arguments, 128)
+    if (const string_view error = parseCommandLineArguments(command, std::strlen(command), arguments); !error.empty())
     {
-        printErrorMessage(
-            FORMAT("Could not parse the asynchronous command line.\nCommand: {}\nOperation: wordexp", command));
+        printErrorMessage(FORMAT("Could not parse the asynchronous command line: {}", error));
     }
+    arguments.push_back(nullptr);
 
     int stdoutPipesLocal[2];
     if (pipe2(stdoutPipesLocal, O_CLOEXEC) == -1)
     {
-        printErrorMessage(FORMAT("Could not create the asynchronous process output pipe.\nCommand: {}\n"
+        printErrorMessage(FORMAT("Could not create the asynchronous process output pipe.\nExecutable: {}\n"
                                  "System error: {}",
                                  command, P2978::getErrorString()));
     }
@@ -826,7 +979,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
     {
         if (pipe2(stdinPipesLocal, O_CLOEXEC) == -1)
         {
-            printErrorMessage(FORMAT("Could not create the asynchronous process input pipe.\nCommand: {}\n"
+            printErrorMessage(FORMAT("Could not create the asynchronous process input pipe.\nExecutable: {}\n"
                                      "System error: {}",
                                      command, P2978::getErrorString()));
         }
@@ -838,7 +991,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
         nullInput = open("/dev/null", O_RDONLY | O_CLOEXEC);
         if (nullInput == -1)
         {
-            printErrorMessage(FORMAT("Could not open /dev/null for child-process input.\nCommand: {}\n"
+            printErrorMessage(FORMAT("Could not open /dev/null for child-process input.\nExecutable: {}\n"
                                      "System error: {}",
                                      command, P2978::getErrorString()));
         }
@@ -856,7 +1009,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
     pid = vfork(); // vfork is intentional here.
     if (pid == -1)
     {
-        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nCommand: {}\nOperation: vfork\n"
+        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nExecutable: {}\nOperation: vfork\n"
                                  "System error: {}",
                                  command, P2978::getErrorString()));
     }
@@ -898,13 +1051,12 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
             close(nullInput);
         }
 
-        execvp(p.we_wordv[0], p.we_wordv);
+        execvp(arguments.front(), arguments.data());
         _exit(127); // Must use _exit(), never exit().
     }
 
     // Parent process.
     close(stdoutPipesLocal[1]);
-    wordfree(&p); // Safe here: child has already exec'd.
     builder.registerEventData(bTarget, readPipe);
 
     if (haveWritePipe)

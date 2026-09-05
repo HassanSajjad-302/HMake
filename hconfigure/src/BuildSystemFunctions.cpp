@@ -21,7 +21,6 @@
 #include <io.h> // For _isatty on Windows
 #else
 #include <unistd.h> // For isatty on Unix-like systems
-#include <wordexp.h>
 #endif
 
 void setIsConsol()
@@ -242,6 +241,7 @@ bool configureOrBuild()
 
 void constructGlobals()
 {
+    sanitizeStandardDescriptors();
     // We intentionally skip zero-initializing these large arrays. This improves zero-target build time by roughly 4-5%.
 
     nodesCacheGlobal = {};
@@ -522,168 +522,6 @@ string decodeBackslashEscapes(string value)
     }
     value.resize(writeOffset);
     return value;
-}
-
-namespace
-{
-template <typename String> void appendResponseArgument(String &responseContents, const string_view argument)
-{
-    if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"\\'") == string_view::npos)
-    {
-        responseContents.append(argument);
-        responseContents.push_back('\n');
-        return;
-    }
-
-    // LLVM's GNU tokenizer removes a backslash before another backslash or quote. Doubling every literal backslash and
-    // escaping every double quote therefore preserves the argv produced by wordexp(), including consecutive slashes.
-    responseContents.push_back('"');
-    for (const char value : argument)
-    {
-        if (value == '\\' || value == '"')
-        {
-            responseContents.push_back('\\');
-        }
-        responseContents.push_back(value);
-    }
-    responseContents.push_back('"');
-    responseContents.push_back('\n');
-}
-
-void writeResponseFile(const string &fileName, const string_view contents)
-{
-    // A response file is a transient process-transport artifact written immediately before launch. Its timestamp is
-    // not part of HMake's dependency model, so reading it first merely doubles I/O and allocates an old-content buffer.
-    FILE *output = nullptr;
-#ifdef _WIN32
-    fopen_s(&output, fileName.c_str(), "wb");
-#else
-    output = fopen(fileName.c_str(), "wb");
-#endif
-    if (output == nullptr)
-    {
-        printErrorMessage(FORMAT("Could not create response file.\nResponse file: {}", fileName));
-    }
-
-    const uint64_t written = contents.empty() ? 0 : fwrite(contents.data(), 1, contents.size(), output);
-    const int closeResult = fclose(output);
-    if (written != contents.size() || closeResult != 0)
-    {
-        printErrorMessage(FORMAT("Could not write response file.\nResponse file: {}\nRequested bytes: {}\n"
-                                 "Written bytes: {}",
-                                 fileName, contents.size(), written));
-    }
-}
-
-template <typename String>
-void commandWithResponseFileImpl(String &command, const string &responseFile, const uint64_t threshold)
-{
-    if (threshold == 0 || command.size() <= threshold)
-    {
-        return;
-    }
-
-#ifndef _WIN32
-    // RunCommand uses wordexp() before execvp(). Tokenize here in exactly the same way so moving arguments to a
-    // response file does not alter shell quoting, variable expansion, or escaped preprocessor definitions. wordexp()
-    // owns the resulting argv, allowing the original command buffer to become the response-file buffer.
-    wordexp_t expanded{};
-    const int result = wordexp(command.c_str(), &expanded, WRDE_NOCMD);
-    if (result != 0 || expanded.we_wordc == 0)
-    {
-        if (result == 0 || result == WRDE_NOSPACE)
-        {
-            wordfree(&expanded);
-        }
-        printErrorMessage(FORMAT("Could not tokenize an oversized command for its response file.\nCommand: {}\n"
-                                 "Response file: {}\nwordexp result: {}",
-                                 string_view(command.data(), command.size()), responseFile, result));
-    }
-
-    command.clear();
-    for (uint64_t index = 1; index < expanded.we_wordc; ++index)
-    {
-        appendResponseArgument(command, expanded.we_wordv[index]);
-    }
-    writeResponseFile(responseFile, string_view(command.data(), command.size()));
-
-    // Reuse the same allocation once more for the much smaller command passed through RunCommand's wordexp(). Single
-    // quoting preserves every executable/response-path byte; the four-character insertion handles a literal quote.
-    command.clear();
-    const auto appendWordexpLiteral = [&command](const string_view value) {
-        command.push_back('\'');
-        for (const char character : value)
-        {
-            if (character == '\'')
-            {
-                command.append("'\\''");
-            }
-            else
-            {
-                command.push_back(character);
-            }
-        }
-        command.push_back('\'');
-    };
-    appendWordexpLiteral(expanded.we_wordv[0]);
-    command.append(" @");
-    appendWordexpLiteral(responseFile);
-    wordfree(&expanded);
-#else
-    // CreateProcess receives the original Windows command line directly. Preserve its existing argument spelling in
-    // the response file; only separate argv[0], respecting an ordinary quoted executable path.
-    const string_view commandView(command.data(), command.size());
-    const uint64_t begin = commandView.find_first_not_of(" \t\r\n");
-    if (begin == string_view::npos)
-    {
-        printErrorMessage("Cannot create a response file for an empty command.");
-    }
-
-    STACK_PMR_STRING(executable, 16 * 1024)
-    uint64_t end = begin;
-    if (commandView[begin] == '"')
-    {
-        end = commandView.find('"', begin + 1);
-        if (end == string_view::npos)
-        {
-            printErrorMessage(
-                FORMAT("Oversized command has an unterminated executable quote.\nCommand: {}", commandView));
-        }
-        executable.assign(commandView.substr(begin + 1, end - begin - 1));
-        ++end;
-    }
-    else
-    {
-        end = commandView.find_first_of(" \t\r\n", begin);
-        if (end == string_view::npos)
-        {
-            end = commandView.size();
-        }
-        executable.assign(commandView.substr(begin, end - begin));
-    }
-
-    const uint64_t arguments = commandView.find_first_not_of(" \t\r\n", end);
-    const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
-    writeResponseFile(responseFile, responseContents);
-
-    command.clear();
-    command.push_back('"');
-    command.append(executable.data(), executable.size());
-    command.append("\" @\"");
-    command.append(responseFile);
-    command.push_back('"');
-#endif
-}
-} // namespace
-
-void commandWithResponseFile(std::pmr::string &command, const string &responseFile, const uint64_t threshold)
-{
-    commandWithResponseFileImpl(command, responseFile, threshold);
-}
-
-void commandWithResponseFile(string &command, const string &responseFile, const uint64_t threshold)
-{
-    commandWithResponseFileImpl(command, responseFile, threshold);
 }
 
 string getThreadId()

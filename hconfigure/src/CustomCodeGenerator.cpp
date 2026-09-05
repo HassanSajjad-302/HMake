@@ -87,7 +87,7 @@ bool HeaderGen::isEventRegistered(Builder &builder)
         return false;
     }
 
-    // CreateProcessA may temporarily modify its command-line buffer; preserve the cached command used for hashing.
+    // Process launch may modify its command-line buffer; preserve the cached command used for hashing.
     STACK_PMR_STRING(mutableCommand, 64 * 1024)
     mutableCommand.assign(command);
     run.startAsyncProcess(mutableCommand.data(), builder, this, false);
