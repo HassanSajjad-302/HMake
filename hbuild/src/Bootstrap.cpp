@@ -662,11 +662,11 @@ int runBootstrap(const int argc, char **argv)
         buildExecutable += ".exe";
     }
 
-    const path configFile = buildDirectoryPath / configCacheFileName;
+    const path configCacheFile = buildDirectoryPath / configCacheFileName;
     const path buildCacheFile = buildDirectoryPath / buildCacheFileName;
     const string buildCachePrefix = nodesCountBefore == 0 ? string{} : loadBuildCachePrefix(buildCacheFile);
     const bool metadataMissing = buildCachePrefix.empty();
-    const bool preserveOrdinaryTail = !metadataMissing && isRegularFile(configFile);
+    const bool preserveOrdinaryTail = !metadataMissing && isRegularFile(configCacheFile);
 
     // Keep each insertion first: both inputs must be registered even when rebuilding is already required.
     bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || metadataMissing ||
@@ -732,10 +732,10 @@ int runBootstrap(const int argc, char **argv)
     {
         // Configuration rows cannot be reused without their matching node and build caches.
         std::error_code error;
-        std::filesystem::remove(configFile, error);
+        std::filesystem::remove(configCacheFile, error);
         if (error)
         {
-            printErrorMessage("Could not invalidate stale metadata file: " + configFile.string() +
+            printErrorMessage("Could not invalidate stale metadata file: " + configCacheFile.string() +
                               "\nSystem error: " + error.message());
         }
     }
@@ -788,7 +788,7 @@ int runBootstrap(const int argc, char **argv)
     writeNodesCache();
     if (mustConfigure)
     {
-        runGeneratedConfigure(configureExecutable, buildDirectoryPath, configFile);
+        runGeneratedConfigure(configureExecutable, buildDirectoryPath, configCacheFile);
     }
 
     int result = 0;
