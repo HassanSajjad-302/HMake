@@ -133,66 +133,56 @@ Options parseOptions(const int argc, char **argv)
         }
         return value;
     };
-    const auto parsePositiveInteger = [](const string_view option, const string_view value) {
-        uint16_t parsed = 0;
-        const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if (error != std::errc{} || end != value.data() + value.size() || parsed == 0)
-        {
-            printErrorMessage("Expected an integer from 1 through 65535 after " + string(option) + ": " +
-                              string(value));
-        }
-        return parsed;
-    };
-
-    vector<string_view> targets;
+    STACK_PMR_VECTOR(string_view, targets, 16)
     for (int index = 1; index < argc; ++index)
     {
         const string_view argument(argv[index]);
-        if (argument == "--")
+        if (!argument.starts_with('-'))
         {
-            while (++index < argc)
-            {
-                targets.emplace_back(argv[index]);
-            }
+            targets.emplace_back(argument);
+        }
+        else if (argument == "--")
+        {
+            targets.insert(targets.end(), argv + index + 1, argv + argc);
             break;
         }
-        if (argument == "--help")
+        else if (argument == "--help")
         {
             options.help = true;
-            continue;
         }
-        if (argument == "--list-toolchains")
+        else if (argument == "--list-toolchains")
         {
             options.listToolchains = true;
-            continue;
         }
-        if (argument == "-B" || argument == "--toolchain" || argument == "--default-jobs" || argument == "-j")
+        else if (argument == "-B")
+        {
+            options.buildDirectory = takeValue(index, argument);
+        }
+        else if (argument == "--toolchain")
+        {
+            options.toolchain = takeValue(index, argument);
+        }
+        else if (argument == "--default-jobs" || argument == "-j")
         {
             const string_view value = takeValue(index, argument);
-            if (argument == "-B")
+            uint16_t jobs = 0;
+            const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), jobs);
+            if (error != std::errc{} || end != value.data() + value.size() || jobs == 0)
             {
-                options.buildDirectory = value;
+                printErrorMessage("Expected an integer from 1 through 65535 after " + string(argument) + ": " +
+                                  string(value));
             }
-            else if (argument == "--toolchain")
+            if (argument == "--default-jobs")
             {
-                options.toolchain = value;
+                options.defaultJobs = jobs;
             }
             else
             {
-                const uint16_t parsed = parsePositiveInteger(argument, value);
-                if (argument == "--default-jobs")
-                {
-                    options.defaultJobs = parsed;
-                }
-                else
-                {
-                    options.buildArguments.emplace_back("--jobs");
-                    options.buildArguments.emplace_back(value);
-                }
+                options.buildArguments.emplace_back("--jobs");
+                options.buildArguments.emplace_back(value);
             }
-            continue;
         }
-        if (argument == "--configure-only")
+        else if (argument == "--configure-only")
         {
             options.configureOnly = true;
         }
@@ -210,23 +200,16 @@ Options parseOptions(const int argc, char **argv)
         {
             options.buildArguments.emplace_back(argument);
         }
-        else if (argument.starts_with('-'))
-        {
-            printErrorMessage("Unknown hbuild option: " + string(argument));
-        }
         else
         {
-            targets.emplace_back(argument);
+            printErrorMessage("Unknown hbuild option: " + string(argument));
         }
     }
 
     if (!targets.empty())
     {
         options.buildArguments.emplace_back("--");
-        for (const string_view target : targets)
-        {
-            options.buildArguments.emplace_back(target);
-        }
+        options.buildArguments.insert(options.buildArguments.end(), targets.begin(), targets.end());
     }
     if (options.listToolchains && (!options.toolchain.empty() || options.defaultJobs != 0 ||
                                    !options.buildArguments.empty() || options.configureOnly || options.reconfigure))
