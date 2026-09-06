@@ -499,6 +499,7 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *>
         {
             return;
         }
+        reconfigureNodes.emplace(Node::getNode<PathType::NORMAL_ABSOLUTE>(moduleDirectory->filePath, false));
 
         const auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
         const auto shouldSkipDirectory = [&ueConfiguration](const string_view directoryName) {
@@ -551,10 +552,17 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *>
         const std::filesystem::recursive_directory_iterator end;
         while (iterator != end)
         {
-            if (iterator->is_directory() && (shouldSkipDirectory(iterator->path().filename().string()) ||
-                                             std::filesystem::exists(iterator->path() / ".ubtignore")))
+            if (iterator->is_directory())
             {
-                iterator.disable_recursion_pending();
+                if (shouldSkipDirectory(iterator->path().filename().string()) ||
+                    std::filesystem::exists(iterator->path() / ".ubtignore"))
+                {
+                    iterator.disable_recursion_pending();
+                }
+                else if (!iterator->is_symlink())
+                {
+                    reconfigureNodes.emplace(Node::getNode(*iterator));
+                }
             }
             else if (iterator->is_regular_file() && !iterator->path().filename().string().starts_with('.'))
             {
@@ -703,11 +711,19 @@ UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        reconfigureNodes.emplace(Node::getNode<PathType::NORMAL_ABSOLUTE>(directory->filePath, false));
         STACK_PMR_VECTOR(Node *, standaloneGeneratedSources, 64)
         for (const std::filesystem::directory_entry &entry :
              std::filesystem::recursive_directory_iterator(directory->filePath))
         {
-            if (entry.is_regular_file() && entry.path().filename().string().ends_with(".gen.cpp"))
+            if (entry.is_directory())
+            {
+                if (!entry.is_symlink())
+                {
+                    reconfigureNodes.emplace(Node::getNode(entry));
+                }
+            }
+            else if (entry.is_regular_file() && entry.path().filename().string().ends_with(".gen.cpp"))
             {
                 const string fileName = entry.path().filename().string();
                 const string generatedName = fileName.substr(0, fileName.size() - string_view(".gen.cpp").size());
