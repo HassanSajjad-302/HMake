@@ -4,6 +4,7 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "Node.hpp"
+#include "ParseHeaderDeps.hpp"
 #include "RunCommand.hpp"
 #include "Toolchains.hpp"
 
@@ -413,7 +414,7 @@ void writeBuildCachePrefix(const path &file, const string_view cachedPrefix, con
 }
 
 Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode, const string_view sourceFile,
-                           const string_view outputFile, const string_view objectFile,
+                           const string_view outputFile, const string_view dependencyFile, const string_view objectFile,
                            const string_view workingDirectory)
 {
     const string_view staticLibrary = configureMode ? HCONFIGURE_C_STATIC_LIB_PATH : HCONFIGURE_B_STATIC_LIB_PATH;
@@ -442,6 +443,10 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
             command.value += " -isystem";
             command.append(include);
         }
+        command.value += " -MMD -MF";
+        command.append(dependencyFile);
+        command.value += " -MQ";
+        command.append(outputFile);
         command.append(sourceFile);
         for (const string &directory : toolchain.libraryDirs)
         {
@@ -479,6 +484,8 @@ Command makeCompileCommand(const Toolchain &toolchain, const bool configureMode,
         {
             appendPrefixed("/I", include);
         }
+        command.value += " /sourceDependencies";
+        command.append(dependencyFile);
         command.append(sourceFile);
         appendPrefixed("/Fo", objectFile);
         // Keep compiler debug data separate when bootstrap arguments enable /Zi or /ZI.
@@ -761,11 +768,15 @@ int runBootstrap(const int argc, char **argv)
     }
     if (mustCompile)
     {
+        const string dependencyFiles[] = {(bootstrapDirectory / "configure.d").string(),
+                                          (bootstrapDirectory / "build.d").string()};
         const Command commands[] = {
             makeCompileCommand(*bootstrapToolchain, true, hmakeFile->filePath, configureExecutable.string(),
-                               (bootstrapDirectory / "configure.obj").string(), configureNode->filePath),
+                               dependencyFiles[0], (bootstrapDirectory / "configure.obj").string(),
+                               configureNode->filePath),
             makeCompileCommand(*bootstrapToolchain, false, hmakeFile->filePath, buildExecutable.string(),
-                               (bootstrapDirectory / "build.obj").string(), configureNode->filePath)};
+                               dependencyFiles[1], (bootstrapDirectory / "build.obj").string(),
+                               configureNode->filePath)};
         RunCommand::OutputAndStatus results[2];
         double elapsedSeconds[2];
         const auto compile = [&](const uint64_t index) {
@@ -790,6 +801,15 @@ int runBootstrap(const int argc, char **argv)
                                          label, results[index].exitStatus, commands[index].value,
                                          results[index].output));
             }
+            // Parse on this thread after both compiler processes have finished: Node interning is single-threaded.
+            const auto headers = parseHeaderDeps(results[index].output, bootstrapToolchain->compiler,
+                                                 results[index].exitStatus, dependencyFiles[index],
+                                                 configureNode->filePath, hmakeFile, false);
+            for (Node *node : headers)
+            {
+                recompileNodes.emplace(node);
+                node->doHashFile = true;
+            }
             if (!results[index].output.empty())
             {
                 printMessage(results[index].output);
@@ -797,7 +817,8 @@ int runBootstrap(const int argc, char **argv)
             printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", label, elapsedSeconds[index]));
         }
 
-        // Commit the input hashes captured before compilation only after both executables succeed.
+        // Resolve newly discovered headers before committing the successful compilation's input snapshots.
+        Builder::checkNodes();
         for (Node *node : recompileNodes)
         {
             recompileBaselineHashes[node] = node->contentHash;

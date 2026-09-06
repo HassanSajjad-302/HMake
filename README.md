@@ -353,7 +353,7 @@ does not provide `-D` command-line overrides.
 
 On each invocation, `hbuild` checks `configure`, `build`, `recompileNodes` (which always contains `hmake.cpp`),
 `reconfigureNodes`, `cache.txt`, `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
-Both node sets use content hashes: timestamp changes prompt hashing, but unchanged nonzero hashes do not trigger
+Regular files in both node sets use content hashes: timestamp changes prompt hashing, but unchanged nonzero hashes do not trigger
 recompilation or reconfiguration. Their baseline hashes are stored alongside node IDs in the `build-cache.bin` prefix
 as 4-byte IDs and 8-byte hashes. Zero denotes an empty/unhashed input with no committed baseline, so an empty tracked
 file triggers its owning phase again on each invocation while it remains empty. Successful bootstrap
@@ -363,13 +363,23 @@ any new input registrations. `nodes-cache.bin` independently caches the latest o
 An unchanged timestamp reuses the cached hash for these nodes, so edits that preserve the exact timestamp are not
 detected automatically.
 
+Directory scans in `CppTarget`, UE source discovery (`ue.cpp`), and `Projects/LLVM/hmake.cpp` register their scanned
+directories in `reconfigureNodes`. Recursive scans register every visited directory, including empty ones. Directory
+modification times serve as entry-change fingerprints without reading file contents, so adding, deleting, or renaming
+entries triggers configuration, not recompilation of the generated executables. Directory symlinks not traversed by
+the scan and pruned subtrees are not registered.
+
 `cache.txt` is tracked separately, not through `reconfigureNodes`. Its parsed toolchain and variable lines are hashed
 on every invocation and compared with a separate 64-bit value in the `build-cache.bin` prefix. Configuration records
 this hash after appending any new variables; ordinary builds preserve it. Variable order and value spelling affect
 the hash, but comments, blank lines, line-ending style, and default job count do not. Changing `--default-jobs` saves
 the new default without forcing configuration.
-Compiler-discovered headers, HMake libraries and headers, compiler/linker binaries, toolchain definitions, and
-bootstrap-command changes are not monitored automatically. `--recompile`, `--reconfigure`, and `--configure-only`
+Both bootstrap compilations emit dependency files in `.hbuild` and feed their header dependencies into `recompileNodes`.
+This includes reported headers inside the build directory. GCC/Clang use `-MMD` (excluding system headers); MSVC uses
+`/sourceDependencies`. The two compilations still run in parallel; dependency parsing and Node registration run on the
+main thread after they finish.
+HMake libraries, compiler/linker binaries, toolchain definitions, and bootstrap-command changes are not monitored
+automatically. `--recompile`, `--reconfigure`, and `--configure-only`
 provide explicit control over the generated executables and configuration.
 
 For a build request, `cache.txt`, `configure`, `build` (the executables have `.exe` extensions on Windows), `nodes-cache.bin`,
