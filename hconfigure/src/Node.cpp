@@ -255,30 +255,36 @@ void Node::performSystemCheck()
     {
         fileType = file_type::regular;
         fileSize = static_cast<uint64_t>(st.st_size);
-        // ... lastWriteTime as before
-#if defined(__APPLE__)
-        lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL +
-                        static_cast<int64_t>(st.st_mtimespec.tv_nsec);
-#else
-        lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
-#endif
     }
     else if (S_ISDIR(st.st_mode))
     {
         fileType = file_type::directory;
-        lastWriteTime = {};
     }
     else
     {
         fileType = file_type::unknown;
         lastWriteTime = {};
+        return;
     }
+
+#if defined(__APPLE__)
+    lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL + st.st_mtimespec.tv_nsec;
+#else
+    lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
+#endif
 #endif
 
+    // A directory's immediate entry changes are represented by its timestamp. Recursive scans register every
+    // visited directory, and capture this fingerprint before enumeration rather than acknowledging later changes.
+    if (fileType == file_type::directory)
+    {
+        contentHash = lastWriteTime;
+        hashCompleted = true;
+    }
     // Until this check, lastWriteTime/contentHash hold one persisted snapshot. An unchanged regular-file timestamp
-    // makes that content hash current, so Builder::checkNodes() can omit the file from its hashing work.
-    if (fileType == file_type::regular && contentHash != missingContentHash &&
-        lastWriteTime == persistedLastWriteTime)
+    // makes that content hash current. Do not reuse a directory fingerprint if its path became a regular file.
+    else if (fileType == file_type::regular && contentHash != missingContentHash &&
+             contentHash != persistedLastWriteTime && lastWriteTime == persistedLastWriteTime)
     {
         hashCompleted = true;
     }
