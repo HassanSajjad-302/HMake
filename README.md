@@ -340,7 +340,8 @@ likewise provide its full standard include search path. Derived toolchains inher
 replace them.
 
 Toolchain registries are treated as externally managed inputs. Editing `toolchains.json` does not cause automatic
-reconfiguration, while every modification of the project's `cache.txt` does.
+reconfiguration. In the project's `cache.txt`, changing the selected toolchain or variable lines causes automatic
+reconfiguration; comments, blank lines, and the default job count are excluded.
 
 The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
 Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
@@ -351,7 +352,17 @@ structured internally rather than stored as editable shell strings. Cache variab
 does not provide `-D` command-line overrides.
 
 On each invocation, `hbuild` checks `configure`, `build`, `recompileNodes` (which always contains `hmake.cpp`),
-`reconfigureNodes` (which always contains `cache.txt`), `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
+`reconfigureNodes`, `cache.txt`, `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
+Both node sets use content hashes: timestamp changes prompt hashing, but unchanged contents do not trigger
+recompilation or reconfiguration. Successful configuration records the hashes of its final reconfiguration inputs.
+An unchanged timestamp reuses the cached hash for these nodes, so edits that preserve the exact timestamp are not
+detected automatically.
+
+`cache.txt` is tracked separately, not through `reconfigureNodes`. Its parsed toolchain and variable lines are hashed
+on every invocation and compared with a separate 64-bit value in the `build-cache.bin` prefix. Configuration records
+this hash after appending any new variables; ordinary builds preserve it. Variable order and value spelling affect
+the hash, but comments, blank lines, line-ending style, and default job count do not. Changing `--default-jobs` saves
+the new default without forcing configuration.
 Compiler-discovered headers, HMake libraries and headers, compiler/linker binaries, toolchain definitions, and
 bootstrap-command changes are not monitored automatically. `--recompile`, `--reconfigure`, and `--configure-only`
 provide explicit control over the generated executables and configuration.

@@ -87,15 +87,17 @@ inline constexpr string_view buildCacheFileName = "build-cache.bin";
 /// Wall-clock time of the last successful configuration; `-1` marks configuration in progress.
 /// Generated build executables preserve this value when rewriting ordinary target rows.
 extern uint64_t configurationTime;
+/// Filtered cache.txt hash recorded by configuration; ordinary builds preserve this baseline.
+extern uint64_t projectCacheContentHash;
 
 /// Number of Nodes backed by the retained nodes-cache buffer loaded at process start. This remains fixed after a
 /// write because cached Node path views continue to borrow from that buffer.
 extern uint32_t nodesCountBefore;
 
-/// Files whose timestamp/content snapshots require rebuilding the generated executables.
+/// Files whose content changes require rebuilding the generated executables.
 extern flat_hash_set<Node *> recompileNodes;
-/// Existing regular files whose last-write time is newer than `configurationTime` require configuration.
-/// hbuild always includes the project `cache.txt`; generated configure/build code may add more inputs.
+/// Files whose content changes require configuration; successful configure runs establish their hash snapshots.
+/// Generated configure/build code may add inputs. cache.txt is tracked separately by projectCacheContentHash.
 extern flat_hash_set<Node *> reconfigureNodes;
 
 /// Node representing the project source directory. It always has node ID 0.

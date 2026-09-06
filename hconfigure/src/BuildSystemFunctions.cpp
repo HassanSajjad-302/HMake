@@ -33,6 +33,7 @@ void setIsConsol()
 }
 
 uint64_t configurationTime = -1;
+uint64_t projectCacheContentHash = 0;
 uint32_t nodesCountBefore = 0;
 flat_hash_set<Node *> recompileNodes;
 flat_hash_set<Node *> reconfigureNodes;
@@ -185,8 +186,6 @@ bool configureOrBuild()
     {
         return builderPtr->errorHappenedInRoundMode;
     }
-    Builder::checkNodes();
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (!builderPtr->errorHappenedInRoundMode)
@@ -204,6 +203,13 @@ bool configureOrBuild()
                 writeCacheFile(projectCachePath, projectCacheContents);
                 projectCache.needsWrite = false;
             }
+
+            // Include inputs discovered during configuration. cache.txt uses its filtered hash in the prefix.
+            for (Node *node : reconfigureNodes)
+            {
+                node->doHashFile = true;
+            }
+            Builder::checkNodes();
 
             {
                 const string configCache = getConfigCache();
@@ -228,6 +234,7 @@ bool configureOrBuild()
     }
     else
     {
+        Builder::checkNodes();
         const string buildCache = getBuildCache();
         writeNodesCache();
         if (!buildCache.empty())
@@ -250,6 +257,7 @@ void constructGlobals()
     recompileNodes.clear();
     reconfigureNodes.clear();
     configurationTime = -1;
+    projectCacheContentHash = 0;
     nodesCountBefore = 0;
     buildJobsOverride = 0;
 #ifdef _WIN32
@@ -567,8 +575,14 @@ void loadNodesCache(const path &fileName)
 void writeBuildCacheInvalidationPrefix(string &cacheBytes)
 {
     assert(cacheBytes.empty());
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        // Include variables appended by configure; build must retain the configured baseline.
+        projectCacheContentHash = projectCache.contentCache();
+    }
     writeUint32(cacheBytes, 0);
     writeUint64(cacheBytes, configurationTime);
+    writeUint64(cacheBytes, projectCacheContentHash);
     const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
         for (const Node *node : nodes)
@@ -589,6 +603,7 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
     uint64_t bytesRead = 0;
     const uint32_t prefixSize = readUint32(cacheBytes.data(), bytesRead);
     configurationTime = readUint64(cacheBytes.data(), bytesRead);
+    projectCacheContentHash = readUint64(cacheBytes.data(), bytesRead);
     const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
         const uint32_t count = readUint32(cacheBytes.data(), bytesRead);
         nodes.reserve(nodes.size() + count);
@@ -671,7 +686,8 @@ void writeNodesCache()
         }
 
         cachedOffset += sizeof(uint16_t) + node.filePath.size() + 1;
-        if (node.hashCompleted)
+        // Build targets may hash these same files, but must not replace the configuration's input snapshots.
+        if (node.hashCompleted && (bsMode != BSMode::BUILD || !reconfigureNodes.contains(nodeIndices[id])))
         {
             if (!hasNewNodes && !cachedMetadataChanged)
             {
@@ -731,7 +747,7 @@ void writeNodesCache()
             offset += pathSize;
             bytes[offset++] = '\0';
 
-            if (node.hashCompleted)
+            if (node.hashCompleted && (bsMode != BSMode::BUILD || !reconfigureNodes.contains(nodeIndices[id])))
             {
                 memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
                 memcpy(bytes + offset + sizeof(node.lastWriteTime), &node.contentHash, sizeof(node.contentHash));
@@ -783,7 +799,7 @@ string getBuildCache()
     string buildCache;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // With empty sets and no target rows, the prefix is its size, one configuration time, and two zero u32 counts.
+        // The prefix stores its size, configuration time, filtered project-cache hash, and both node sets.
         writeBuildCacheInvalidationPrefix(buildCache);
         for (const BTargetCache &fileCacheTarget : bTargetCaches)
         {
