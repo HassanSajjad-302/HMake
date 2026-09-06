@@ -100,6 +100,12 @@ extern flat_hash_set<Node *> recompileNodes;
 /// Generated configure/build code may add inputs. cache.txt is tracked separately by projectCacheContentHash.
 extern flat_hash_set<Node *> reconfigureNodes;
 
+/// Committed input hashes stored in the build-cache prefix, independent of Node's latest observed file state.
+/// An absent entry has no baseline yet. Only successful bootstrap compilation updates recompileBaselineHashes;
+/// successful configuration updates reconfigureBaselineHashes. Ordinary builds preserve both.
+extern gtl::flat_hash_map<Node *, uint64_t> recompileBaselineHashes;
+extern gtl::flat_hash_map<Node *, uint64_t> reconfigureBaselineHashes;
+
 /// Node representing the project source directory. It always has node ID 0.
 inline class Node *srcNode;
 

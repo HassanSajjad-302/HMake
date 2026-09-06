@@ -37,6 +37,8 @@ uint64_t projectCacheContentHash = 0;
 uint32_t nodesCountBefore = 0;
 flat_hash_set<Node *> recompileNodes;
 flat_hash_set<Node *> reconfigureNodes;
+gtl::flat_hash_map<Node *, uint64_t> recompileBaselineHashes;
+gtl::flat_hash_map<Node *, uint64_t> reconfigureBaselineHashes;
 
 namespace
 {
@@ -204,12 +206,21 @@ bool configureOrBuild()
                 projectCache.needsWrite = false;
             }
 
-            // Include inputs discovered during configuration. cache.txt uses its filtered hash in the prefix.
+            // Refresh both sets, but commit only configuration baselines. Hashing a compilation input here does
+            // not mean these executables were compiled with those contents. cache.txt has its filtered prefix hash.
+            for (Node *node : recompileNodes)
+            {
+                node->doHashFile = true;
+            }
             for (Node *node : reconfigureNodes)
             {
                 node->doHashFile = true;
             }
             Builder::checkNodes();
+            for (Node *node : reconfigureNodes)
+            {
+                reconfigureBaselineHashes.insert_or_assign(node, node->contentHash);
+            }
 
             {
                 const string configCache = getConfigCache();
@@ -256,6 +267,8 @@ void constructGlobals()
     buildCacheGlobal = {};
     recompileNodes.clear();
     reconfigureNodes.clear();
+    recompileBaselineHashes.clear();
+    reconfigureBaselineHashes.clear();
     configurationTime = -1;
     projectCacheContentHash = 0;
     nodesCountBefore = 0;
@@ -293,6 +306,8 @@ void destructGlobals()
 {
     recompileNodes.clear();
     reconfigureNodes.clear();
+    recompileBaselineHashes.clear();
+    reconfigureBaselineHashes.clear();
 
     delete builderPtr;
     builderPtr = nullptr;
@@ -583,16 +598,22 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     writeUint32(cacheBytes, 0);
     writeUint64(cacheBytes, configurationTime);
     writeUint64(cacheBytes, projectCacheContentHash);
-    const auto writeNodes = [&](const flat_hash_set<Node *> &nodes) {
+    // Each record is exactly [u32 node ID][u64 baseline hash][u8 has baseline], without struct padding.
+    // Zero is a valid hash; the last byte keeps newly registered inputs unresolved until their owning phase succeeds.
+    const auto writeNodes = [&](const flat_hash_set<Node *> &nodes,
+                                const gtl::flat_hash_map<Node *, uint64_t> &baselines) {
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
-        for (const Node *node : nodes)
+        for (Node *node : nodes)
         {
             assert(node != nullptr && node->myId < nodeIndices.size() && nodeIndices[node->myId] == node);
+            const auto baseline = baselines.find(node);
             writeUint32(cacheBytes, node->myId);
+            writeUint64(cacheBytes, baseline != baselines.end() ? baseline->second : 0);
+            cacheBytes.push_back(baseline != baselines.end());
         }
     };
-    writeNodes(recompileNodes);
-    writeNodes(reconfigureNodes);
+    writeNodes(recompileNodes, recompileBaselineHashes);
+    writeNodes(reconfigureNodes, reconfigureBaselineHashes);
 
     const uint32_t prefixSize = static_cast<uint32_t>(cacheBytes.size());
     memcpy(cacheBytes.data(), &prefixSize, sizeof(prefixSize));
@@ -604,16 +625,23 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
     const uint32_t prefixSize = readUint32(cacheBytes.data(), bytesRead);
     configurationTime = readUint64(cacheBytes.data(), bytesRead);
     projectCacheContentHash = readUint64(cacheBytes.data(), bytesRead);
-    const auto readNodes = [&](flat_hash_set<Node *> &nodes) {
+    const auto readNodes = [&](flat_hash_set<Node *> &nodes, gtl::flat_hash_map<Node *, uint64_t> &baselines) {
         const uint32_t count = readUint32(cacheBytes.data(), bytesRead);
         nodes.reserve(nodes.size() + count);
+        baselines.reserve(baselines.size() + count);
         for (uint32_t index = 0; index < count; ++index)
         {
-            nodes.emplace(nodeIndices[readUint32(cacheBytes.data(), bytesRead)]);
+            Node *const node = nodeIndices[readUint32(cacheBytes.data(), bytesRead)];
+            const uint64_t hash = readUint64(cacheBytes.data(), bytesRead);
+            nodes.emplace(node);
+            if (cacheBytes[bytesRead++])
+            {
+                baselines.emplace(node, hash);
+            }
         }
     };
-    readNodes(recompileNodes);
-    readNodes(reconfigureNodes);
+    readNodes(recompileNodes, recompileBaselineHashes);
+    readNodes(reconfigureNodes, reconfigureBaselineHashes);
     assert(bytesRead == prefixSize);
     return prefixSize;
 }
@@ -686,8 +714,7 @@ void writeNodesCache()
         }
 
         cachedOffset += sizeof(uint16_t) + node.filePath.size() + 1;
-        // Build targets may hash these same files, but must not replace the configuration's input snapshots.
-        if (node.hashCompleted && (bsMode != BSMode::BUILD || !reconfigureNodes.contains(nodeIndices[id])))
+        if (node.hashCompleted)
         {
             if (!hasNewNodes && !cachedMetadataChanged)
             {
@@ -747,7 +774,7 @@ void writeNodesCache()
             offset += pathSize;
             bytes[offset++] = '\0';
 
-            if (node.hashCompleted && (bsMode != BSMode::BUILD || !reconfigureNodes.contains(nodeIndices[id])))
+            if (node.hashCompleted)
             {
                 memcpy(bytes + offset, &node.lastWriteTime, sizeof(node.lastWriteTime));
                 memcpy(bytes + offset + sizeof(node.lastWriteTime), &node.contentHash, sizeof(node.contentHash));
