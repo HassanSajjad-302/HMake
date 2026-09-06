@@ -1193,6 +1193,10 @@ void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &pre
         return;
     }
 
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        reconfigureNodes.emplace(Node::getNode<PathType::NORMAL_ABSOLUTE>(includeDir->filePath, false));
+    }
     for (const auto &p : directory_iterator(includeDir->filePath))
     {
         if (p.is_regular_file() &&
@@ -1432,6 +1436,10 @@ void CppTarget::addComposingHeadersDir(const Node *includeDir)
         return;
     }
 
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        reconfigureNodes.emplace(Node::getNode<PathType::NORMAL_ABSOLUTE>(includeDir->filePath, false));
+    }
     CppMod *publicBigHu = getPublicBigHu(false);
     for (const auto &f : directory_iterator(includeDir->filePath))
     {
@@ -1924,18 +1932,21 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
         }
     };
 
-    Node *const sourceDirectoryNode = Node::getHalfNode<PathType::NEITHER>(sourceDirectory);
-    if (!exists(path(sourceDirectoryNode->filePath)))
-    {
-        printErrorMessage(FORMAT("Source directory does not exist.\nTarget: {}\nDirectory: {}", name,
-                                 sourceDirectoryNode->filePath));
-    }
+    Node *const sourceDirectoryNode = Node::getNode<PathType::NEITHER>(sourceDirectory, false);
+    reconfigureNodes.emplace(sourceDirectoryNode);
 
     if (recursive)
     {
         for (const auto &k : recursive_directory_iterator(sourceDirectoryNode->filePath))
         {
-            addNewFile(k);
+            if (k.is_directory() && !k.is_symlink())
+            {
+                reconfigureNodes.emplace(Node::getNode(k));
+            }
+            else
+            {
+                addNewFile(k);
+            }
         }
     }
     else
