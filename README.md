@@ -353,9 +353,10 @@ does not provide `-D` command-line overrides.
 
 On each invocation, `hbuild` checks `configure`, `build`, `recompileNodes` (which always contains `hmake.cpp`),
 `reconfigureNodes`, `cache.txt`, `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
-Both node sets use content hashes: timestamp changes prompt hashing, but unchanged contents do not trigger
-recompilation or reconfiguration. Their baseline hashes are stored alongside node IDs in the `build-cache.bin` prefix,
-with a one-byte marker distinguishing an unresolved baseline from a valid hash (including zero). Successful bootstrap
+Both node sets use content hashes: timestamp changes prompt hashing, but unchanged nonzero hashes do not trigger
+recompilation or reconfiguration. Their baseline hashes are stored alongside node IDs in the `build-cache.bin` prefix
+as 4-byte IDs and 8-byte hashes. Zero denotes an empty/unhashed input with no committed baseline, so an empty tracked
+file triggers its owning phase again on each invocation while it remains empty. Successful bootstrap
 compilation commits recompilation baselines; successful configuration commits reconfiguration baselines. Configure
 hashes both sets, but does not advance recompilation baselines. Ordinary builds preserve both baselines while retaining
 any new input registrations. `nodes-cache.bin` independently caches the latest observed file timestamps and hashes.

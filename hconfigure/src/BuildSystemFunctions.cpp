@@ -598,8 +598,8 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
     writeUint32(cacheBytes, 0);
     writeUint64(cacheBytes, configurationTime);
     writeUint64(cacheBytes, projectCacheContentHash);
-    // Each record is exactly [u32 node ID][u64 baseline hash][u8 has baseline], without struct padding.
-    // Zero is a valid hash; the last byte keeps newly registered inputs unresolved until their owning phase succeeds.
+    // Each record is exactly [u32 node ID][u64 baseline hash], without struct padding.
+    // Zero denotes an empty/unhashed input and is read back without a committed baseline.
     const auto writeNodes = [&](const flat_hash_set<Node *> &nodes,
                                 const gtl::flat_hash_map<Node *, uint64_t> &baselines) {
         writeUint32(cacheBytes, static_cast<uint32_t>(nodes.size()));
@@ -609,7 +609,6 @@ void writeBuildCacheInvalidationPrefix(string &cacheBytes)
             const auto baseline = baselines.find(node);
             writeUint32(cacheBytes, node->myId);
             writeUint64(cacheBytes, baseline != baselines.end() ? baseline->second : 0);
-            cacheBytes.push_back(baseline != baselines.end());
         }
     };
     writeNodes(recompileNodes, recompileBaselineHashes);
@@ -634,7 +633,7 @@ uint64_t readBuildCacheInvalidationPrefix(const string_view cacheBytes)
             Node *const node = nodeIndices[readUint32(cacheBytes.data(), bytesRead)];
             const uint64_t hash = readUint64(cacheBytes.data(), bytesRead);
             nodes.emplace(node);
-            if (cacheBytes[bytesRead++])
+            if (hash != 0)
             {
                 baselines.emplace(node, hash);
             }
