@@ -743,7 +743,9 @@ int runBootstrap(const int argc, char **argv)
         {
             for (Node *node : reconfigureNodes)
             {
-                node->doStatFile = true;
+                node->doHashFile = true;
+                cachedSnapshots.emplace_back(node->lastWriteTime);
+                cachedSnapshots.emplace_back(node->contentHash);
             }
         }
         Builder::checkNodes();
