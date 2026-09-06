@@ -14,9 +14,18 @@ void editOutFilesRecursive(CppTarget *t, string directory, string extension, set
             noInclude.emplace(Node::getNode<PathType::NEITHER>(directory + slashc + str, true));
         }
 
-        for (const auto &f : recursive_directory_iterator(path(srcNode->filePath) / directory))
+        Node *directoryNode = Node::getNode((path(srcNode->filePath) / directory).string(), false);
+        reconfigureNodes.emplace(directoryNode);
+        for (const auto &f : recursive_directory_iterator(directoryNode->filePath))
         {
-            if (f.is_regular_file() && f.path().extension() == extension)
+            if (f.is_directory())
+            {
+                if (!f.is_symlink())
+                {
+                    reconfigureNodes.emplace(Node::getNode(f));
+                }
+            }
+            else if (f.is_regular_file() && f.path().extension() == extension)
             {
                 string str = f.path().string();
                 if (Node *n = Node::getNode(str, true); !noInclude.contains(n))
