@@ -553,8 +553,13 @@ int runBootstrap(const int argc, char **argv)
     if (!options.buildDirectory.empty())
     {
         STACK_PMR_STRING(normalizedPath, 4 * 1024)
-        normalizedPath = options.buildDirectory;
-        Node::normalize<PathType::NEITHER>(normalizedPath);
+        if (!Node::isAbsolute(options.buildDirectory))
+        {
+            normalizedPath = invocationPath;
+            normalizedPath += slashc;
+        }
+        normalizedPath += options.buildDirectory;
+        Node::normalize<PathType::ABSOLUTE>(normalizedPath);
         buildDirectoryPath = normalizedPath;
         std::filesystem::create_directories(buildDirectoryPath, error);
         if (error)
