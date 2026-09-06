@@ -342,7 +342,7 @@ string loadBuildCachePrefix(const path &file)
     uint32_t cachedPrefixSize;
     readBytes(&cachedPrefixSize, sizeof(cachedPrefixSize));
     const uint64_t prefixSize = cachedPrefixSize;
-    assert(prefixSize >= sizeof(uint32_t) + sizeof(uint64_t) + 2 * sizeof(uint32_t));
+    assert(prefixSize >= sizeof(uint32_t) + 2 * sizeof(uint64_t) + 2 * sizeof(uint32_t));
 
     string prefix;
     prefix.resize_and_overwrite(prefixSize, [&](char *bytes, const uint64_t) {
