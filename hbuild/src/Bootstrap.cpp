@@ -539,7 +539,6 @@ int runBootstrap(const int argc, char **argv)
         printErrorMessage("Could not determine the current directory.\nSystem error: " + invocationError.message());
     }
     lowerCaseOnWindows(invocationPath.data(), invocationPath.size());
-    normalizationBasePath = invocationPath;
     const path invocationDirectory(invocationPath);
 
     Options options = parseOptions(argc, argv);
