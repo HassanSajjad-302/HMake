@@ -722,55 +722,40 @@ int runBootstrap(const int argc, char **argv)
         projectCache.needsWrite = false;
     }
 
-    if (mustCompile)
+    for (Node *node : recompileNodes)
     {
-        for (Node *node : recompileNodes)
-        {
-            node->doHashFile = true;
-        }
-        Builder::checkNodes();
+        node->doHashFile = true;
     }
-    else
+    if (!mustConfigure)
     {
-        STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
-        cachedSnapshots.reserve(recompileNodes.size() + (mustConfigure ? 0 : reconfigureNodes.size()));
-        for (Node *node : recompileNodes)
+        for (Node *node : reconfigureNodes)
         {
             node->doHashFile = true;
-            // Check unresolved inputs before stat replaces the sentinel; even a new empty file needs a rebuild.
-            mustCompile = mustCompile || node->lastWriteTime == -1;
-            cachedSnapshots.emplace_back(node->contentHash);
         }
-        mustConfigure = mustConfigure || mustCompile;
-        if (!mustConfigure)
+    }
+    Builder::checkNodes();
+    if (!mustCompile)
+    {
+        for (Node *node : recompileNodes)
         {
-            for (Node *node : reconfigureNodes)
-            {
-                node->doHashFile = true;
-                mustConfigure = mustConfigure || node->lastWriteTime == -1;
-                cachedSnapshots.emplace_back(node->contentHash);
-            }
-        }
-        Builder::checkNodes();
-        uint64_t snapshotIndex = 0;
-        for (const Node *node : recompileNodes)
-        {
-            if (node->contentHash != cachedSnapshots[snapshotIndex++])
+            const auto baseline = recompileBaselineHashes.find(node);
+            if (baseline == recompileBaselineHashes.end() || baseline->second != node->contentHash)
             {
                 mustCompile = true;
                 break;
             }
         }
-        mustConfigure = mustConfigure || mustCompile;
-        if (!mustConfigure)
+    }
+    mustConfigure = mustConfigure || mustCompile;
+    if (!mustConfigure)
+    {
+        for (Node *node : reconfigureNodes)
         {
-            for (const Node *node : reconfigureNodes)
+            const auto baseline = reconfigureBaselineHashes.find(node);
+            if (baseline == reconfigureBaselineHashes.end() || baseline->second != node->contentHash)
             {
-                if (node->contentHash != cachedSnapshots[snapshotIndex++])
-                {
-                    mustConfigure = true;
-                    break;
-                }
+                mustConfigure = true;
+                break;
             }
         }
     }
@@ -810,6 +795,12 @@ int runBootstrap(const int argc, char **argv)
                 printMessage(results[index].output);
             }
             printMessage(FORMAT("{} compilation time: {:.3f} seconds\n", label, elapsedSeconds[index]));
+        }
+
+        // Commit the input hashes captured before compilation only after both executables succeed.
+        for (Node *node : recompileNodes)
+        {
+            recompileBaselineHashes[node] = node->contentHash;
         }
     }
 
