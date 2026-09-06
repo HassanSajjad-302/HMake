@@ -684,7 +684,6 @@ int runBootstrap(const int argc, char **argv)
     }
     normalizationBasePath = srcNode->filePath;
     Node *const hmakeFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(hmakePath));
-    Node *const projectCacheFile = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(cacheFile.string());
 
     const Toolchain *const bootstrapToolchain = toolchains.registryOrder.front();
     if (projectCache.toolchainName.empty())
@@ -752,7 +751,8 @@ int runBootstrap(const int argc, char **argv)
         uint64_t snapshotIndex = 0;
         for (const Node *node : recompileNodes)
         {
-            if (node->lastWriteTime != cachedSnapshots[snapshotIndex] ||
+            // An unresolved snapshot needs an initial rebuild, even if both hashes happen to be zero (empty files).
+            if (cachedSnapshots[snapshotIndex] == -1 ||
                 node->contentHash != cachedSnapshots[snapshotIndex + 1])
             {
                 mustCompile = true;
@@ -765,11 +765,13 @@ int runBootstrap(const int argc, char **argv)
         {
             for (const Node *node : reconfigureNodes)
             {
-                if (node->fileType != std::filesystem::file_type::regular || node->lastWriteTime > configurationTime)
+                if (cachedSnapshots[snapshotIndex] == -1 ||
+                    node->contentHash != cachedSnapshots[snapshotIndex + 1])
                 {
                     mustConfigure = true;
                     break;
                 }
+                snapshotIndex += 2;
             }
         }
     }
