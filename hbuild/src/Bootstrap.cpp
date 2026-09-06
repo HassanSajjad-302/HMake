@@ -701,9 +701,11 @@ int runBootstrap(const int argc, char **argv)
     }
 
     // Existing build caches already contain the mandatory hmake.cpp input.
-    if (recompileNodes.emplace(hmakeFile).second)
+    if (recompileNodes.emplace(hmakeFile).second && !freshBuild)
     {
-        assert(freshBuild);
+        printErrorMessage("The build cache is missing its hmake.cpp input.\n"
+                          "Delete the build directory and run hbuild again.\nBuild directory: " +
+                          buildDirectoryPath.string());
     }
     bool mustCompile = options.recompile || freshBuild;
     bool mustConfigure = mustCompile || options.reconfigure || projectCacheContentHash != projectCache.contentCache();
@@ -731,19 +733,21 @@ int runBootstrap(const int argc, char **argv)
     else
     {
         STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
-        cachedSnapshots.reserve((recompileNodes.size() + (mustConfigure ? 0 : reconfigureNodes.size())) * 2);
+        cachedSnapshots.reserve(recompileNodes.size() + (mustConfigure ? 0 : reconfigureNodes.size()));
         for (Node *node : recompileNodes)
         {
             node->doHashFile = true;
-            cachedSnapshots.emplace_back(node->lastWriteTime);
+            // Check unresolved inputs before stat replaces the sentinel; even a new empty file needs a rebuild.
+            mustCompile = mustCompile || node->lastWriteTime == -1;
             cachedSnapshots.emplace_back(node->contentHash);
         }
+        mustConfigure = mustConfigure || mustCompile;
         if (!mustConfigure)
         {
             for (Node *node : reconfigureNodes)
             {
                 node->doHashFile = true;
-                cachedSnapshots.emplace_back(node->lastWriteTime);
+                mustConfigure = mustConfigure || node->lastWriteTime == -1;
                 cachedSnapshots.emplace_back(node->contentHash);
             }
         }
@@ -751,27 +755,22 @@ int runBootstrap(const int argc, char **argv)
         uint64_t snapshotIndex = 0;
         for (const Node *node : recompileNodes)
         {
-            // An unresolved snapshot needs an initial rebuild, even if both hashes happen to be zero (empty files).
-            if (cachedSnapshots[snapshotIndex] == -1 ||
-                node->contentHash != cachedSnapshots[snapshotIndex + 1])
+            if (node->contentHash != cachedSnapshots[snapshotIndex++])
             {
                 mustCompile = true;
                 break;
             }
-            snapshotIndex += 2;
         }
         mustConfigure = mustConfigure || mustCompile;
         if (!mustConfigure)
         {
             for (const Node *node : reconfigureNodes)
             {
-                if (cachedSnapshots[snapshotIndex] == -1 ||
-                    node->contentHash != cachedSnapshots[snapshotIndex + 1])
+                if (node->contentHash != cachedSnapshots[snapshotIndex++])
                 {
                     mustConfigure = true;
                     break;
                 }
-                snapshotIndex += 2;
             }
         }
     }
