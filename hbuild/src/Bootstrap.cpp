@@ -701,10 +701,13 @@ int runBootstrap(const int argc, char **argv)
                           buildDirectoryPath.string());
     }
 
-    // Keep each insertion first: both inputs must be registered even when rebuilding is already required.
-    bool mustCompile = recompileNodes.emplace(hmakeFile).second || options.recompile || freshBuild;
-    bool mustConfigure = reconfigureNodes.emplace(projectCacheFile).second || mustCompile || projectCache.needsWrite ||
-                         options.reconfigure;
+    // Existing build caches already contain the mandatory hmake.cpp input.
+    if (recompileNodes.emplace(hmakeFile).second)
+    {
+        assert(freshBuild);
+    }
+    bool mustCompile = options.recompile || freshBuild;
+    bool mustConfigure = mustCompile || options.reconfigure || projectCacheContentHash != projectCache.contentCache();
 
     if (projectCache.needsWrite)
     {
