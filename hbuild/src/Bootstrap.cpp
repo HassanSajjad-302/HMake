@@ -732,7 +732,7 @@ int runBootstrap(const int argc, char **argv)
     else
     {
         STACK_PMR_VECTOR(uint64_t, cachedSnapshots, 128)
-        cachedSnapshots.reserve(recompileNodes.size() * 2);
+        cachedSnapshots.reserve((recompileNodes.size() + (mustConfigure ? 0 : reconfigureNodes.size())) * 2);
         for (Node *node : recompileNodes)
         {
             node->doHashFile = true;
