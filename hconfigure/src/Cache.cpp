@@ -1,5 +1,7 @@
 #include "Cache.hpp"
 
+#include "rapidhash/rapidhash.h"
+
 #include <algorithm>
 #include <charconv>
 #include <thread>
@@ -193,4 +195,23 @@ bool ProjectCache::serialize(std::pmr::string &contents, string &error) const
         contents.push_back('\n');
     }
     return true;
+}
+
+uint64_t ProjectCache::contentCache() const
+{
+    STACK_PMR_STRING(semantic, 4 * 1024)
+    semantic += "toolchain";
+    semantic.push_back('\0');
+    semantic.append(toolchainName);
+    for (const Line &line : lines_)
+    {
+        if (line.kind == LineKind::VARIABLE)
+        {
+            semantic.push_back('\0');
+            semantic += "variable";
+            semantic.push_back('\0');
+            semantic += line.text;
+        }
+    }
+    return rapidhash(semantic.data(), semantic.size());
 }
