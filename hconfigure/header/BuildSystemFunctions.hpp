@@ -96,7 +96,8 @@ extern uint32_t nodesCountBefore;
 
 /// Files whose content changes require rebuilding the generated executables.
 extern flat_hash_set<Node *> recompileNodes;
-/// Files whose content changes require configuration; successful configure runs establish their hash snapshots.
+/// Files whose content changes, or directories whose entry timestamps change, require configuration.
+/// Successful configure runs establish their fingerprint snapshots.
 /// Generated configure/build code may add inputs. cache.txt is tracked separately by projectCacheContentHash.
 extern flat_hash_set<Node *> reconfigureNodes;
 

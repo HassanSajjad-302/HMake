@@ -51,6 +51,7 @@ class Node
     uint64_t fileSize = 0;
 
     /// rapidhash restored from `nodes-cache.bin` or populated by `performContentHash()` when `doHashFile` is set.
+    /// Directories use their last-write timestamp as an entry-change fingerprint, resolved during the system check.
     /// Missing files use `missingContentHash`, distinct from the hash of an empty file.
     uint64_t contentHash = 0;
 
