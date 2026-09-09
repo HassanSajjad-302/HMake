@@ -17,7 +17,7 @@ Memory &getMemory()
     return m;
 }
 
-inline void *allocate(const uint64_t allocationSize, const std::size_t alignment = alignof(std::max_align_t))
+inline void *allocate(const uint64_t allocationSize, const uint64_t alignment = alignof(std::max_align_t))
 {
     auto &[p, memSize, memUsed] = getMemory();
 
@@ -73,7 +73,7 @@ inline void *allocate(const uint64_t allocationSize, const std::size_t alignment
 // ============================================================================
 
 // Basic new operator
-void *operator new(std::size_t size)
+void *operator new(uint64_t size)
 {
     if (size == 0)
         size = 1;
@@ -89,7 +89,7 @@ void operator delete(void *ptr) noexcept
 }
 
 // Array new operator
-void *operator new[](std::size_t size)
+void *operator new[](uint64_t size)
 {
     if (size == 0)
         size = 1;
@@ -105,25 +105,25 @@ void operator delete[](void *ptr) noexcept
 }
 
 // C++14: Sized delete
-void operator delete(void *ptr, std::size_t size) noexcept
+void operator delete(void *ptr, uint64_t size) noexcept
 {
     (void)ptr;
     (void)size;
 }
 
-void operator delete[](void *ptr, std::size_t size) noexcept
+void operator delete[](void *ptr, uint64_t size) noexcept
 {
     (void)ptr;
     (void)size;
 }
 
 // C++17: Aligned new/delete
-void *operator new(std::size_t size, std::align_val_t alignment)
+void *operator new(uint64_t size, std::align_val_t alignment)
 {
     if (size == 0)
         size = 1;
 
-    void *ptr = allocate(size, static_cast<std::size_t>(alignment));
+    void *ptr = allocate(size, static_cast<uint64_t>(alignment));
     return ptr;
 }
 
@@ -133,12 +133,12 @@ void operator delete(void *ptr, std::align_val_t alignment) noexcept
     (void)alignment;
 }
 
-void *operator new[](std::size_t size, std::align_val_t alignment)
+void *operator new[](uint64_t size, std::align_val_t alignment)
 {
     if (size == 0)
         size = 1;
 
-    void *ptr = allocate(size, static_cast<std::size_t>(alignment));
+    void *ptr = allocate(size, static_cast<uint64_t>(alignment));
     return ptr;
 }
 
@@ -148,14 +148,14 @@ void operator delete[](void *ptr, std::align_val_t alignment) noexcept
     (void)alignment;
 }
 
-void operator delete(void *ptr, std::size_t size, std::align_val_t alignment) noexcept
+void operator delete(void *ptr, uint64_t size, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)size;
     (void)alignment;
 }
 
-void operator delete[](void *ptr, std::size_t size, std::align_val_t alignment) noexcept
+void operator delete[](void *ptr, uint64_t size, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)size;
@@ -163,14 +163,14 @@ void operator delete[](void *ptr, std::size_t size, std::align_val_t alignment) 
 }
 
 // Nothrow versions
-void *operator new(std::size_t size, const std::nothrow_t &) noexcept
+void *operator new(uint64_t size, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
     return allocate(size);
 }
 
-void *operator new[](std::size_t size, const std::nothrow_t &) noexcept
+void *operator new[](uint64_t size, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
@@ -187,18 +187,18 @@ void operator delete[](void *ptr, const std::nothrow_t &) noexcept
     (void)ptr;
 }
 
-void *operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
+void *operator new(uint64_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
-    return allocate(size, static_cast<std::size_t>(alignment));
+    return allocate(size, static_cast<uint64_t>(alignment));
 }
 
-void *operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
+void *operator new[](uint64_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
-    return allocate(size, static_cast<std::size_t>(alignment));
+    return allocate(size, static_cast<uint64_t>(alignment));
 }
 
 void operator delete(void *ptr, std::align_val_t alignment, const std::nothrow_t &) noexcept

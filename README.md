@@ -1,4 +1,4 @@
-# HMake
+#HMake
 
 Hassan's Make or HMake is a C++ build system with a pure C++ API — no DSL,
 no domain-specific configuration language.
@@ -8,6 +8,10 @@ Support for additional programming languages and API bindings is planned.
 HMake features a novel build algorithm with dynamic nodes, dynamic edges, and advanced dependency specification.
 Its core is approximately 17,000 lines of C++ — significantly smaller than CMake + Ninja combined.
 
+HMake requires a 64-bit host toolchain. Runtime buffer sizes, byte offsets, and capacities use explicit
+`uint64_t`/`int64_t` values; narrower integer fields are retained only where an external API, serialized format, or
+deliberately compact data structure requires them.
+
 ## Architecture
 
 HMake separates concerns cleanly into two layers:
@@ -15,7 +19,7 @@ HMake separates concerns cleanly into two layers:
 **Core layer** — `BTarget`, `Builder`, `Node`. These classes are general-purpose and have no knowledge of
 C++. Any build system can be built on top of these.
 
-**C++ layer** — `CppTarget`, `CppSrc`, `CppMod`, `LOAT`. These implement C++ compilation on top of the core. The core
+**C++ layer** — `CppTarget`, `CppSrc`, `CppMod`, `Loat`. These implement C++ compilation on top of the core. The core
 has zero references to these classes, which demonstrates how cleanly extensible the core API is.
 
 ---
@@ -43,62 +47,99 @@ build round. Dependencies and build logic are declared per-round using `addDep<0
 
 Every file and directory path in HMake is represented by a `Node`. A `Node` assigns a permanent integer ID to each
 filesystem path. This ID remains stable across rebuilds and reconfigurations, allowing the build cache and config cache
-to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
-size of UE5 — and near-instant build startup even for very large projects.
+to store IDs rather than repeating full paths for every target.
 
-`initializeCache()` loads path strings from the `nodes` cache file without stating or hashing them yet. Before round 0,
-`Builder::checkNodes(true)` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
+`initializeCache()` retains `nodes-cache.bin`; loaded nodes refer directly to its NUL-terminated path bytes, while newly
+interned paths use stable process-owned strings. It restores filesystem snapshots without stating or hashing them yet.
+Before round 0, `Builder::checkNodes()` runs `performSystemCheck()` and `performContentHash()` in parallel on nodes marked
 `doStatFile` / `doHashFile`. Skip/rebuild decisions use `Node::contentHash` (rapidhash of file contents) inside
 `setUpdateStatus()`, not file modification times alone. After the build, `getBuildCache()` may call `checkNodes(false)` for
 nodes that were flagged during compilation (for example headers discovered from compiler output).
 
 ### BTargetCache
 
-Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache` and `build-cache` files under the
+Each target has a `BTargetCache` row in memory, backed by on-disk `config-cache.bin` and `build-cache.bin` files under the
 configure directory (see `initializeCache()` / `configureOrBuild()` in `BuildSystemFunctions.cpp`).
+
+The binary files contain only their payloads. HMake retains the previously read bytes and compares a newly serialized
+payload directly, avoiding a temporary write and atomic replacement when the cache is unchanged.
 
 | File | When written | Contents |
 |------|----------------|----------|
-| `nodes` | Configure or build (if new paths appeared) | Interned path strings keyed by `Node::myId` |
-| `config-cache` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
-| `build-cache` | End of configure; updated after build | Per target: inline dependency list + sized body; optional 16-byte footer (`cumulativeHash`, `completionTime`) for process targets |
+| `nodes-cache.bin` | Configure or build | Repeated `[u16 path size][path][NUL][u64 modification time][u64 content hash]` records in `Node::myId` order |
+| `config-cache.bin` | End of configure | Per target: `cacheName` + sized blob (`writeConfigCacheAtConfigTime`) |
+| `build-cache.bin` | HMake take-off, configure, or build | A 4-byte invalidation-prefix size, the last successful configuration time, recompile/reconfigure node-ID arrays, then per-target dependency lists and sized bodies; process targets may end in a 16-byte `cumulativeHash`/`completionTime` footer |
 
 At startup, `readConfigCache()` and `readBuildCache()` populate `bTargetCaches` before `buildSpecification()` constructs
 live targets. `CppTarget` stores node IDs for sources, modules, header units, and includes in config-cache. At the end of
-a build, only targets with `buildCacheUpdated` or `buildFooterUpdated` are rewritten; unchanged blobs are copied as-is.
+a build, only targets with `buildCacheUpdated` or `buildFooterUpdated` are rewritten;
+unchanged blobs are copied as -
+    is.
 
-### Builder
+`CppSrc` build - cache bodies store a 4 - byte file count followed by 12 -
+    byte records : a 4 - byte node ID and an 8 - byte content hash.The source record comes first,
+    followed by the retained headers. `CppMod` adds its header -
+        classification flag before this array and its counted direct module -
+        dependency IDs afterward.These targets compare each source / header hash individually;
+their footer's `cumulativeHash` contains only the compile-command hash. Build-directory headers are excluded from these
+    records;
+generated inputs are ordered and invalidated through their producer targets and `completionTime`
+        .
 
-`Builder` is constructed after caches are loaded and `buildSpecification()` has registered targets. It runs **round 1**
-(`completeRoundOne()` — configure-time setup), then in build mode **round 0** (async compilation/linking). Configure mode
-stops after round 1 and writes the cache files.
+    ## #Builder
 
-Round 0 maintains `readyBTargets`, the queue of targets whose `dependenciesSize` has reached zero. After topological
-sorting, ready targets are enqueued; completion decrements dependents and enqueues any that become ready. Round-0
-dependency lists are persisted into each target's build-cache entry when the build finishes.
+`Builder` is constructed after caches are loaded and `buildSpecification()` has registered targets.It runs **round 1 *
+    *(`completeRoundOne()` — configure - time setup),
+    then in build mode **round 0 * *(async compilation / linking).Configure mode stops after round 1 and
+        writes the cache files.
 
-**Bring-to-front scheduling (`CppMod`).** When a module or header-unit compilation discovers that another unit is already
-in the ready queue but `isEventRegistered` has not run on it yet, and consumers are blocked waiting on that unit, HMake
-can move it to the head of `readyBTargets` using `RealBTarget::insertionIndex` (the previous queue slot is nulled so
-the dependency is not scheduled twice). That prioritizes work with known waiters over other ready targets and lowers peak
-memory by reducing how long compiler processes sit idle.
+        Round 0 maintains `readyBTargets`,
+    the queue of targets whose `dependenciesSize` has reached zero.After topological sorting,
+    ready targets are enqueued;
+completion decrements dependents and enqueues any that become ready.Round -
+        0 dependency lists are persisted into each target's build-cache entry when the build finishes.
 
-**Incremental decisions.** After `checkNodes(true)`, selective targets call `setUpdateStatus()`, which compares
-`Node::contentHash`, cached `cumulativeHash`, and dependency `completionTime` from the build-cache footer — not mtimes
-alone. When inputs change during the build, targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()`
-refreshes hashes and rewrites those entries before saving `build-cache`.
+            **Bring -
+        to - front scheduling(`CppMod`).**When a module
+    or header - unit compilation discovers that another unit is already in the ready queue but `isEventRegistered` has
+           not run on it yet,
+    and consumers are blocked waiting on that unit,
+    HMake can move it to the head of `readyBTargets` using `RealBTarget::insertionIndex` (
+        the previous queue slot is nulled so the dependency is not scheduled twice)
+            .That prioritizes work with known waiters over other ready targets and lowers peak memory by reducing how
+        long compiler processes sit idle.
 
-### Unchanged-output cutoff
+            **Incremental decisions
+        .**After `checkNodes(true)`,
+    selective targets call `setUpdateStatus()`, which compares
+`Node::contentHash`, cached `cumulativeHash`,
+    and dependency `completionTime` from the build - cache footer — not mtimes alone.When inputs change during the build
+    ,
+    targets set `buildCacheUpdated` / `buildFooterUpdated` so `getBuildCache()` refreshes hashes and rewrites those
+            entries before saving `build
+        -
+        cache`.
 
-A process target can initially require an update, run successfully, and then discover that its observable output did
-not change. A code generator is the simplest example: its inputs or executable may have changed, but the newly generated
-file can still be identical to the existing file. In that case the target may change
-`realBTargets[0].updateStatus` from `UPDATE_NEEDED` to `UPDATE_NOT_NEEDED`. HMake then treats the execution as an
-unchanged-output cutoff: the target succeeds, but the unchanged result is not propagated as a rebuild reason to its
-dependents.
+        ## #Unchanged
+        -
+        output cutoff
 
-HMake deliberately keeps this contract small and easy to adopt. Once a target has successfully proved that all of its
-observable outputs are unchanged, the cutoff itself is a single assignment to `updateStatus`; the target does not need
+        A process target can initially require an update,
+    run successfully,
+    and then discover that its observable output did not change.A code generator is the simplest example : its inputs
+        or executable may have changed,
+    but the newly generated file can still be identical to the existing file
+            .In that case the target may change
+`realBTargets[0]
+            .updateStatus` from `UPDATE_NEEDED` to `UPDATE_NOT_NEEDED`.HMake then treats the execution as an unchanged
+        - output cutoff:
+the target succeeds,
+    but the unchanged result is not propagated as a rebuild reason to its dependents.
+
+        HMake deliberately keeps this contract small and
+        easy to adopt.Once a target has successfully proved that all of its observable outputs are unchanged,
+    the cutoff itself is a single assignment to `updateStatus`;
+the target does not need
 to edit dependency edges, manipulate timestamps, or implement dependent cancellation. HMake owns those mechanics and
 conservatively re-evaluates affected targets at scheduler decision points before suppressing work.
 
@@ -106,14 +147,15 @@ Process targets do not assign their own `completionTime`. At the scheduler commi
 `Builder::decrementFromDependents()` records the current time only when a process target completed successfully, its
 final status is `UPDATE_NEEDED`, and it marked its footer updated. Consequently, changing the final status to
 `UPDATE_NOT_NEEDED` both suppresses update propagation and preserves the cached completion time. The target can still
-set `buildFooterUpdated = true` to cache its new `cumulativeHash`; this accepts the input change without falsely
-claiming that the output changed, so the generator does not need to run again on the next HMake invocation.
+set `buildFooterUpdated = true` to cache its new `cumulativeHash`;
+this accepts the input change without falsely claiming that the output changed,
+    so the generator does not need to run again on the next HMake invocation.
 
-The essential completion pattern is:
+    The essential completion pattern is :
 
 ```cpp
-// After process completion and an application-specific output comparison:
-if (rb.exitStatus == EXIT_SUCCESS)
+    // After process completion and an application-specific output comparison:
+    if (rb.exitStatus == EXIT_SUCCESS)
 {
     if (outputsAreUnchanged)
     {
@@ -123,15 +165,21 @@ if (rb.exitStatus == EXIT_SUCCESS)
 }
 ```
 
-Only apply this transition after a successful command, after proving that every observable output is unchanged, and
-after preparing the target's normal cache/footer update. Leave the target `UPDATE_NEEDED` when any output changed, and
-never convert a failed execution into a successful cutoff. With that ordinary completion bookkeeping in place, changing
-`updateStatus` is the complete cutoff operation: HMake clears stale dependency reasons and runs the target's full virtual
-update check again. If the target itself, a static dependency, or a dynamic dependency still requires an update, the
-work continues. This narrow contract makes unchanged-output cutoff both straightforward to use and conservative by
-construction.
+    Only apply this transition after a successful command,
+    after proving that every observable output is unchanged,
+    and after preparing the
+            target's normal cache/footer update. Leave the target `UPDATE_NEEDED` when any output changed, and never
+                convert a failed execution into a successful cutoff.With that ordinary completion bookkeeping in place,
+    changing
+`updateStatus` is the complete cutoff operation
+    : HMake clears stale dependency reasons and runs the target's full virtual update check again.If the target itself,
+    a static dependency, or a dynamic dependency still
+                                 requires an
+                             update, the work continues.This narrow contract makes unchanged -
+                                         output cutoff both straightforward to use and conservative by construction.
 
-Prefer writing generated data to temporary files and replacing final outputs only when their contents differ; this also
+                                         Prefer writing generated data to temporary files and replacing final outputs
+                                             only when their contents differ; this also
 keeps the last successful output safe if the process fails or is cancelled.
 
 [`HeaderGen`](hconfigure/header/CustomCodeGenerator.hpp) is a minimal asynchronous code-generator model that can be
@@ -225,11 +273,6 @@ ninja clang
 cd ../..
 ```
 
-On Linux, edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang
-binary:
-`llvm-project/my-fork/bin/clang`.
-On Windows, edit last line in `CppCompilerFeatures::initialize`.
-
 **Clone and build HMake:**
 
 ```bash
@@ -247,26 +290,17 @@ cd ../..
 export PATH=$PATH:/path/to/HMake/build
 ```
 
-**Detect and cache installed tools — run once, not per project:**
-
-On Windows you would need administrative permissions for that.
-
-```bash
-htools
-```
-
 **Build an example:**
 
-The two `hhelper` invocations are intentional: the first creates `cache.json`; the second
-compiles the generated `configure` and `build` programs and runs the configure phase.
-`hbuild` then executes the cached build graph.
+`hbuild` owns the complete take-off. It creates project metadata, compiles the generated
+configure/build executables in parallel when necessary, waits for both compilations, configures, and then builds.
+Each command captures merged stdout/stderr through its own pipe; compilation output is printed separately per command.
+`RunCommand::runProcess` launches executables directly and accepts an optional child working directory. Commands needing
+shell operators must invoke their shell explicitly.
 
 ```bash
 cd HMake/Examples/Example1
-mkdir build && cd build
-hhelper
-hhelper
-hbuild
+hbuild -B build
 ```
 
 For Example 1, the resulting executable is `build/Release/app/app` on Linux
@@ -310,35 +344,140 @@ getConfiguration("Debug").assign(ConfigType::DEBUG, Warnings::EXTRA, WarningsAsE
 <details>
 <summary> Step-by-Step Explanation </summary>
 
-Unlike few other build-systems, HMake does not
-detect the tools installed every time you configure a project but
-is instead done only when you run ```htools``` and the result is cached to
-```C:\Program Files (x86)\HMake\toolsCache.json```
-on Windows and ```/home/toolsCache.json``` in Linux.
-Currently, it is just a stud.
-HMake is more ```make``` like in this aspect:).
-It writes in ```toolsCache.json```
-whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
+HMake installs a named default toolchain matching the compiler used to build HMake. Additional
+toolchains live in `~/.hmake/toolchains.json` on Linux or `%LOCALAPPDATA%\HMake\toolchains.json`
+on Windows, and optionally beside `hmake.cpp`. Select one with `hbuild --toolchain <name>` and print the fully
+resolved registry with `hbuild --list-toolchains -B build` from the source directory or `hbuild --list-toolchains`
+from the build directory.
 
-First hhelper will create the cache.json file.
-cache.json file provides an opportunity to select a different toolset.
-It has array indices to the arrays of different tools in toolsCache.json.
-cache.json file also has the commands
-that will be used to build ```configure``` and ```build``` executables.
-build executable is built with ```BUILD_MODE``` macro defined.
-Running hhelper second time will create these executables,
-linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
-Only difference is that ```hconfigure-b``` is compiled with
-```BUILD_MODE``` macro.
-If the compilation of these executables succeed,
-hhelper will run the ```configure``` exe in the build-dir
-completing the configure stage.
-Now running hbuild will run the ```build``` exe.
-This will create the app executable in ```{buildDir}/release/app```.
+On Linux, register a custom Clang or GCC compiler with:
 
-CMakeLists.txt builds with address sanitizer,
-so you need to copy the respective dll
-in cmake build-dir for debugging on Windows.
+```sh
+hbuild --calibrate /opt/llvm/bin/clang++ --name llvm-custom
+hbuild --toolchain llvm-custom -B build
+```
+
+`--calibrate` accepts an executable path or a name resolved through `PATH`; `--name` is required.
+Calibration runs independently of a project, so it needs neither `hmake.cpp` nor `-B` and cannot be combined
+with build options, targets, `--toolchain`, or `--list-toolchains`. It inspects the compiler's default profile,
+including its version, target, standard include and library search paths, and archiver, then validates compilation,
+archiving, and linking before saving the complete entry to `~/.hmake/toolchains.json`. Existing entries are
+never overwritten. Calibration leaves the built-in host compiler unchanged; select the new name explicitly
+when building a project.
+
+Validation uses the compiler's default C++ language mode and HMake's explicit standard include paths
+(`-nostdinc -nostdinc++`); it does not certify particular language features or HMake IPC support. Compiler search-path
+environment overrides such as `CPATH`, `CPLUS_INCLUDE_PATH`, and `LIBRARY_PATH` are cleared for both probing and
+validation; calibration captures the compiler's default profile, not shell-specific include or library additions.
+
+Calibration saves to the user registry by default. Add `--project` to save beside the nearest `hmake.cpp`,
+running from the source directory or any of its subdirectories:
+
+```sh
+hbuild --calibrate g++ --name gcc-custom --project
+```
+
+Both calibration and removal load the user registry and the current project's registry, if present.
+Names must be unique across both. `--project` is only valid with calibration and requires a project.
+
+Remove a toolchain with `hbuild --remove-toolchain llvm-custom`. HMake finds its definition in the loaded registries
+and edits that file automatically. The first entry in `registryOrder` is the built-in default and cannot be removed.
+Only the named JSON definition is removed; compiler files and project settings are unchanged. Removal preserves
+the remaining entry order and refuses to remove a base that another definition in either loaded registry extends.
+Other projects are not scanned for references. Like calibration, removal works outside a project using the user
+registry alone and cannot be combined with build options, targets, or `--list-toolchains`.
+
+Registry edits use a persistent `toolchains.json.lock` companion file on both platforms. Contending edits fail
+immediately; the file's presence does not mean a lock is held. Do not delete or replace it while an edit is running.
+
+Calibration currently supports Linux Clang/GCC default profiles only. It does not automatically discover
+compilers, accept custom target flags, or select a compiler separately for each configuration.
+
+`toolchains.json` is a top-level object keyed by unique toolchain names. A complete entry has the following form. A
+derived entry can use `extends` and override only the fields it changes; its base must appear earlier.
+
+```json
+{
+    "llvm-18" : {
+        "compiler" : "/opt/llvm/bin/clang++",
+        "linker" : "/opt/llvm/bin/clang++",
+        "archiver" : "/opt/llvm/bin/llvm-ar",
+        "family" : "clang",
+        "style" : "gnu",
+        "version" : "18",
+        "target" : "x86_64-linux-gnu",
+        "include-dirs" : [ "/opt/llvm/include/c++/v1", "/opt/llvm/lib/clang/18/include", "/usr/include" ],
+        "library-dirs" : [ "/opt/llvm/lib", "/usr/lib" ],
+        "bootstrap-arguments" : []
+    },
+                "my-clang":
+    {
+        "extends" : "llvm-18", "bootstrap-arguments" : ["-fuse-ld=lld"]
+    }
+}
+```
+
+The built-in toolchain embeds the standard include and library directories detected while HMake is compiled. HMake
+disables the compiler's default header search with `-nostdinc -nostdinc++` or `/X`, so a complete custom toolchain must
+likewise provide its full standard include search path. Derived toolchains inherit these directory lists unless they
+replace them.
+
+Toolchain registries are treated as externally managed inputs. Editing `toolchains.json` does not cause automatic
+reconfiguration. In the project's `cache.txt`, changing the selected toolchain or variable lines causes automatic
+reconfiguration; comments, blank lines, and the default job count are excluded.
+
+The project `cache.txt` stores the selected toolchain, default job count, and typed cache variables.
+Empty lines and lines beginning with `#` are ignored. Every non-empty line must begin at column zero; leading whitespace
+is invalid. The first two values are positional; later values use `name=value` syntax. The source directory is exactly
+the nearest parent of the build directory that contains `hmake.cpp`.
+Generated commands are
+structured internally rather than stored as editable shell strings. Cache variables are edited in this file; `hbuild`
+does not provide `-D` command-line overrides.
+
+On each invocation, `hbuild` checks `configure`, `build`, `recompileNodes` (which always contains `hmake.cpp`),
+`reconfigureNodes`, `cache.txt`, `nodes-cache.bin`, `config-cache.bin`, and `build-cache.bin`.
+Regular files in both node sets use content hashes: timestamp changes prompt hashing, but unchanged nonzero hashes do not trigger
+recompilation or reconfiguration. Their baseline hashes are stored alongside node IDs in the `build-cache.bin` prefix
+as 4-byte IDs and 8-byte hashes. Zero denotes an empty/unhashed input with no committed baseline, so an empty tracked
+file triggers its owning phase again on each invocation while it remains empty. Successful bootstrap
+compilation commits recompilation baselines; successful configuration commits reconfiguration baselines. Configure
+hashes both sets, but does not advance recompilation baselines. Ordinary builds preserve both baselines while retaining
+any new input registrations. `nodes-cache.bin` independently caches the latest observed file timestamps and hashes.
+An unchanged timestamp reuses the cached hash for these nodes, so edits that preserve the exact timestamp are not
+detected automatically.
+
+Directory scans in `CppTarget`, UE source discovery (`ue.cpp`), and `Projects/LLVM/hmake.cpp` do not register
+directories in `reconfigureNodes` automatically, since directory timestamps also change during IDE atomic saves.
+Users can explicitly register directories in `reconfigureNodes` to trigger configuration when their timestamps change.
+Otherwise, run `hbuild --reconfigure` after adding, deleting, or renaming files discovered by these scans.
+
+`cache.txt` is tracked separately, not through `reconfigureNodes`. Its parsed toolchain and variable lines are hashed
+on every invocation and compared with a separate 64-bit value in the `build-cache.bin` prefix. Configuration records
+this hash after appending any new variables; ordinary builds preserve it. Variable order and value spelling affect
+the hash, but comments, blank lines, line-ending style, and default job count do not. Changing `--default-jobs` saves
+the new default without forcing configuration.
+Both bootstrap compilations emit dependency files in `.hbuild` and feed their header dependencies into `recompileNodes`.
+This includes reported headers inside the build directory. GCC/Clang use `-MMD` (excluding system headers); MSVC uses
+`/sourceDependencies`. The two compilations still run in parallel; dependency parsing and Node registration run on the
+main thread after they finish.
+HMake libraries, compiler/linker binaries, toolchain definitions, and bootstrap-command changes are not monitored
+automatically. `--recompile`, `--reconfigure`, and `--configure-only`
+provide explicit control over the generated executables and configuration.
+
+For a build request, `cache.txt`, `configure`, `build` (the executables have `.exe` extensions on Windows), `nodes-cache.bin`,
+`config-cache.bin`, and `build-cache.bin` must either all exist or all be absent. A partial set is rejected, including
+with `--reconfigure` or `--recompile`; these options preserve existing target cache rows in a complete build directory.
+
+An interrupted or failed first initialization can leave a partial set. A failed generated configuration also removes
+`config-cache.bin`, requiring a clean restart. An existing build whose saved configuration timestamp is still pending
+is rejected even if all six files exist, since configuration may have been interrupted between cache writes. Preserve
+any settings you need from `cache.txt`, then manually delete the build directory and rerun
+`hbuild -B <build-directory>` to initialize it again.
+
+The hmake source filename selects the HMake API generation instead of storing a schema field in local caches.
+The current library pair uses `hmake.cpp`; future generation-specific installations use names such as
+`hmakev1.cpp` with their matching configure/build libraries.
+
 It has targets for all the Examples.
 You need to run these targets in the respective ```Build``` dir.
 E.g. for `Example1`, there is `Example1Build` and `Example1Config`.
@@ -410,7 +549,7 @@ struct OurTarget : BTarget
         printMessage(FORMAT("{}\n", message));
     }
 
-    bool isEventRegistered(Builder &buildeer) override
+    bool isEventRegistered(Builder & buildeer) override
     {
         printMessage(FORMAT("{}\n", message));
         return false;
@@ -442,8 +581,8 @@ So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
 `isEventRegistered` should return `true` if it launched a subprocess via `run.startAsyncProcess`, and `false` if it
 completed synchronously. When a subprocess writes an IPC message to stdout, or exits, HMake calls `isEventCompleted`. An
 empty `message` parameter means the process exited; `*run.output` contains its full output.
-When a callback returns `true`, it must select how processing continues: call `run.startRead()` to wait for more output,
-call `run.writeReadExpected()` to reply and then wait for more output, or call neither to leave the child paused.
+When `isEventCompleted` returns `true`, it must select how processing continues: call `run.startRead()` to wait for more
+output, call `run.writeReadExpected()` to reply and then wait for more output, or call neither to leave the child paused.
 
 IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
 is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.
@@ -508,7 +647,7 @@ struct OurTarget : BTarget
     {
     }
 
-    bool isEventRegistered(Builder &builder) override
+    bool isEventRegistered(Builder & builder) override
     {
         if (error)
         {
@@ -570,7 +709,7 @@ struct OurTarget : BTarget
     {
     }
 
-    bool isEventRegistered(Builder &builder) override
+    bool isEventRegistered(Builder & builder) override
     {
         for (unsigned short i = low; i < high; ++i)
         {
@@ -589,19 +728,20 @@ struct OurTarget2 : BTarget
         a = new OurTarget("a", 10, 40);
         b = new OurTarget("b", 50, 80);
         c = new OurTarget("c", 800, 1000);
-    }
+}
 
-    bool isEventRegistered(Builder &builder) override
-    {
-        a->addDep<0>(c);
-        b->addDep<0>(c);
+bool isEventRegistered(Builder &builder) override
+{
+    a->addDep<0>(c);
+    b->addDep<0>(c);
 
-        uint32_t insertionIndex;
-        builder.readyBTargets.emplace(&c->realBTargets[0], insertionIndex);
-        builder.readyBTargetsSizeGoal += 3;
-        return false;
-    }
-};
+    uint32_t insertionIndex;
+    builder.readyBTargets.emplace(&c->realBTargets[0], insertionIndex);
+    builder.readyBTargetsSizeGoal += 3;
+    return false;
+}
+}
+;
 
 void buildSpecification()
 {
@@ -611,43 +751,47 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
-This example will print ```800``` to ```1000``` and
-then it will print ```10``` to ```40``` and ```50``` to ```80``` in no-order.
-This is because of targets ```OurTarget *a, *b, *c;``` and the dependency relationship
-between these targets.
-These targets were not part of the DAG but instead dynamically added.
-Initially, only ```target2``` was the part of the DAG.
+        This example will print ```800``` to ```1000``` and then it will
+            print ```10``` to ```40``` and ```50``` to ```80``` in no -
+    order.This is because of targets ```OurTarget *a,
+    *b, *c;
+``` and the dependency relationship between these
+    targets.These targets were not part of the DAG but instead dynamically added.Initially,
+    only ```target2``` was the part of the
+        DAG.
 
-HMake supports dynamic targets in round0 as demonstrated.
-These are an HMake speciality.
-Not only you can add new edges in the DAG dynamically,
-but also new nodes as well.
-However, you have to take care of the following aspects:
+    HMake supports dynamic targets in round0 as demonstrated.These are an HMake speciality.Not only you can
+        add new edges in the DAG dynamically,
+    but also new nodes as well.However,
+    you have to take care of the following aspects :
 
-1. You have to update the ```Builder::readyBTargetsSizeGoal``` variable with the
-   additional number of times ```isEventRegistered``` will be called.
-2. If any newly added targets do not have any dependency
-   then it must be added in ```readyBTargets``` list like we added ```c``` target.
-3. Besides new targets, we can also modify the dependencies of older targets.
-   But these targets ```dependenciesSize``` should not be zero.
-   Because if the target ```dependenciesSize``` becomes zero,
-   it is added to the ```readyBTargets``` list.
-   HMake does not allow removing or modifying elements in this list.
+    1. You have to update the ```Builder::readyBTargetsSizeGoal``` variable with the additional number of
+        times ```isEventRegistered``` will be called
+            .2. If any newly added targets do not have any dependency then it must be added
+                in ```readyBTargets``` list like we added ```c``` target.3. Besides new targets,
+    we can also modify the dependencies of older targets.But these
+        targets ```dependenciesSize``` should not be zero.Because if the target ```dependenciesSize``` becomes zero,
+    it is added to the ```readyBTargets``` list.HMake does not allow removing or
+        modifying elements in this list
+            .
 
-### Example 7 — Dynamic edges with cycle detection
+        ## #Example 7 — Dynamic edges with cycle detection
 
-<details>
-<summary>hmake.cpp</summary>
+        <details>
+        <summary> hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-BTarget *b, *c;
+        BTarget *b,
+    *c;
 struct OurTarget : BTarget
 {
-    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN){}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN)
+    {
+    }
     bool isEventRegistered(Builder &builder) override
     {
         b->addDep<0>(c);
@@ -668,23 +812,24 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
-Adding edges dynamically that form a cycle is detected and reported the same way as static cycles.
+        Adding edges dynamically that form a cycle is detected and reported the same way as static cycles
+            .
 
+``` Cycle found : BTarget 0->BTarget 1
+            ->BTarget 0
 ```
-Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0
-```
 
-### Example 8 — Breaking dynamic target rules
+                   ## #Example 8 — Breaking dynamic target rules
 
-<details>
-<summary>hmake.cpp</summary>
+                   <details><summary>
+                       hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-BTarget *a;
+                   BTarget *a;
 
 struct OurTarget : BTarget
 {
@@ -693,7 +838,7 @@ struct OurTarget : BTarget
         a = new BTarget();
         ++builder.readyBTargetsSizeGoal;
         // builder.readyBTargets.emplace(&a->realBTargets[0]);
-        
+
         return false;
     }
 };
@@ -708,21 +853,21 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
-This breaks the rule 2.
-Uncommenting the line above will fix this.
-This might hang or HMake might detect and print ```HMake API misuse```.
+        This breaks the rule 2. Uncommenting the line above will fix this.This might hang or
+    HMake might detect and print ```HMake API misuse```
+        .
 
-### Example 10 — Child Process IPC
+    ## #Example 10 — Child Process IPC
 
-<details>
-<summary>hmake.cpp</summary>
+    <details>
+    <summary> hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-struct Process : BTarget
+    struct Process : BTarget
 {
     explicit Process(const string &name_) : BTarget(name_, false, BTargetType::UNKNOWN)
     {
@@ -793,10 +938,9 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
-<details>
-<summary>main.cpp</summary>
+    <details><summary> main.cpp</ summary>
 
 ```cpp
 #include <cstdint>
@@ -805,60 +949,59 @@ MAIN_FUNCTION
 #include <string>
 #include <unistd.h>
 
-// ---------------------------------------------------------------------------
-// P2978 IPC protocol helpers
-//
-// HMake distinguishes build-system messages from ordinary stdout by checking for
-// a fixed 32-byte delimiter after each message.  The format of one message is:
-//
-//   <payload bytes>  <uint32 payload-length (LE)>  <32-byte delimiter>
-//
-// HMake strips message from the child's normal stdout which is *run.output in
-// the build-system
-// ---------------------------------------------------------------------------
+    // ---------------------------------------------------------------------------
+    // P2978 IPC protocol helpers
+    //
+    // HMake distinguishes build-system messages from ordinary stdout by checking for
+    // a fixed 32-byte delimiter after each message.  The format of one message is:
+    //
+    //   <payload bytes>  <uint32 payload-length (LE)>  <32-byte delimiter>
+    //
+    // HMake strips message from the child's normal stdout which is *run.output in
+    // the build-system
+    // ---------------------------------------------------------------------------
 
-namespace ipc
+    namespace ipc
 {
 
-// The delimiter must match the one compiled into HMake exactly.
-inline constexpr char delimiter[] =
-    "DELIMITER"
-    "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
-    "DELIMITER"; // 32 bytes total
+    // The delimiter must match the one compiled into HMake exactly.
+    inline constexpr char delimiter[] = "DELIMITER"
+                                        "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
+                                        "DELIMITER"; // 32 bytes total
 
-static void writeAll(int fd, const char *buf, std::size_t len)
-{
-    std::size_t written = 0;
-    while (written < len)
+    static void writeAll(int fd, const char *buf, std::size_t len)
     {
-        const ssize_t n = ::write(fd, buf + written, len - written);
-        if (n == -1)
+        std::size_t written = 0;
+        while (written < len)
         {
-            if (errno == EINTR)
-                continue; // interrupted by signal — retry
-            std::perror("ipc::writeAll");
-            std::exit(EXIT_FAILURE);
+            const ssize_t n = ::write(fd, buf + written, len - written);
+            if (n == -1)
+            {
+                if (errno == EINTR)
+                    continue; // interrupted by signal — retry
+                std::perror("ipc::writeAll");
+                std::exit(EXIT_FAILURE);
+            }
+            written += static_cast<std::size_t>(n);
         }
-        written += static_cast<std::size_t>(n);
     }
-}
 
-// Send a single IPC message to the build-system.
-// The payload is an arbitrary string; the build-system receives it verbatim
-// inside isEventCompleted(builder, message).
-void send(const std::string &payload)
-{
-    // Frame layout: payload | uint32 length | delimiter
-    const auto len = static_cast<uint32_t>(payload.size());
+    // Send a single IPC message to the build-system.
+    // The payload is an arbitrary string; the build-system receives it verbatim
+    // inside isEventCompleted(builder, message).
+    void send(const std::string &payload)
+    {
+        // Frame layout: payload | uint32 length | delimiter
+        const auto len = static_cast<uint32_t>(payload.size());
 
-    std::string frame;
-    frame.reserve(payload.size() + sizeof(uint32_t) + sizeof(delimiter) - 1);
-    frame.append(payload);
-    frame.append(reinterpret_cast<const char *>(&len), sizeof(len)); // little-endian on x86/ARM
-    frame.append(delimiter, sizeof(delimiter) - 1);                  // exclude null terminator
+        std::string frame;
+        frame.reserve(payload.size() + sizeof(uint32_t) + sizeof(delimiter) - 1);
+        frame.append(payload);
+        frame.append(reinterpret_cast<const char *>(&len), sizeof(len)); // little-endian on x86/ARM
+        frame.append(delimiter, sizeof(delimiter) - 1);                  // exclude null terminator
 
-    writeAll(STDOUT_FILENO, frame.data(), frame.size());
-}
+        writeAll(STDOUT_FILENO, frame.data(), frame.size());
+    }
 
 } // namespace ipc
 
@@ -937,28 +1080,34 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
 `getConfiguration()` creates a default `Configuration` named `Release` with `ConfigType::RELEASE`.
-`CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in the
-build directory or a matching configuration subdirectory. This allows a multi-configuration project to build only the
-active configuration without running the others.
+`CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in
+    the build directory
+    or a matching configuration subdirectory.This allows a multi
+           - configuration project to build only the active configuration without running the others
+                 .
 
-`getCppExeDSC` returns a `DSC<CppTarget>` (Dependency Specification Container). `getSourceTarget()` returns the
-`CppTarget` to which source files, include directories, and module files are attached.
+`getCppExeDSC` returns a `DSC<CppTarget>` (Dependency Specification Container)
+                 . `getSourceTarget()` returns the
+`CppTarget` to which source files,
+    include directories,
+    and module files are attached.
 
-Every `Configuration` creates a `stdCppTarget` by default, which carries the standard include directories from
-`toolsCache.json`. All targets created via `get*` functions receive this as a private dependency automatically.
+        Every `Configuration` creates a `stdCppTarget` by default,
+    which carries the standard include directories from the selected named toolchain
+        .All targets created via `get *` functions receive this as a private dependency automatically
+        .
 
-### Example 2 — Multiple configurations and source filtering
+    ## #Example 2 — Multiple configurations and source filtering
 
-<details>
-<summary>hmake.cpp</summary>
+    <details><summary> hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &config)
+    void configurationSpecification(Configuration &config)
 {
     config.getCppExeDSC("app").getSourceTarget().sourceDirsRE(".", "file[1-4]\\.cpp|main\\.cpp");
 }
@@ -973,32 +1122,35 @@ void buildSpecification()
 MAIN_FUNCTION
 ```
 
-</details>
+    </ details>
 
-Each `getConfiguration` call creates a named configuration subdirectory. `assign()` sets build features on the
-configuration. The full list of available features (optimization level, LTO, RTTI, exceptions, sanitizers, etc.) is in
-`Features.hpp`, modeled on the Boost.Build feature system.
+        Each `getConfiguration` call creates a named configuration
+            subdirectory. `assign()` sets build features on the configuration
+                .The full list of available features(optimization level, LTO, RTTI, exceptions, sanitizers, etc.) is in
+`Features.hpp`,
+    modeled on the Boost.Build feature system.
 
-`sourceDirsRE` accepts a regex to filter files; `sourceDirs` defaults the regex to `.*`; `rSourceDirs` uses a recursive
-directory iterator.
+`sourceDirsRE` accepts a regex to filter files;
+`sourceDirs` defaults the regex to `.*`;
+`rSourceDirs` uses a recursive directory iterator
+    .
 
-### Example 3 — Cache variables
+    ## #Example 3 — Cache variables
 
-<details>
-<summary>hmake.cpp</summary>
+    <details>
+    <summary> hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &config)
+    void
+    configurationSpecification(Configuration &config)
 {
     CppTarget &app = config.getCppExeDSC("app").getSourceTarget();
     app.sourceFiles("main.cpp");
 
-    // Change the value of "FILE1" in cache.hmake to false and then run configure again.
-    // Then run hbuild. Now file2.cpp will be used.
-    // CacheVariable is template. So you can use any type with it. However, conversions from and to json should
-    // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
+    // Change FILE1=true to FILE1=false in cache.txt, then run hbuild. HMake detects the
+    // graph-affecting cache change, reconfigures, and selects file2.cpp.
     if (CacheVariable("FILE1", true).value)
     {
         app.sourceFiles("file1.cpp");
@@ -1020,18 +1172,38 @@ MAIN_FUNCTION
 
 </details>
 
-`CacheVariable` persists a typed value in `cache.hmake`. Edit the value and re-run configure to change which branch is
-taken without modifying source. Any type with nlohmann/json serialization support can be used.
+`CacheVariable` supports `bool`, `int`, and `string` values. Names must match `[A-Za-z_][A-Za-z0-9_]*`;
+booleans use
+`true` or `false`, integers use decimal syntax,
+    and strings require outermost double quotes :
 
-### Example 4 — Static and shared libraries
+```text SDK_ROOT = "C:\Program Files\Microsoft Visual Studio" MESSAGE = "first\nsecond"
+```
 
-<details>
-<summary>hmake.cpp</summary>
+    The outermost quotes delimit a string;
+backslashes and any interior quotes are literal.Thus `\n` above is two characters.Call `decodeBackslashEscapes()` explicitly to decode `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and
+                                                                                                                                                 fixed
+                                                                                                                                                 -
+                                                                                                                                                 width `\xHH`
+                                                                                                                                                     .Actual
+                                                                                                                                                 CR
+    ,
+    LF,
+    and NUL characters cannot be represented in a cache value.A missing variable is appended to `cache.txt` with its
+        default value;
+an existing value with a different type is an error
+    .
+
+    ## #Example 4 — Static and shared libraries
+
+    <details>
+    <summary> hmake.cpp</ summary>
 
 ```cpp
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &config)
+    void
+    configurationSpecification(Configuration &config)
 {
     DSC<CppTarget> &catStatic = config.getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
     catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
@@ -1076,7 +1248,7 @@ void configurationSpecification(Configuration &config)
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         Node *outputDir = bsMode == BSMode::CONFIGURE
-                              ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
+                              ? Node::getNode<PathType::NEITHER>("../Example4/Build/Release/Cat" + str, false, false)
                               : nullptr;
         DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
@@ -1088,11 +1260,11 @@ void configurationSpecification(Configuration &config)
         dog2.privateDeps(cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppTarget> &app = config.getCppExeDSC("App" + str);
-        app.getLOAT().setOutputName("app");
+        app.getLoat().setOutputName("app");
         app.privateDeps(dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppTarget> &app2 = config.getCppExeDSC("App2" + str);
-        app2.getLOAT().setOutputName("app");
+        app2.getLoat().setOutputName("app");
         app2.privateDeps(dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
@@ -1118,8 +1290,7 @@ MAIN_FUNCTION
 order is correct for linkers that require it.
 
 `getCppTargetDSC_P` accepts an output directory `Node*`, allowing consumption of a prebuilt library from another build
-tree. Pass `nullptr` at build time (only needed at configure time. why do an extra `Node::getNodeNonNormalized` function
-call).
+tree. Pass `nullptr` at build time because the output-directory lookup is needed only while configuring.
 
 ### Example 7 — C++20 modules and header units
 

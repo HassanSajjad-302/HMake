@@ -152,7 +152,7 @@ class UeConfiguration;
  * the HMake-side evaluated C++ data after a specify() function has run.
  *
  * A Target specification uses a source-less UeCppTarget as the HMake graph anchor
- * for its executable PLOAT. As in UBT, the Launch module owns the ordinary C++
+ * for its executable Ploat. As in UBT, the Launch module owns the ordinary C++
  * entry-point sources; TargetRules does not enumerate them.
  */
 class UeCppTarget : public CppTarget
@@ -238,7 +238,8 @@ class UeCppTarget : public CppTarget
     // Marks this module's link closure as required. implementationRequested doubles as the recursion guard, so UE's
     // circular module relations terminate even when this target has AddCppSource::NO.
     void requestImplementation();
-    void findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources);
+    void findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *> &sourceNodes,
+                        std::pmr::vector<Node *> &ispcSources);
     void addIspcSource(Node *source);
     void addDefaultIncludePaths(Node *moduleDirectory);
 
@@ -447,7 +448,7 @@ struct UeSpecifyFunctionSet
  *
  * A generated external table can map platform/configuration/architecture tuples to
  * these values. Empty members retain HMake's ordinary command for that language or
- * build stage. CppSrc/CppMod and LOAT append sources, outputs and dependencies.
+ * build stage. CppSrc/CppMod and Loat append sources, outputs and dependencies.
  */
 struct UeBuildCommands
 {
@@ -571,26 +572,25 @@ class UeConfiguration : public Configuration
     std::optional<UeBuildCommands> buildCommands;
 
   private:
-    // One PLOAT per physical prebuilt library, shared by all modules in this
+    // One Ploat per physical prebuilt library, shared by all modules in this
     // UeConfiguration.
-    flat_hash_map<string, PLOAT *> prebuiltLibraries;
+    flat_hash_map<string, Ploat *> prebuiltLibraries;
 
     // Configurations created by createProducerConfigurations(), keyed by the profile each one provides. Empty in a
     // producer configuration, because profiles do not nest.
     flat_hash_map<UeConfProfile, UeConfiguration *> producerConfigurations;
 
-    DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind,
-                                         UeConfProfile moduleUeConfProfile);
-    PLOAT &getOrAddPrebuiltLibrary(Node *libraryFile, TargetType libraryType);
+    DSC<UeCppTarget> &makeDscUeCppTarget(string logicalName, UeFileKind fileKind, UeConfProfile moduleUeConfProfile);
+    Ploat &getOrAddPrebuiltLibrary(Node *libraryFile, TargetType libraryType);
     void initializeApiMacro(DSC<UeCppTarget> &target, bool defines) const;
 
     // Resolves the configuration that archives modules registered under the given profile. Errors when this
     // configuration has no producer for it.
     UeConfiguration &getProducerConfiguration(UeConfProfile producerUeConfProfile) const;
 
-    // Creates the consumer-side stand-in for a module archived by a producer configuration. The returned PLOAT
+    // Creates the consumer-side stand-in for a module archived by a producer configuration. The returned Ploat
     // resolves to the producer's archive file and carries only a scheduler edge to it.
-    PLOAT &addProducerArchive(const string &logicalName, UeConfProfile producerUeConfProfile);
+    Ploat &addProducerArchive(const string &logicalName, UeConfProfile producerUeConfProfile);
 
     friend class UeCppTarget;
     template <typename, typename> friend struct DSCExtension;
@@ -619,8 +619,7 @@ template <typename T> bool UeCppTarget::evaluate(T property) const
     }
 }
 
-template <typename T, typename... Property>
-UeConfiguration &UeConfiguration::assign(T property, Property... properties)
+template <typename T, typename... Property> UeConfiguration &UeConfiguration::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), UePlatform>)
     {
@@ -722,7 +721,7 @@ Derived &DSCExtension<UeCppTarget, Derived>::addPrebuiltLibrary(DepType depType,
     }
 
     Node *libraryFile = library.resolve(true);
-    PLOAT &prebuilt = configuration->getOrAddPrebuiltLibrary(libraryFile, libraryType);
+    Ploat &prebuilt = configuration->getOrAddPrebuiltLibrary(libraryFile, libraryType);
     derived().linkDeps(depType, prebuilt);
     return derived();
 }

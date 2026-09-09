@@ -3,23 +3,22 @@
 void configurationSpecification(Configuration &config)
 {
     auto makeApps = [&] {
-        const string str = config.targetType == TargetType::LIBRARY_STATIC
-                               ? "-Static"
-                               : config.targetType == TargetType::LIBRARY_SHARED ? "-Shared" : "-Object";
+        const string str = config.targetType == TargetType::LIBRARY_STATIC   ? "-Static"
+                           : config.targetType == TargetType::LIBRARY_SHARED ? "-Shared"
+                                                                             : "-Object";
 
         DSC<CppTarget> *cat;
         if (config.targetType == TargetType::LIBRARY_OBJECT)
         {
             cat = &config.getCppTargetDSC("Cat" + str, true, "CAT_EXPORT");
-            cat->getSourceTarget()
-                .sourceFiles("../Example4/Cat/src/Cat.cpp")
-                .publicIncludes("../Example4/Cat/header");
+            cat->getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
         }
         else
         {
-            Node *outputDir = bsMode == BSMode::CONFIGURE
-                                  ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
-                                  : nullptr;
+            Node *outputDir =
+                bsMode == BSMode::CONFIGURE
+                    ? Node::getNode<PathType::NEITHER>("../Example4/Build/Release/Cat" + str, false, false)
+                    : nullptr;
             cat = &config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
             cat->getSourceTarget().interfaceIncludes("../Example4/Cat/header");
         }
@@ -31,11 +30,11 @@ void configurationSpecification(Configuration &config)
         dog2.privateDeps(*cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppTarget> &app = config.getCppExeDSC("App" + str);
-        app.getLOAT().setOutputName("app");
+        app.getLoat().setOutputName("app");
         app.privateDeps(dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppTarget> &app2 = config.getCppExeDSC("App2" + str);
-        app2.getLOAT().setOutputName("app");
+        app2.getLoat().setOutputName("app");
         app2.privateDeps(dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
@@ -58,7 +57,7 @@ void configurationSpecification(Configuration &config)
     mixedPrivateDog.getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
     DSC<CppTarget> &mixedPrivateApp = config.getCppExeDSC("App-MixedPrivate").privateDeps(mixedPrivateDog);
-    mixedPrivateApp.getLOAT().setOutputName("app");
+    mixedPrivateApp.getLoat().setOutputName("app");
     mixedPrivateApp.getSourceTarget().sourceFiles("main2.cpp");
 
     // An INTERFACE library requirement is not consumed by the object target itself, but becomes required when a
@@ -72,7 +71,7 @@ void configurationSpecification(Configuration &config)
     mixedInterfaceBridge.interfaceDeps(mixedInterfaceCat);
 
     DSC<CppTarget> &mixedInterfaceApp = config.getCppExeDSC("App-MixedInterface").privateDeps(mixedInterfaceBridge);
-    mixedInterfaceApp.getLOAT().setOutputName("app");
+    mixedInterfaceApp.getLoat().setOutputName("app");
     mixedInterfaceApp.getSourceTarget().sourceFiles("../Example4/main.cpp");
 }
 

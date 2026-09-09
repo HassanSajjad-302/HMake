@@ -4,7 +4,7 @@
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
 #include "DSC.hpp"
-#include "LOAT.hpp"
+#include "Loat.hpp"
 #include <utility>
 
 using std::filesystem::directory_iterator, std::filesystem::remove;
@@ -16,9 +16,13 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
-        myBuildDir = Node::getHalfNode(buildCacheFilesDirPath);
-        create_directories(myBuildDir->filePath);
+        string buildCacheFilesDirPath(configureNode->filePath);
+        buildCacheFilesDirPath += slashc;
+        buildCacheFilesDirPath += configuration->name;
+        buildCacheFilesDirPath += slashc;
+        buildCacheFilesDirPath += name;
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildCacheFilesDirPath));
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 
     DSC<CppTarget> *t = nullptr;
@@ -78,7 +82,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         }
 
         string_view configCache = bTargetCaches[cacheIndex].configCache;
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         uint32_t count = readUint32(configCache.data(), bytesRead);
         for (uint64_t i = 0; i < count; ++i)
         {
@@ -129,14 +133,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLOAT().realBTargets[0]);
+                        examplesTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLoat().realBTargets[0]);
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLOAT().realBTargets[0]);
+                        testTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLoat().realBTargets[0]);
                     }
                 }
             }
@@ -144,7 +148,10 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
     }
     else
     {
-        string str = srcNode->filePath + "/libs/" + name + "/test";
+        string str(srcNode->filePath);
+        str += "/libs/";
+        str += name;
+        str += "/test";
         for (const auto &p : std::filesystem::recursive_directory_iterator(str))
         {
             if (p.path().extension() == ".ipp" || p.path().extension() == ".hpp")

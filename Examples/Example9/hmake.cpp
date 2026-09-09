@@ -4,7 +4,7 @@ template <typename... T> void initializeTargets(DSC<CppTarget> *target, T... tar
 {
     CppTarget &t = target->getSourceTarget();
     const string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
-    t.moduleDirsRE("src/" + str + "/", ".*cpp")
+    t.moduleDirsRE("src/" + str, ".*cpp")
         .privateHUDirsRE("src/" + str, "", ".*hpp")
         .publicHUDirsRE("include/" + str, str + '/', ".*hpp");
 

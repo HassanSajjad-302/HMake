@@ -5,32 +5,108 @@
 #include "Manager.hpp"
 
 #include <algorithm>
+#include <cassert>
+#include <cstdio>
 #include <cstring>
-#include <filesystem>
 #include <limits>
 #include <utility>
 #include <vector>
 
 #ifndef _WIN32
 #include "sys/prctl.h"
-#include "sys/resource.h"
 #include "sys/wait.h"
-#include "wordexp.h"
 #include <cerrno>
 #include <fcntl.h>
+#include <spawn.h>
+#include <unistd.h>
 #endif
 
 #ifdef _WIN32
 #include <Windows.h>
-#include <chrono>
 #endif
 
 namespace
 {
+#ifndef _WIN32
+// Split literal arguments in place. Quoting and escapes group bytes without shell expansion.
+// The caller owns the writable, NUL-terminated buffer and keeps it alive until process launch completes.
+string_view parseCommandLineArguments(char *commandLine, const uint64_t commandSize,
+                                      std::pmr::vector<char *> &arguments)
+{
+    uint64_t readOffset = 0;
+    uint64_t writeOffset = 0;
+    while (readOffset < commandSize)
+    {
+        const uint64_t argumentOffset = writeOffset;
+        bool haveArgument = false;
+        char quote = '\0';
+        while (readOffset < commandSize)
+        {
+            char value = commandLine[readOffset++];
+            if (value == '\0')
+            {
+                return "embedded null byte.";
+            }
+            if (quote == '\0' && (value == ' ' || (value >= '\t' && value <= '\r')))
+            {
+                break;
+            }
+            if (value == '\\' && quote != '\'')
+            {
+                if (readOffset == commandSize)
+                {
+                    return "unfinished escape.";
+                }
+                value = commandLine[readOffset++];
+                if (value == '\n')
+                {
+                    continue;
+                }
+                if (value == '\0')
+                {
+                    return "embedded null byte.";
+                }
+                if (quote == '"' && value != '$' && value != '`' && value != '"' && value != '\\')
+                {
+                    commandLine[writeOffset++] = '\\';
+                }
+            }
+            else if (value == quote)
+            {
+                quote = '\0';
+                continue;
+            }
+            else if (quote == '\0' && (value == '\'' || value == '"'))
+            {
+                quote = value;
+                haveArgument = true;
+                continue;
+            }
+            commandLine[writeOffset++] = value;
+            haveArgument = true;
+        }
+        if (quote != '\0')
+        {
+            return "unterminated quote.";
+        }
+        if (haveArgument)
+        {
+            arguments.push_back(commandLine + argumentOffset);
+            commandLine[writeOffset++] = '\0';
+        }
+    }
+    if (arguments.empty() || arguments.front()[0] == '\0')
+    {
+        return "empty executable.";
+    }
+    return {};
+}
+#endif
+
 std::vector<string *> &getOutputPool()
 {
-    // All RunCommand users are intentionally single-threaded. Keep the pool alive for the process lifetime so
-    // teardown never walks thousands of retained buffers; the OS reclaims them at exit.
+    // Asynchronous RunCommand users share Builder's single scheduler thread. Keep the pool alive for the process
+    // lifetime so teardown never walks thousands of retained buffers; the OS reclaims them at exit.
     static auto *const pool = [] {
         auto *created = new std::vector<string *>();
         created->reserve(4 * 1024);
@@ -82,7 +158,162 @@ HANDLE getWriteCompletionEvent()
     return event;
 }
 #endif
+
+template <typename String> void appendResponseArgument(String &responseContents, const string_view argument)
+{
+    if (!argument.empty() && argument.find_first_of(" \t\r\n\f\v\"\\'") == string_view::npos)
+    {
+        responseContents.append(argument);
+        responseContents.push_back('\n');
+        return;
+    }
+
+    // LLVM's GNU tokenizer removes a backslash before another backslash or quote. Doubling every literal backslash and
+    // escaping every double quote therefore preserves each parsed argument, including consecutive slashes.
+    responseContents.push_back('"');
+    for (const char value : argument)
+    {
+        if (value == '\\' || value == '"')
+        {
+            responseContents.push_back('\\');
+        }
+        responseContents.push_back(value);
+    }
+    responseContents.push_back('"');
+    responseContents.push_back('\n');
+}
+
+void writeResponseFile(const string &fileName, const string_view contents)
+{
+    // A response file is a transient process-transport artifact written immediately before launch. Its timestamp is
+    // not part of HMake's dependency model, so reading it first merely doubles I/O and allocates an old-content buffer.
+    FILE *output = nullptr;
+#ifdef _WIN32
+    fopen_s(&output, fileName.c_str(), "wb");
+#else
+    output = fopen(fileName.c_str(), "wb");
+#endif
+    if (output == nullptr)
+    {
+        printErrorMessage(FORMAT("Could not create response file.\nResponse file: {}", fileName));
+    }
+
+    const uint64_t written = contents.empty() ? 0 : fwrite(contents.data(), 1, contents.size(), output);
+    const int closeResult = fclose(output);
+    if (written != contents.size() || closeResult != 0)
+    {
+        printErrorMessage(FORMAT("Could not write response file.\nResponse file: {}\nRequested bytes: {}\n"
+                                 "Written bytes: {}",
+                                 fileName, contents.size(), written));
+    }
+}
+
+template <typename String>
+void commandWithResponseFileImpl(String &command, const string &responseFile, const uint64_t threshold)
+{
+    if (threshold == 0 || command.size() <= threshold)
+    {
+        return;
+    }
+
+#ifndef _WIN32
+    // Use the launcher's literal tokenizer so response files preserve the same arguments at every command length.
+    // Keep the parsed bytes separate while reusing the original command buffer for the response-file contents.
+    STACK_PMR_STRING(parsedCommand, 16 * 1024)
+    parsedCommand.assign(command.data(), command.size());
+    STACK_PMR_VECTOR(char *, arguments, 1024)
+    const string_view parseError = parseCommandLineArguments(parsedCommand.data(), parsedCommand.size(), arguments);
+    if (!parseError.empty())
+    {
+        printErrorMessage(FORMAT("Could not tokenize an oversized command for its response file.\nCommand: {}\n"
+                                 "Response file: {}\nReason: {}",
+                                 string_view(command.data(), command.size()), responseFile, parseError));
+    }
+
+    command.clear();
+    for (uint64_t index = 1; index < arguments.size(); ++index)
+    {
+        appendResponseArgument(command, arguments[index]);
+    }
+    writeResponseFile(responseFile, string_view(command.data(), command.size()));
+
+    // Reuse the same allocation once more for the smaller executable/response-file command. Single quoting preserves
+    // every executable/response-path byte; the four-character insertion handles a literal quote.
+    command.clear();
+    const auto appendLiteral = [&command](const string_view value) {
+        command.push_back('\'');
+        for (const char character : value)
+        {
+            if (character == '\'')
+            {
+                command.append("'\\''");
+            }
+            else
+            {
+                command.push_back(character);
+            }
+        }
+        command.push_back('\'');
+    };
+    appendLiteral(arguments[0]);
+    command.append(" @");
+    appendLiteral(responseFile);
+#else
+    // CreateProcess receives the original Windows command line directly. Preserve its existing argument spelling in
+    // the response file; only separate argv[0], respecting an ordinary quoted executable path.
+    const string_view commandView(command.data(), command.size());
+    const uint64_t begin = commandView.find_first_not_of(" \t\r\n");
+    if (begin == string_view::npos)
+    {
+        printErrorMessage("Cannot create a response file for an empty command.");
+    }
+
+    STACK_PMR_STRING(executable, 16 * 1024)
+    uint64_t end = begin;
+    if (commandView[begin] == '"')
+    {
+        end = commandView.find('"', begin + 1);
+        if (end == string_view::npos)
+        {
+            printErrorMessage(
+                FORMAT("Oversized command has an unterminated executable quote.\nCommand: {}", commandView));
+        }
+        executable.assign(commandView.substr(begin + 1, end - begin - 1));
+        ++end;
+    }
+    else
+    {
+        end = commandView.find_first_of(" \t\r\n", begin);
+        if (end == string_view::npos)
+        {
+            end = commandView.size();
+        }
+        executable.assign(commandView.substr(begin, end - begin));
+    }
+
+    const uint64_t arguments = commandView.find_first_not_of(" \t\r\n", end);
+    const string_view responseContents = arguments == string_view::npos ? string_view{} : commandView.substr(arguments);
+    writeResponseFile(responseFile, responseContents);
+
+    command.clear();
+    command.push_back('"');
+    command.append(executable.data(), executable.size());
+    command.append("\" @\"");
+    command.append(responseFile);
+    command.push_back('"');
+#endif
+}
 } // namespace
+
+void commandWithResponseFile(std::pmr::string &command, const string &responseFile, const uint64_t threshold)
+{
+    commandWithResponseFileImpl(command, responseFile, threshold);
+}
+
+void commandWithResponseFile(string &command, const string &responseFile, const uint64_t threshold)
+{
+    commandWithResponseFileImpl(command, responseFile, threshold);
+}
 
 RunCommand::~RunCommand()
 {
@@ -93,7 +324,7 @@ void RunCommand::acquireOutput()
 {
     if (output)
     {
-        // A synchronous RunCommand may be reused before returning its lease to the pool.
+        // An asynchronous RunCommand may be reused before returning its lease to the pool.
         output->clear();
         return;
     }
@@ -122,6 +353,279 @@ void RunCommand::releaseOutput()
     output = nullptr;
 }
 
+RunCommand::OutputAndStatus RunCommand::runProcess(const string_view command, const char *workingDirectory,
+                                                   const bool captureOutput)
+{
+    if (workingDirectory != nullptr && workingDirectory[0] == '\0')
+    {
+        workingDirectory = nullptr;
+    }
+    OutputAndStatus result;
+    string commandLine(command);
+    char buffer[16 * 1024];
+    string captureError;
+    const auto finishOutput = [&](const string_view error) {
+        if (!error.empty())
+        {
+            result.exitStatus = EXIT_FAILURE;
+            if (!result.output.empty() && result.output.back() != '\n')
+            {
+                result.output.push_back('\n');
+            }
+            result.output += error;
+            result.output.push_back('\n');
+        }
+        return std::move(result);
+    };
+#ifdef _WIN32
+    if (command.find('\0') != string_view::npos)
+    {
+        return finishOutput("Could not parse the synchronous command: embedded null byte.");
+    }
+    SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE outputRead = nullptr;
+    HANDLE inheritedHandles[3]{};
+    const uint32_t inheritedHandleCount = captureOutput ? 2 : 3;
+    STARTUPINFOEXA startupInfo{};
+    PROCESS_INFORMATION processInfo{};
+    bool attributesInitialized = false;
+    const auto finish = [&](const string_view error) {
+        if (attributesInitialized)
+        {
+            DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
+        }
+        for (const HANDLE handle : {outputRead, inheritedHandles[0], inheritedHandles[1], inheritedHandles[2],
+                                    processInfo.hThread, processInfo.hProcess})
+        {
+            if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(handle);
+            }
+        }
+        return finishOutput(error);
+    };
+    if (captureOutput)
+    {
+        if (!CreatePipe(&outputRead, &inheritedHandles[1], &inheritableAttributes, sizeof(buffer)) ||
+            !SetHandleInformation(outputRead, HANDLE_FLAG_INHERIT, 0))
+        {
+            return finish(FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}",
+                                 P2978::getErrorString()));
+        }
+    }
+    else
+    {
+        // Own inheritable duplicates; changing the parent's handle flags would affect concurrent launches.
+        for (uint32_t index = 1; index < inheritedHandleCount; ++index)
+        {
+            const HANDLE standardOutput = GetStdHandle(index == 1 ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
+            if (standardOutput == nullptr || standardOutput == INVALID_HANDLE_VALUE)
+            {
+                inheritedHandles[index] =
+                    CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritableAttributes,
+                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                if (inheritedHandles[index] == INVALID_HANDLE_VALUE)
+                {
+                    return finish(FORMAT("Could not open NUL for synchronous process output.\nSystem error: {}",
+                                         P2978::getErrorString()));
+                }
+            }
+            else if (!DuplicateHandle(GetCurrentProcess(), standardOutput, GetCurrentProcess(),
+                                      &inheritedHandles[index], 0, TRUE, DUPLICATE_SAME_ACCESS))
+            {
+                return finish(
+                    FORMAT("Could not inherit synchronous process output.\nSystem error: {}", P2978::getErrorString()));
+            }
+        }
+    }
+
+    inheritedHandles[0] = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritableAttributes,
+                                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (inheritedHandles[0] == INVALID_HANDLE_VALUE)
+    {
+        return finish(
+            FORMAT("Could not open NUL for synchronous process input.\nSystem error: {}", P2978::getErrorString()));
+    }
+
+    startupInfo.StartupInfo.cb = sizeof(startupInfo);
+    startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startupInfo.StartupInfo.hStdInput = inheritedHandles[0];
+    startupInfo.StartupInfo.hStdOutput = inheritedHandles[1];
+    // Captured streams share one writer without an extra handle; inherited streams retain separate destinations.
+    startupInfo.StartupInfo.hStdError = inheritedHandles[captureOutput ? 1 : 2];
+
+    uint64_t attributeBytes = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+    std::vector<unsigned char> attributeStorage(attributeBytes);
+    startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeStorage.data());
+    if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 1, 0, &attributeBytes))
+    {
+        return finish(FORMAT("Could not initialize synchronous process handle inheritance.\nSystem error: {}",
+                             P2978::getErrorString()));
+    }
+    attributesInitialized = true;
+    if (!UpdateProcThreadAttribute(startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inheritedHandles,
+                                   inheritedHandleCount * sizeof(HANDLE), nullptr, nullptr))
+    {
+        return finish(FORMAT("Could not restrict synchronous process handle inheritance.\nSystem error: {}",
+                             P2978::getErrorString()));
+    }
+
+    if (!CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT, nullptr,
+                        workingDirectory, &startupInfo.StartupInfo, &processInfo))
+    {
+        return finish(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}", command,
+                             P2978::getErrorString()));
+    }
+    DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
+    attributesInitialized = false;
+    for (uint32_t index = 0; index < inheritedHandleCount; ++index)
+    {
+        CloseHandle(inheritedHandles[index]);
+        inheritedHandles[index] = nullptr;
+    }
+    CloseHandle(processInfo.hThread);
+    processInfo.hThread = nullptr;
+
+    if (captureOutput)
+    {
+        // Drain while the child runs so a full pipe cannot block its exit.
+        while (true)
+        {
+            DWORD bytesRead = 0;
+            if (!ReadFile(outputRead, buffer, sizeof(buffer), &bytesRead, nullptr))
+            {
+                if (GetLastError() == ERROR_BROKEN_PIPE)
+                {
+                    break;
+                }
+                captureError =
+                    FORMAT("Could not read synchronous process output.\nSystem error: {}", P2978::getErrorString());
+                break;
+            }
+            result.output.append(buffer, bytesRead);
+        }
+        CloseHandle(outputRead);
+        outputRead = nullptr;
+    }
+
+    DWORD exitCode = EXIT_FAILURE;
+    if (WaitForSingleObject(processInfo.hProcess, INFINITE) != WAIT_OBJECT_0 ||
+        !GetExitCodeProcess(processInfo.hProcess, &exitCode))
+    {
+        return finish(FORMAT("Could not wait for the synchronous process.\nSystem error: {}", P2978::getErrorString()));
+    }
+    result.exitStatus = static_cast<int>(exitCode);
+#else
+    int outputPipes[2] = {-1, -1};
+    posix_spawn_file_actions_t fileActions;
+    bool actionsInitialized = false;
+    const auto finish = [&](const string_view error) {
+        if (actionsInitialized)
+        {
+            posix_spawn_file_actions_destroy(&fileActions);
+        }
+        for (const int descriptor : outputPipes)
+        {
+            if (descriptor != -1)
+            {
+                close(descriptor);
+            }
+        }
+        return finishOutput(error);
+    };
+    STACK_PMR_VECTOR(char *, arguments, 128)
+    if (const string_view error = parseCommandLineArguments(commandLine.data(), commandLine.size(), arguments);
+        !error.empty())
+    {
+        return finish(FORMAT("Could not parse the synchronous command: {}", error));
+    }
+    arguments.push_back(nullptr);
+    if (captureOutput && pipe2(outputPipes, O_CLOEXEC) == -1)
+    {
+        return finish(
+            FORMAT("Could not create the synchronous process output pipe.\nSystem error: {}", P2978::getErrorString()));
+    }
+
+    int spawnError = posix_spawn_file_actions_init(&fileActions);
+    if (spawnError != 0)
+    {
+        return finish(FORMAT("Could not initialize synchronous process redirection.\nSystem error: {}",
+                             std::strerror(spawnError)));
+    }
+    actionsInitialized = true;
+    if ((spawnError = posix_spawn_file_actions_addopen(&fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)) != 0 ||
+        (captureOutput &&
+         ((spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDOUT_FILENO)) != 0 ||
+          (spawnError = posix_spawn_file_actions_adddup2(&fileActions, outputPipes[1], STDERR_FILENO)) != 0)))
+    {
+        return finish(
+            FORMAT("Could not prepare synchronous process redirection.\nSystem error: {}", std::strerror(spawnError)));
+    }
+    if (workingDirectory != nullptr &&
+        (spawnError = posix_spawn_file_actions_addchdir_np(&fileActions, workingDirectory)) != 0)
+    {
+        return finish(FORMAT("Could not set the synchronous process working directory.\nSystem error: {}",
+                             std::strerror(spawnError)));
+    }
+
+    pid_t processId;
+    spawnError = posix_spawnp(&processId, arguments.front(), &fileActions, nullptr, arguments.data(), environ);
+    posix_spawn_file_actions_destroy(&fileActions);
+    actionsInitialized = false;
+    if (spawnError != 0)
+    {
+        return finish(FORMAT("Could not create the synchronous process.\nCommand: {}\nSystem error: {}", command,
+                             std::strerror(spawnError)));
+    }
+
+    if (captureOutput)
+    {
+        close(outputPipes[1]);
+        outputPipes[1] = -1;
+        while (true)
+        {
+            const int64_t bytesRead = read(outputPipes[0], buffer, sizeof(buffer));
+            if (bytesRead > 0)
+            {
+                result.output.append(buffer, bytesRead);
+            }
+            else if (bytesRead == 0)
+            {
+                break;
+            }
+            else if (errno != EINTR)
+            {
+                captureError =
+                    FORMAT("Could not read synchronous process output.\nSystem error: {}", P2978::getErrorString());
+                break;
+            }
+        }
+        close(outputPipes[0]);
+        outputPipes[0] = -1;
+    }
+
+    int processStatus;
+    while (waitpid(processId, &processStatus, 0) == -1)
+    {
+        if (errno != EINTR)
+        {
+            return finish(
+                FORMAT("Could not wait for the synchronous process.\nSystem error: {}", P2978::getErrorString()));
+        }
+    }
+    if (WIFEXITED(processStatus))
+    {
+        result.exitStatus = WEXITSTATUS(processStatus);
+    }
+    else if (WIFSIGNALED(processStatus))
+    {
+        result.exitStatus = 128 + WTERMSIG(processStatus);
+    }
+#endif
+    return finish(captureError);
+}
+
 void RunCommand::reset()
 {
     releaseOutput();
@@ -138,36 +642,6 @@ void RunCommand::reset()
 }
 
 #ifdef _WIN32
-
-void RunCommand::runProcess(const char *command)
-{
-    // The temporary-file implementation is intentionally single-thread-only.
-    static uint64_t invocation = 0;
-    const auto temporaryDirectory = std::filesystem::temp_directory_path();
-    const string uniqueStem = FORMAT("hmake-{}-{}", GetCurrentProcessId(), invocation++);
-    const std::filesystem::path stdoutFile = temporaryDirectory / (uniqueStem + "-stdout.txt");
-    const std::filesystem::path stderrFile = temporaryDirectory / (uniqueStem + "-stderr.txt");
-
-    // system() already invokes the platform command processor.
-    const string finalCommand = FORMAT("({}) > \"{}\" 2> \"{}\"", command, stdoutFile.string(), stderrFile.string());
-
-    exitStatus = system(finalCommand.c_str());
-
-    acquireOutput();
-    *output = std::filesystem::is_regular_file(stdoutFile) ? fileToString(stdoutFile.string()) : string{};
-    const string errorFileContent =
-        std::filesystem::is_regular_file(stderrFile) ? fileToString(stderrFile.string()) : string{};
-    if (!output->empty() && !errorFileContent.empty())
-    {
-        *output += "\n--- STDERR ---\n";
-    }
-    *output += errorFileContent;
-
-    std::error_code ignored;
-    std::filesystem::remove(stdoutFile, ignored);
-    ignored.clear();
-    std::filesystem::remove(stderrFile, ignored);
-}
 
 // Partially adapted from Ninja's process management approach.
 uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget *bTarget, const bool haveWritePipe_)
@@ -197,10 +671,10 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
                                  readPipeName, P2978::getErrorString()));
     }
 
-    // Get an inheritable write-end handle for the child process.
-    HANDLE outputWriteHandle =
-        CreateFileA(readPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (outputWriteHandle == INVALID_HANDLE_VALUE)
+    SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE childPipe = CreateFileA(readPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, &inheritableAttributes,
+                                   OPEN_EXISTING, 0, nullptr);
+    if (childPipe == INVALID_HANDLE_VALUE)
     {
         printErrorMessage(FORMAT("Could not open the child-process side of the IPC pipe.\nPipe name: {}\n"
                                  "Operation: CreateFileA\nSystem error: {}",
@@ -226,21 +700,6 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
                                  "Operation: CreateIoCompletionPort\nSystem error: {}",
                                  readPipeName, P2978::getErrorString()));
     }
-    HANDLE childPipe = nullptr;
-    if (!DuplicateHandle(GetCurrentProcess(), outputWriteHandle, GetCurrentProcess(), &childPipe, 0, TRUE,
-                         DUPLICATE_SAME_ACCESS))
-    {
-        printErrorMessage(FORMAT("Could not create an inheritable child-process pipe handle.\nPipe name: {}\n"
-                                 "Operation: DuplicateHandle\nSystem error: {}",
-                                 readPipeName, P2978::getErrorString()));
-    }
-    if (!CloseHandle(outputWriteHandle))
-    {
-        printErrorMessage(FORMAT("Could not close the temporary child-process pipe handle.\nSystem error: {}",
-                                 P2978::getErrorString()));
-    }
-
-    SECURITY_ATTRIBUTES inheritableAttributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
     HANDLE childInput = childPipe;
     if (!haveWritePipe)
     {
@@ -262,7 +721,11 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
 
     SIZE_T attributeBytes = 0;
     InitializeProcThreadAttributeList(nullptr, 2, 0, &attributeBytes);
-    std::vector<unsigned char> attributeStorage(attributeBytes);
+    static std::vector<unsigned char> attributeStorage;
+    if (attributeStorage.size() < attributeBytes)
+    {
+        attributeStorage.resize(attributeBytes);
+    }
     startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeStorage.data());
     if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 2, 0, &attributeBytes))
     {
@@ -319,7 +782,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
             FORMAT("Could not close the child-process thread handle.\nSystem error: {}", P2978::getErrorString()));
     }
     readPipe = (uint64_t)readPipeHandle;
-    writePipe = haveWritePipe ? (uint64_t)readPipeHandle : static_cast<uint64_t>(-1);
+    writePipe = haveWritePipe ? (uint64_t)readPipeHandle : -1;
     pid = (uint64_t)process_info.hProcess;
 
     ++builder.simultaneousProcessCount;
@@ -335,15 +798,12 @@ void RunCommand::startRead()
     {
         return;
     }
-    if (readPending)
-    {
-        printErrorMessage(FORMAT("Tried to start a second child-process output read.\nEvent index: {}", index));
-    }
+    assert(!readPending);
 
     CompletionKey &k = eventData[index];
     k.readOverlapped = {};
 
-    const size_t offset = output->size();
+    const uint64_t offset = output->size();
     output->resize(offset + 4096);
 
     readPending = true;
@@ -409,17 +869,14 @@ CompleteReadType RunCommand::completeRead()
 
 void RunCommand::writeNoReadExpected(const string_view buffer)
 {
-    if (!haveWritePipe || writePipe == invalidHandle)
-    {
-        printErrorMessage("Tried to write to a child process that has no input pipe.");
-    }
+    assert(haveWritePipe && writePipe != invalidHandle);
 
     HANDLE completionEvent = getWriteCompletionEvent();
-    size_t totalWritten = 0;
+    uint64_t totalWritten = 0;
     while (totalWritten != buffer.size())
     {
-        const size_t remaining = buffer.size() - totalWritten;
-        const DWORD chunkSize = static_cast<DWORD>(std::min<size_t>(remaining, std::numeric_limits<DWORD>::max()));
+        const uint64_t remaining = buffer.size() - totalWritten;
+        const DWORD chunkSize = static_cast<DWORD>(std::min<uint64_t>(remaining, std::numeric_limits<DWORD>::max()));
         OVERLAPPED operation{};
         // Suppress a write packet on the pipe's IOCP. Builder invokes this API only from its single scheduler thread,
         // so one process-lifetime completion event can be safely reused after every write has fully completed;
@@ -537,18 +994,17 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
 {
     haveWritePipe = haveWritePipe_;
 
-    wordexp_t p;
-    if (wordexp(command, &p, WRDE_NOCMD) != 0)
+    STACK_PMR_VECTOR(char *, arguments, 128)
+    if (const string_view error = parseCommandLineArguments(command, std::strlen(command), arguments); !error.empty())
     {
-        printErrorMessage(
-            FORMAT("Could not parse the asynchronous command line.\nCommand: {}\nOperation: wordexp", command));
-        return -1;
+        printErrorMessage(FORMAT("Could not parse the asynchronous command line: {}", error));
     }
+    arguments.push_back(nullptr);
 
     int stdoutPipesLocal[2];
     if (pipe2(stdoutPipesLocal, O_CLOEXEC) == -1)
     {
-        printErrorMessage(FORMAT("Could not create the asynchronous process output pipe.\nCommand: {}\n"
+        printErrorMessage(FORMAT("Could not create the asynchronous process output pipe.\nExecutable: {}\n"
                                  "System error: {}",
                                  command, P2978::getErrorString()));
     }
@@ -558,9 +1014,11 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
     if (haveWritePipe)
     {
         if (pipe2(stdinPipesLocal, O_CLOEXEC) == -1)
-            printErrorMessage(FORMAT("Could not create the asynchronous process input pipe.\nCommand: {}\n"
+        {
+            printErrorMessage(FORMAT("Could not create the asynchronous process input pipe.\nExecutable: {}\n"
                                      "System error: {}",
                                      command, P2978::getErrorString()));
+        }
         writePipe = stdinPipesLocal[1];
     }
     int nullInput = -1;
@@ -569,7 +1027,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
         nullInput = open("/dev/null", O_RDONLY | O_CLOEXEC);
         if (nullInput == -1)
         {
-            printErrorMessage(FORMAT("Could not open /dev/null for child-process input.\nCommand: {}\n"
+            printErrorMessage(FORMAT("Could not open /dev/null for child-process input.\nExecutable: {}\n"
                                      "System error: {}",
                                      command, P2978::getErrorString()));
         }
@@ -587,7 +1045,7 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
     pid = vfork(); // vfork is intentional here.
     if (pid == -1)
     {
-        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nCommand: {}\nOperation: vfork\n"
+        printErrorMessage(FORMAT("Could not create the asynchronous child process.\nExecutable: {}\nOperation: vfork\n"
                                  "System error: {}",
                                  command, P2978::getErrorString()));
     }
@@ -629,13 +1087,12 @@ uint64_t RunCommand::startAsyncProcess(char *command, Builder &builder, BTarget 
             close(nullInput);
         }
 
-        execvp(p.we_wordv[0], p.we_wordv);
+        execvp(arguments.front(), arguments.data());
         _exit(127); // Must use _exit(), never exit().
     }
 
     // Parent process.
     close(stdoutPipesLocal[1]);
-    wordfree(&p); // Safe here: child has already exec'd.
     builder.registerEventData(bTarget, readPipe);
 
     if (haveWritePipe)
@@ -660,9 +1117,9 @@ void RunCommand::startRead()
 
 CompleteReadType RunCommand::completeRead()
 {
-    ssize_t readSize;
-    constexpr size_t chunkSize = 4 * 1024;
-    const size_t oldSize = output->size();
+    int64_t readSize;
+    constexpr uint64_t chunkSize = 4 * 1024;
+    const uint64_t oldSize = output->size();
 
     output->resize(oldSize + chunkSize);
 
@@ -700,15 +1157,12 @@ CompleteReadType RunCommand::completeRead()
 
 void RunCommand::writeNoReadExpected(const string_view buffer)
 {
-    if (!haveWritePipe || writePipe == invalidHandle)
-    {
-        printErrorMessage("Tried to write to a child process that has no input pipe.");
-    }
+    assert(haveWritePipe && writePipe != invalidHandle);
 
-    size_t totalWritten = 0;
+    uint64_t totalWritten = 0;
     while (totalWritten != buffer.size())
     {
-        ssize_t bytesWritten;
+        int64_t bytesWritten;
         do
         {
             bytesWritten =
@@ -729,7 +1183,7 @@ void RunCommand::writeNoReadExpected(const string_view buffer)
                                      "write completed without writing data.",
                                      writePipe));
         }
-        totalWritten += static_cast<size_t>(bytesWritten);
+        totalWritten += static_cast<uint64_t>(bytesWritten);
     }
 }
 
@@ -737,107 +1191,6 @@ void RunCommand::writeReadExpected(const string_view buffer)
 {
     writeNoReadExpected(buffer);
     startRead();
-}
-
-void RunCommand::runProcess(const char *command)
-{
-    // runProcess is intentionally single-thread-only.
-    wordexp_t parsedCommand{};
-    if (wordexp(command, &parsedCommand, WRDE_NOCMD) != 0 || parsedCommand.we_wordc == 0)
-    {
-        printErrorMessage(
-            FORMAT("Could not parse the process command line.\nCommand: {}\nOperation: wordexp", command));
-    }
-
-    int stdPipesLocal[2];
-    if (pipe2(stdPipesLocal, O_CLOEXEC) == -1)
-    {
-        printErrorMessage(FORMAT("Could not create the process output pipe.\nCommand: {}\nSystem error: {}", command,
-                                 P2978::getErrorString()));
-    }
-
-    const int processReadPipe = stdPipesLocal[0];
-
-    const pid_t processId = fork();
-    if (processId == -1)
-    {
-        printErrorMessage(FORMAT("Could not create the child process.\nCommand: {}\nOperation: fork\nSystem error: {}",
-                                 command, P2978::getErrorString()));
-    }
-    if (processId == 0)
-    {
-        struct sigaction defaultSigpipe{};
-        defaultSigpipe.sa_handler = SIG_DFL;
-        sigemptyset(&defaultSigpipe.sa_mask);
-        if (sigaction(SIGPIPE, &defaultSigpipe, nullptr) == -1 || dup2(stdPipesLocal[1], STDOUT_FILENO) == -1 ||
-            dup2(stdPipesLocal[1], STDERR_FILENO) == -1)
-        {
-            _exit(127);
-        }
-        close(stdPipesLocal[0]);
-        close(stdPipesLocal[1]);
-        execvp(parsedCommand.we_wordv[0], parsedCommand.we_wordv);
-        _exit(127);
-    }
-
-    // Parent process: close unused pipe ends.
-    close(stdPipesLocal[1]);
-    wordfree(&parsedCommand);
-
-    acquireOutput();
-    output->resize(4096 * 16);
-    size_t totalRead = 0;
-    while (true)
-    {
-        ssize_t readSize;
-        do
-        {
-            readSize = read(processReadPipe, output->data() + totalRead, output->size() - totalRead);
-        } while (readSize == -1 && errno == EINTR);
-        if (readSize == -1)
-        {
-            printErrorMessage(FORMAT("Could not read child-process output.\nCommand: {}\nFile descriptor: {}\n"
-                                     "System error: {}",
-                                     command, processReadPipe, P2978::getErrorString()));
-        }
-        if (readSize > 0)
-        {
-            totalRead += readSize;
-            if (totalRead == output->size())
-            {
-                output->resize(output->size() * 2);
-            }
-        }
-        else
-        {
-            break;
-        }
-    }
-    output->resize(totalRead);
-    // Close the read end of the pipe.
-    close(processReadPipe);
-
-    int status;
-    if (waitpid(processId, &status, 0) < 0)
-    {
-        printErrorMessage(FORMAT("Could not wait for the child process.\nCommand: {}\nProcess ID: {}\nSystem error: {}",
-                                 command, processId, P2978::getErrorString()));
-    }
-    if (WIFEXITED(status))
-    {
-        exitStatus = WEXITSTATUS(status);
-    }
-    else if (WIFSIGNALED(status))
-    {
-        // Follow the shell convention so callers can distinguish a signal from successful exit.
-        // Calling WEXITSTATUS() for a signalled process commonly produced zero for SIGSEGV, causing
-        // hhelper to report a crashed configure executable as successful.
-        exitStatus = 128 + WTERMSIG(status);
-    }
-    else
-    {
-        exitStatus = EXIT_FAILURE;
-    }
 }
 
 void RunCommand::reapProcess(Builder &builder)
@@ -857,7 +1210,7 @@ void RunCommand::reapProcess(Builder &builder)
                                  readPipe, P2978::getErrorString()));
     }
 
-    if (writePipe != -1)
+    if (writePipe != invalidHandle)
     {
         if (close(writePipe) == -1)
         {
@@ -908,7 +1261,7 @@ void RunCommand::killModuleProcess(Builder &builder)
                                  "System error: {}",
                                  readPipe, P2978::getErrorString()));
     }
-    if (writePipe != -1 && close(writePipe) == -1)
+    if (writePipe != invalidHandle && close(writePipe) == -1)
     {
         printErrorMessage(FORMAT("Could not close the terminated module input pipe.\nFile descriptor: {}\n"
                                  "System error: {}",
@@ -921,14 +1274,11 @@ void RunCommand::killModuleProcess(Builder &builder)
 string RunCommand::pruneOutput()
 {
     // Extract the serialized payload from the output buffer.
-    if (!output)
-    {
-        printErrorMessage("Malformed child-process message: output storage is unavailable.");
-    }
+    assert(output != nullptr);
 
-    const size_t outputSize = output->size();
-    const size_t delimiterSize = strlen(P2978::delimiter);
-    const size_t trailerSize = sizeof(uint32_t) + delimiterSize;
+    const uint64_t outputSize = output->size();
+    const uint64_t delimiterSize = strlen(P2978::delimiter);
+    const uint64_t trailerSize = sizeof(uint32_t) + delimiterSize;
     if (outputSize < trailerSize)
     {
         printErrorMessage(FORMAT("Malformed child-process message: payload size is missing.\n"
@@ -941,19 +1291,19 @@ string RunCommand::pruneOutput()
     }
 
     uint32_t payloadSize = 0;
-    const size_t payloadSizeOffset = outputSize - trailerSize;
+    const uint64_t payloadSizeOffset = outputSize - trailerSize;
     memcpy(&payloadSize, output->data() + payloadSizeOffset, sizeof(payloadSize));
     if (!payloadSize)
     {
         printErrorMessage("Malformed child-process message: protocol payloads must not be empty.");
     }
-    if (static_cast<size_t>(payloadSize) > outputSize - trailerSize)
+    if (static_cast<uint64_t>(payloadSize) > outputSize - trailerSize)
     {
         printErrorMessage(FORMAT("Malformed child-process message: declared payload exceeds available output.\n"
                                  "Output size: {} bytes\nPayload size: {} bytes\nProtocol overhead: {} bytes",
                                  outputSize, payloadSize, trailerSize));
     }
-    const size_t framedSize = trailerSize + static_cast<size_t>(payloadSize);
+    const uint64_t framedSize = trailerSize + payloadSize;
     const char *payloadStart = output->data() + (outputSize - framedSize);
 
     // todo

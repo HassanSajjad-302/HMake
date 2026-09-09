@@ -5,27 +5,20 @@
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Builder.hpp"
-#include "Cache.hpp"
 #include "ConfigurationAssign.hpp"
 #include "CppMod.hpp"
 #include "CppTarget.hpp"
-#include "IspcTarget.hpp"
-#include "ue.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
-#include "JConsts.hpp"
-#include "ToolsCache.hpp"
-#include <filesystem>
-#include <memory>
-#include <stack>
-#include <thread>
-#include <utility>
+#include "IspcTarget.hpp"
+#include "ProjectCache.hpp"
+#include "ue.hpp"
 
 /// User-defined function that declares the build graph.
 void buildSpecification();
 /// User-defined function that customizes one configuration.
 void configurationSpecification(Configuration &config);
-/// Invokes the registered `configurationSpecification` callback.
+/// Invokes the registered `configurationSpecification` function.
 void callConfigurationSpecification();
 
 /// Shared entry point used by generated configure and build executables.

@@ -29,9 +29,9 @@ void configurationSpecification(Configuration &config)
         catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
-    p = new CopySharedLib(catShared.getPLOAT().outputFileNode->filePath, animal.getPLOAT().outputFileNode->filePath);
-    p->addDep<0>(animal.getPLOAT());
-    p->addDep<0>(catShared.getPLOAT());
+    p = new CopySharedLib(catShared.getPloat().outputFileNode->filePath, animal.getPloat().outputFileNode->filePath);
+    p->addDep<0>(animal.getPloat());
+    p->addDep<0>(catShared.getPloat());
 }
 
 void buildSpecification()

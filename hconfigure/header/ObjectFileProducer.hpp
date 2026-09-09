@@ -4,13 +4,12 @@
 #include "BuildSystemFunctions.hpp"
 #include "ObjectFile.hpp"
 
-#include <ranges>
 #include <utility>
 
 class ObjectFileProducer;
-class PLOAT;
+class Ploat;
 
-/// Scheduler metadata carried by a semantic PLOAT dependency.
+/// Scheduler metadata carried by a semantic Ploat dependency.
 class PloatDepInfo
 {
     // TODO(UE cycles): Remove this facet when UE circular module dependencies no longer require cycle suppression.
@@ -35,7 +34,7 @@ class PloatDepInfo
         return PloatDepInfo{bool(packed & 1)};
     }
 
-    /// An edge is schedulable when at least one alternative path to the same PLOAT is acyclic.
+    /// An edge is schedulable when at least one alternative path to the same Ploat is acyclic.
     PloatDepInfo unite(const PloatDepInfo other) const
     {
         return PloatDepInfo{acyclicDependency || other.acyclicDependency};
@@ -50,10 +49,9 @@ class PloatDepInfo
     bool operator==(const PloatDepInfo &) const = default;
 };
 
-using PloatDepInfoMap = flat_hash_map<PLOAT *, PloatDepInfo>;
+using PloatDepInfoMap = flat_hash_map<Ploat *, PloatDepInfo>;
 
-inline bool mergePloatDependency(PloatDepInfoMap &dependencies, PLOAT *dependency,
-                                 const PloatDepInfo dependencyInfo)
+inline bool mergePloatDependency(PloatDepInfoMap &dependencies, Ploat *dependency, const PloatDepInfo dependencyInfo)
 {
     const auto [entry, inserted] = dependencies.try_emplace(dependency, dependencyInfo);
     if (inserted)
@@ -131,19 +129,19 @@ class ObjectFileProducer : public BTarget
     /// Configure-time producer relationships exported to consumers.
     OpDepInfoMap useReqObjectFileProducers;
 
-    /// Configure-time PLOAT requirements carried by an outputless producer until a physical link boundary consumes
+    /// Configure-time Ploat requirements carried by an outputless producer until a physical link boundary consumes
     /// its object files. PRIVATE requirements remain in useReqPloatDeps while there is no boundary to absorb them.
     PloatDepInfoMap reqPloatDeps;
     PloatDepInfoMap useReqPloatDeps;
 
-    /// Existing object files consumed by a later LOAT without a compile action in this graph.
+    /// Existing object files consumed by a later Loat without a compile action in this graph.
     vector<Node *> prebuiltObjects;
 
     /// Packed cache-index/facet entries restored in build mode. The low three bits contain the dependency booleans.
     span<const uint32_t> cachedReqObjectFileProducers;
 
     /// Number of bytes consumed by the ObjectFileProducer prefix in this target's config-cache entry.
-    uint32_t configCacheRead = 0;
+    uint64_t configCacheRead = 0;
 
     ObjectFileProducer(string name_, BTargetType bTargetType, bool buildExplicit, bool makeDirectory);
     ObjectFileProducer(string name_, uint64_t cacheName_, BTargetType bTargetType, bool buildExplicit,
@@ -175,7 +173,7 @@ class ObjectFileProducer : public BTarget
     void verifyConfigCache(string_view configCache) const override;
 
   protected:
-    void verifyObjectFileProducerConfigCache(string_view configCache, uint32_t &bytesRead) const;
+    void verifyObjectFileProducerConfigCache(string_view configCache, uint64_t &bytesRead) const;
 
   private:
     void readObjectFileProducerConfigCache();
@@ -183,12 +181,12 @@ class ObjectFileProducer : public BTarget
 
 #ifdef BUILD_MODE
 #define FOR_REQ_OBJECT_FILE_PRODUCERS(objectFileProducer_, producer_, depInfo_)                                        \
-    for (const auto [producer_, depInfo_] : std::views::transform(                                                     \
-             (objectFileProducer_)->cachedReqObjectFileProducers, [](const uint32_t packedDependency) {                \
-                 return std::pair{static_cast<ObjectFileProducer *>(                                                   \
-                                      bTargetCaches[OpDepInfo::getCacheIndex(packedDependency)].bTarget),              \
-                                  OpDepInfo::fromCache(packedDependency)};                                             \
-             }))
+    for (const uint32_t packedDependency_ : (objectFileProducer_)->cachedReqObjectFileProducers)                       \
+        if (const auto [producer_, depInfo_] =                                                                         \
+                std::pair{static_cast<ObjectFileProducer *>(                                                           \
+                              bTargetCaches[OpDepInfo::getCacheIndex(packedDependency_)].bTarget),                     \
+                          OpDepInfo::fromCache(packedDependency_)};                                                    \
+            true)
 #else
 #define FOR_REQ_OBJECT_FILE_PRODUCERS(objectFileProducer_, producer_, depInfo_)                                        \
     for (const auto &[producer_, depInfo_] : (objectFileProducer_)->reqObjectFileProducers)

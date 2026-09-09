@@ -13,7 +13,7 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &tool = config.getCppExeDSC("tool").privateDeps(toolDep);
     tool.getSourceTarget().moduleFiles("tool.cpp", "tool2.cpp");
 
-    HeaderGen *headerGen = new HeaderGen(config.name + "/IncGen", &tool.getLOAT(), "CAT", "value.txt");
+    HeaderGen *headerGen = new HeaderGen(config.name + "/IncGen", &tool.getLoat(), "CAT", "value.txt");
 
     DSC<CppTarget> &app = config.getCppExeDSC("app");
     CppMod &appHu = app.getSourceTarget()

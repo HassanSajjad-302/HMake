@@ -2,9 +2,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
 #include "gtest/gtest.h"
 #include <fstream>
 #include <regex>
@@ -43,25 +40,17 @@ TEST(ExamplesTest, Example3)
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func() from file1.cpp called.\n");
 
-    ifstream ifs("cache.json");
+    ifstream ifs("cache.txt");
     string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    rapidjson::Document cacheFileJson;
-    cacheFileJson.Parse(content.c_str());
-    ASSERT_FALSE(cacheFileJson.HasParseError());
-    ASSERT_TRUE(cacheFileJson.HasMember("cache-variables"));
-    ASSERT_TRUE(cacheFileJson["cache-variables"].HasMember("FILE1"));
-    const bool file1 = cacheFileJson["cache-variables"]["FILE1"].GetBool();
-    ASSERT_EQ(file1, true) << "Cache does not has the Cache-Variable or this variable is not of right value";
-    cacheFileJson["cache-variables"]["FILE1"].SetBool(false);
+    const uint64_t variable = content.find("FILE1=true");
+    ASSERT_NE(variable, string::npos);
+    content.replace(variable, string_view("FILE1=true").size(), "FILE1=false");
     {
-        ofstream ofs("cache.json");
-        rapidjson::StringBuffer buffer;
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        cacheFileJson.Accept(writer);
-        ofs << buffer.GetString();
+        ofstream ofs("cache.txt");
+        ofs << content;
     }
 
-    ASSERT_EQ(system((hhelperStr + " --configure").c_str()), 0) << hhelperStr + " --configure" + " command failed.";
+    ASSERT_EQ(system(hconfigureOnlyStr.c_str()), 0) << hconfigureOnlyStr + " command failed.";
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
@@ -100,14 +89,12 @@ TEST(ExamplesTest, Example6)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App2-Shared/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(
-        current_path().string() + "/Release/App-MixedPrivate/" +
-            getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
-        "Cat says Meow..\nDog says Woof..\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(
-        current_path().string() + "/Release/App-MixedInterface/" +
-            getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
-        "Cat says Meow..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App-MixedPrivate/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App-MixedInterface/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\n");
 }
 
 TEST(ExamplesTest, Example7)
@@ -304,39 +291,33 @@ TEST(AExamplesTest, Example_A9)
 
 TEST(AExamplesTest, Example_A10)
 {
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A10"));
+    const path buildDirectory = path(SOURCE_DIRECTORY) / "Examples/Example-A10/Build";
+    const string workingDirectory = buildDirectory.string();
     string output;
     int exitStatus;
 
-    if (exists(path("Build")))
+    if (exists(buildDirectory))
     {
-        remove_all(path("Build"));
+        remove_all(buildDirectory);
     }
-    create_directory("Build");
-    current_path("Build");
+    create_directory(buildDirectory);
 
     {
-        RunCommand r;
-        r.runProcess("hhelper");
-        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", *r.output);
-    }
-
-    {
-        RunCommand r;
-        r.runProcess("hhelper");
-        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", *r.output);
+        const auto result = RunCommand::runProcess(hconfigureOnlyStr, workingDirectory.c_str());
+        ASSERT_EQ(result.exitStatus, EXIT_SUCCESS)
+            << FORMAT("hbuild configuration failed with output\n{}\n.", result.output);
     }
 
     {
-        ASSERT_EQ(system("c++ ../main.cpp"), EXIT_SUCCESS) << "c++ ../main.cpp failed\n";
+        const auto result = RunCommand::runProcess("c++ ../main.cpp", workingDirectory.c_str());
+        ASSERT_EQ(result.exitStatus, EXIT_SUCCESS) << "c++ ../main.cpp failed\n" << result.output;
     }
 
     {
-        RunCommand r;
-        r.runProcess("hbuild");
-        erase_if(*r.output, [](const char c) { return c == '\r'; });
-        exitStatus = r.exitStatus;
-        output = std::move(*r.output);
+        auto result = RunCommand::runProcess("hbuild", workingDirectory.c_str());
+        erase_if(result.output, [](const char c) { return c == '\r'; });
+        exitStatus = result.exitStatus;
+        output = std::move(result.output);
     }
 
     ASSERT_EQ(exitStatus, EXIT_SUCCESS);

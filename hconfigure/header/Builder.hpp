@@ -12,6 +12,9 @@
 #include <stack>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
 #endif
 
@@ -22,7 +25,7 @@ using std::vector, std::list, std::stack;
 struct CompletionKey
 {
     OVERLAPPED readOverlapped{};
-    uint64_t handle = static_cast<uint64_t>(-1);
+    uint64_t handle = -1;
     BTarget *target = nullptr;
 };
 
@@ -41,7 +44,9 @@ GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
 #endif
 
 /// Next unused slot in `eventData` (Windows only).
+#ifdef _WIN32
 inline uint32_t currentIndex = 0;
+#endif
 
 /// Builder runs two passes:
 ///
@@ -85,7 +90,7 @@ class Builder
     void unregisterEventDataAtIndex(uint64_t index);
 
     /// Platform event-loop handle (`epoll` on Linux, IOCP on Windows).
-    uint64_t serverFd = static_cast<uint64_t>(-1);
+    uint64_t serverFd = -1;
 
     /// Remaining process slots.
     uint16_t availableProcessSlots = 0;

@@ -3,7 +3,7 @@
 #define HMAKE_CUSTOMCODEGENERATOR_HPP
 
 #include "BTarget.hpp"
-#include "LOAT.hpp"
+#include "Loat.hpp"
 #include "Node.hpp"
 #include "rapidhash/rapidhash.h"
 
@@ -17,11 +17,11 @@
 struct HeaderGen : BTarget
 {
     string command;
-    LOAT *codeGenerator;
+    Loat *codeGenerator;
     Node *myBuildDir;
     Node *sourceNode;
     Node *outputHeader;
-    HeaderGen(const string &name, LOAT *codeGenerator_, const string &macroName, const string &macroValueFile);
+    HeaderGen(const string &name, Loat *codeGenerator_, const string &macroName, const string &macroValueFile);
     void setUpdateStatus() override;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view message) override;
@@ -30,13 +30,13 @@ struct HeaderGen : BTarget
 
 struct LlvmHeaderGen : BTarget
 {
-    LOAT *codeGenerator;
+    Loat *codeGenerator;
     Node *sourceNode;
     string command;
 
-    LlvmHeaderGen(const string &name, LOAT *codeGenerator_, const string &filePath, const string &command_)
-        : BTarget(name, rapidhash(name.data(), name.size()), false, BTargetType::UNKNOWN), codeGenerator(codeGenerator_),
-          command(command_)
+    LlvmHeaderGen(const string &name, Loat *codeGenerator_, const string &filePath, const string &command_)
+        : BTarget(name, rapidhash(name.data(), name.size()), false, BTargetType::UNKNOWN),
+          codeGenerator(codeGenerator_), command(command_)
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
@@ -47,7 +47,7 @@ struct LlvmHeaderGen : BTarget
         }
         else
         {
-            uint32_t bytesRead = 0;
+            uint64_t bytesRead = 0;
             sourceNode = readHalfNode(bTargetCaches[cacheIndex].getBuildCache().data(), bytesRead);
         }
     }

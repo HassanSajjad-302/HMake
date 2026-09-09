@@ -9,38 +9,10 @@
 #include "CppMod.hpp"
 #include "DSC.hpp"
 #include "ObjectFileProducer.hpp"
+#include "SpecialNodes.hpp"
 #include <concepts>
 
 using std::same_as;
-
-/// Path argument accepted by the user-facing `CppTarget` APIs.
-///
-/// Callers may pass a string-like path or an existing `Node*`. Existing nodes avoid another normalization and lookup.
-struct NodeOrStr
-{
-    /// Pre-resolved node when the caller already has a `Node*` (skips path normalization lookup).
-    Node *node_ = nullptr;
-    /// Path string used when `hasNode_` is false.
-    string_view str_;
-    /// If true, use `node_`; otherwise resolve `str_` via `Node::getNodeNonNormalized()`.
-    bool hasNode_ = false;
-
-    NodeOrStr(Node *node) : node_(node), hasNode_(true) {}
-    NodeOrStr(const string &path) : str_(path) {}
-    NodeOrStr(string_view path) : str_(path) {}
-    NodeOrStr(const char *path) : str_(path) {}
-
-    /// Resolve to a Node*, performing the lookup only when a string was supplied.
-    /// \p isFile matches the second argument of Node::getNodeNonNormalized.
-    Node *resolve(bool isFile) const
-    {
-        if (hasNode_)
-        {
-            return node_;
-        }
-        return Node::getNodeNonNormalized(string(str_), isFile);
-    }
-};
 
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
@@ -168,7 +140,7 @@ class CppTarget : public ObjectFileProducer
     bool useIPC = true;
 
     /// Escapes and quotes a preprocessor define value if it contains spaces or metacharacters,
-    /// ensuring that the generated command string is valid for process launchers (like wordexp).
+    /// ensuring that the generated command string preserves literal values when parsed for process launch.
     static string escapeAndQuoteDefineValue(string_view val);
 
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
@@ -206,7 +178,7 @@ class CppTarget : public ObjectFileProducer
     /// internal function. called in constructor.
     void initializeCppTarget(const string &name_, Node *myBuildDir_);
 
-    /// Publishes only this target's compile-output nodes. LOAT owns producer traversal and uniqueness.
+    /// Publishes only this target's compile-output nodes. Loat owns producer traversal and uniqueness.
     void getObjectFiles(std::pmr::vector<Node *> &objectNodes, bool includeRequiredProducers) const override;
 
     /// Lazily creates the optional pre-compilation barrier.
@@ -959,7 +931,8 @@ template <typename... U> CppTarget &CppTarget::publicIncludesSource(NodeOrStr in
     }
 }
 
-template <typename... U> CppTarget &CppTarget::publicSystemIncludesSource(NodeOrStr include, U... includeDirectoryString)
+template <typename... U>
+CppTarget &CppTarget::publicSystemIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     const bool wasSystem = isSystem;
     isSystem = true;
@@ -986,8 +959,7 @@ template <typename... U> CppTarget &CppTarget::privateIncludesSource(NodeOrStr i
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::interfaceIncludesSource(NodeOrStr include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::interfaceIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1402,7 +1374,7 @@ CppTarget &CppTarget::assign(T property, Property... properties)
     }
 }
 
-template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, bool defines, string define_);
+template <> DSC<CppTarget>::DSC(CppTarget *ptr, Ploat *ploat_, bool defines, string define_);
 
 template <> DSC<CppTarget> &DSC<CppTarget>::save(CppTarget &ptr);
 template <> DSC<CppTarget> &DSC<CppTarget>::saveAndReplace(CppTarget &ptr);

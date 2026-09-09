@@ -223,7 +223,6 @@ tl::expected<uint8_t, std::string> Manager::readUInt8(const std::string_view mes
     return result;
 }
 
-
 tl::expected<uint32_t, std::string> Manager::readUInt32(const std::string_view message, uint32_t &bytesRead)
 {
     if (bytesRead + 4 > message.size())

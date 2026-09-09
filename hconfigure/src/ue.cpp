@@ -55,8 +55,8 @@ string makeApiMacro(const string_view logicalName)
 
 int compareAsciiCaseInsensitive(const string_view left, const string_view right)
 {
-    const size_t commonSize = std::min(left.size(), right.size());
-    for (size_t i = 0; i < commonSize; ++i)
+    const uint64_t commonSize = std::min(left.size(), right.size());
+    for (uint64_t i = 0; i < commonSize; ++i)
     {
         unsigned char leftChar = left[i];
         unsigned char rightChar = right[i];
@@ -92,13 +92,13 @@ bool ueSourceLess(const Node *left, const Node *right, const uint64_t jumboFileS
     return left->filePath < right->filePath;
 }
 
-string getNearestPluginRoot(const string &moduleDirectory)
+string getNearestPluginRoot(const string_view moduleDirectory)
 {
     // Cache the nearest plugin root rather than only whether one directory owns a descriptor. Modules in the same
     // plugin then resolve after one hash lookup, and path compression also makes shared Engine ancestors cheap.
     static flat_hash_map<string, string> cache;
-    vector<string> uncachedDirectories;
-    string directory = moduleDirectory;
+    STACK_PMR_VECTOR(string, uncachedDirectories, 16)
+    string directory(moduleDirectory);
     string pluginRoot;
     while (!directory.empty())
     {
@@ -162,13 +162,13 @@ path getModuleGeneratedIncludeRoot(const path &configuredRoot, const Node *modul
     if (inserted)
     {
         const string_view intermediateName = os == OS::NT ? "intermediate" : "Intermediate";
-        for (size_t intermediate = configuredRootString.find(intermediateName); intermediate != string::npos;
+        for (uint64_t intermediate = configuredRootString.find(intermediateName); intermediate != string::npos;
              intermediate = configuredRootString.find(intermediateName, intermediate + 1))
         {
-            const size_t afterIntermediate = intermediate + intermediateName.size();
+            const uint64_t afterIntermediate = intermediate + intermediateName.size();
             const bool startsAtBoundary = intermediate == 0 || configuredRootString[intermediate - 1] == slashc;
-            const bool endsAtBoundary = afterIntermediate == configuredRootString.size() ||
-                                        configuredRootString[afterIntermediate] == slashc;
+            const bool endsAtBoundary =
+                afterIntermediate == configuredRootString.size() || configuredRootString[afterIntermediate] == slashc;
             if (startsAtBoundary && endsAtBoundary)
             {
                 suffix->second = configuredRootString.substr(intermediate);
@@ -301,11 +301,10 @@ UeCppTarget::UeCppTarget(const string &hmakeName, string logicalName_, UeConfigu
     if constexpr (bsMode == BSMode::BUILD)
     {
         const auto dependency = nameToIndexMap.find(IspcTarget::getCacheName(this));
-        const bool hasCachedIspcTarget =
-            dependency != nameToIndexMap.end() &&
-            std::ranges::any_of(cachedReqObjectFileProducers, [&](const uint32_t packed) {
-                return OpDepInfo::getCacheIndex(packed) == dependency->second;
-            });
+        const bool hasCachedIspcTarget = dependency != nameToIndexMap.end() &&
+                                         std::ranges::any_of(cachedReqObjectFileProducers, [&](const uint32_t packed) {
+                                             return OpDepInfo::getCacheIndex(packed) == dependency->second;
+                                         });
         if (hasCachedIspcTarget)
         {
             ispcTarget = new IspcTarget(this);
@@ -321,16 +320,15 @@ UeCppTarget &UeCppTarget::setShortName(const string_view value)
 
 bool UeCppTarget::conditionalAddModuleDirectory(const NodeOrStr &directory)
 {
-    const string directoryPath =
-        directory.hasNode_ ? directory.node_->filePath : getNormalizedPath(path(directory.str_));
-    if (!std::filesystem::is_directory(directoryPath))
+    Node *const directoryNode =
+        directory.node_ != nullptr ? directory.node_ : Node::getNode<PathType::NEITHER>(directory.str_, false, true);
+    if (directoryNode->fileType != file_type::directory)
     {
         return false;
     }
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *directoryNode = Node::getNode(directoryPath, false);
         if (std::ranges::find(moduleDirectories, directoryNode) == moduleDirectories.end())
         {
             moduleDirectories.emplace_back(directoryNode);
@@ -345,14 +343,13 @@ UeCppTarget &UeCppTarget::addCycleDependency(const DepType depType, const bool l
     auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
 
     // Same reachability rule as DSCExtension::addNamedDependency.
-    DSC<UeCppTarget> &dependencyTarget =
-        ueConfiguration.getOrAddTarget(dependency, link && implementationRequested);
+    DSC<UeCppTarget> &dependencyTarget = ueConfiguration.getOrAddTarget(dependency, link && implementationRequested);
     if (link)
     {
         linkDependencies.emplace_back(&dependencyTarget.getSourceTarget());
     }
 
-    // Retain the ordinary producer/PLOAT semantics, but omit scheduler edges that would close the UE module
+    // Retain the ordinary producer/Ploat semantics, but omit scheduler edges that would close the UE module
     // cycle. An include-path relation carries no linker input, matching the *OpDeps functions.
     ueConfiguration.currentTarget().deps<false>(depType, true, link, dependencyTarget);
     return *this;
@@ -460,8 +457,8 @@ void UeCppTarget::prepareModuleSources()
         // Source scanning must precede generated-code scanning: handwritten sources identify generated .cpp files
         // included inline and therefore excluded from standalone compilation. Gather every module directory before
         // scheduling so platform extensions participate in the same deterministic UBT-compatible ordering.
-        vector<Node *> sourceNodes;
-        vector<Node *> ispcSources;
+        STACK_PMR_VECTOR(Node *, sourceNodes, 256)
+        STACK_PMR_VECTOR(Node *, ispcSources, 64)
         for (Node *moduleDirectory : moduleDirectories)
         {
             findInputFiles(moduleDirectory, sourceNodes, ispcSources);
@@ -487,7 +484,8 @@ void UeCppTarget::prepareModuleSources()
     }
 }
 
-void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNodes, vector<Node *> &ispcSources)
+void UeCppTarget::findInputFiles(Node *moduleDirectory, std::pmr::vector<Node *> &sourceNodes,
+                                 std::pmr::vector<Node *> &ispcSources)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -498,30 +496,47 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
         {
             return;
         }
-
         const auto &ueConfiguration = *static_cast<UeConfiguration *>(configuration);
         const auto shouldSkipDirectory = [&ueConfiguration](const string_view directoryName) {
             if (directoryName == "Android")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Android) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Android);
+            }
             if (directoryName == "Apple")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Apple);
+            }
             if (directoryName == "IOS")
+            {
                 return !ueConfiguration.evaluate(UePlatform::IOS);
+            }
             if (directoryName == "Linux")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Linux) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Linux);
+            }
             if (directoryName == "Mac")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Mac);
+            }
             if (directoryName == "Microsoft")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Microsoft);
+            }
             if (directoryName == "Unix")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Unix);
+            }
             if (directoryName == "Windows" || directoryName == "Win64")
+            {
                 return !ueConfiguration.evaluate(UePlatform::Windows) &&
                        !ueConfiguration.evaluate(UePlatformGroup::Windows);
+            }
             if (directoryName == "Desktop")
+            {
                 return !ueConfiguration.evaluate(UePlatformGroup::Desktop);
+            }
 
             return directoryName == "FreeBSD" || directoryName == "HoloLens" || directoryName == "PS4" ||
                    directoryName == "PS5" || directoryName == "Switch" || directoryName == "TVOS" ||
@@ -532,10 +547,13 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
         const std::filesystem::recursive_directory_iterator end;
         while (iterator != end)
         {
-            if (iterator->is_directory() && (shouldSkipDirectory(iterator->path().filename().string()) ||
-                                             std::filesystem::exists(iterator->path() / ".ubtignore")))
+            if (iterator->is_directory())
             {
-                iterator.disable_recursion_pending();
+                if (shouldSkipDirectory(iterator->path().filename().string()) ||
+                    std::filesystem::exists(iterator->path() / ".ubtignore"))
+                {
+                    iterator.disable_recursion_pending();
+                }
             }
             else if (iterator->is_regular_file() && !iterator->path().filename().string().starts_with('.'))
             {
@@ -560,25 +578,25 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
                         // supplied by its owning handwritten translation unit.
                         constexpr string_view marker = "UE_INLINE_GENERATED_CPP_BY_NAME(";
                         std::ifstream sourceFile(iterator->path());
-                        string line;
+                        STACK_PMR_STRING(line, 4 * 1024)
                         while (std::getline(sourceFile, line))
                         {
-                            const size_t markerPosition = line.find(marker);
+                            const uint64_t markerPosition = line.find(marker);
                             if (markerPosition == string::npos)
                             {
                                 continue;
                             }
 
-                            const size_t hashPosition = line.find('#');
-                            const size_t includePosition = line.find("include", hashPosition);
+                            const uint64_t hashPosition = line.find('#');
+                            const uint64_t includePosition = line.find("include", hashPosition);
                             if (hashPosition == string::npos || includePosition == string::npos ||
                                 includePosition > markerPosition)
                             {
                                 continue;
                             }
 
-                            const size_t nameBegin = markerPosition + marker.size();
-                            const size_t nameEnd = line.find(')', nameBegin);
+                            const uint64_t nameBegin = markerPosition + marker.size();
+                            const uint64_t nameEnd = line.find(')', nameBegin);
                             if (nameEnd == string::npos)
                             {
                                 continue;
@@ -605,7 +623,6 @@ void UeCppTarget::findInputFiles(Node *moduleDirectory, vector<Node *> &sourceNo
             }
             ++iterator;
         }
-
     }
 }
 
@@ -684,7 +701,7 @@ UeCppTarget &UeCppTarget::addGeneratedCode(Node *directory)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        vector<Node *> standaloneGeneratedSources;
+        STACK_PMR_VECTOR(Node *, standaloneGeneratedSources, 64)
         for (const std::filesystem::directory_entry &entry :
              std::filesystem::recursive_directory_iterator(directory->filePath))
         {
@@ -746,26 +763,32 @@ void UeConfiguration::initialize()
                 ispcCompilerFeatures.compileDefinitions.emplace_back(argument.substr(2));
             }
         }
-        std::erase_if(ispcCompilerFeatures.compileDefinitions, [](const string &definition) {
-            return definition.starts_with("PLATFORM_EXCEPTIONS_DISABLED=");
-        });
+        std::erase_if(ispcCompilerFeatures.compileDefinitions,
+                      [](const string &definition) { return definition.starts_with("PLATFORM_EXCEPTIONS_DISABLED="); });
         ispcCompilerFeatures.compileDefinitions.emplace_back(
-            evaluate(ExceptionHandling::ON) ? "PLATFORM_EXCEPTIONS_DISABLED=0"
-                                            : "PLATFORM_EXCEPTIONS_DISABLED=1");
+            evaluate(ExceptionHandling::ON) ? "PLATFORM_EXCEPTIONS_DISABLED=0" : "PLATFORM_EXCEPTIONS_DISABLED=1");
     }
     Configuration::initialize();
     if (buildCommands)
     {
         if (!buildCommands->cppCompileCommand.empty())
+        {
             cppCompileCommand = buildCommands->cppCompileCommand;
+        }
         if (!buildCommands->cCompileCommand.empty())
+        {
             cCompileCommand = buildCommands->cCompileCommand;
+        }
         if (!buildCommands->linkCommand.empty())
+        {
             linkCommand = buildCommands->linkCommand;
+        }
         linkDependenciesPrefix = buildCommands->linkDependenciesPrefix;
         linkCommandSuffix = buildCommands->linkCommandSuffix;
         if (!buildCommands->archiveCommand.empty())
+        {
             archiveCommand = buildCommands->archiveCommand;
+        }
 
         if (!buildCommands->cppCompileCommand.empty())
         {
@@ -952,7 +975,7 @@ UeConfiguration &UeConfiguration::getProducerConfiguration(const UeConfProfile p
     return *producer->second;
 }
 
-PLOAT &UeConfiguration::addProducerArchive(const string &logicalName, const UeConfProfile producerUeConfProfile)
+Ploat &UeConfiguration::addProducerArchive(const string &logicalName, const UeConfProfile producerUeConfProfile)
 {
     UeConfiguration &producer = getProducerConfiguration(producerUeConfProfile);
     DSC<UeCppTarget> &implementation = producer.getOrAddTarget(logicalName);
@@ -962,9 +985,9 @@ PLOAT &UeConfiguration::addProducerArchive(const string &logicalName, const UeCo
                                  "Configuration: {}\nProducer: {}\nModule: {}",
                                  name, producer.name, logicalName));
     }
-    LOAT &archive = implementation.getLOAT();
+    Loat &archive = implementation.getLoat();
 
-    // PLOAT::completeRoundOne() resolves a LOAT's output directory from myBuildDir, so at configure time that is the
+    // Ploat::completeRoundOne() resolves a Loat's output directory from myBuildDir, so at configure time that is the
     // only member holding the archive's location. At build time the location comes from the restored output node.
     Node *archiveDirectory;
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -979,13 +1002,13 @@ PLOAT &UeConfiguration::addProducerArchive(const string &logicalName, const UeCo
     // A prebuilt library resolved purely by path. LIBRARY_STATIC and PLIBRARY_STATIC share one filename convention, so
     // the proxy names the same file the producer archives. Nothing about the producer's link closure or object-file
     // producers crosses the configuration boundary; this configuration computes its own closure from its own graph.
-    PLOAT &proxy = targets<PLOAT>.emplace_back(*this, archive.getOutputName(), archiveDirectory,
-                                               TargetType::PLIBRARY_STATIC,
-                                               name + slashc + logicalName + "-producer-archive", false, false);
+    Ploat &proxy =
+        targets<Ploat>.emplace_back(*this, archive.getOutputName(), archiveDirectory, TargetType::PLIBRARY_STATIC,
+                                    name + slashc + logicalName + "-producer-archive", false, false);
     ploats.emplace_back(&proxy);
 
-    // Makes dependents create their ordinary round-zero edge to this proxy, which in turn waits for the real archive.
-    // PLIBRARY_STATIC initializes hasObjectFiles in PLOAT itself.
+    // Makes dependents create their ordinary round-zero edge to this physical prebuilt-library proxy, which in turn
+    // waits for the real archive.
     proxy.realBTargets[0].addDep<BTargetType::UNKNOWN>(&archive.realBTargets[0]);
     return proxy;
 }
@@ -1027,7 +1050,7 @@ void UeConfiguration::initializeApiMacro(DSC<UeCppTarget> &target, const bool de
     target.getSourceTarget().reqCompileDefinitions.emplace(std::move(definition));
 }
 
-PLOAT &UeConfiguration::getOrAddPrebuiltLibrary(Node *libraryFile, const TargetType libraryType)
+Ploat &UeConfiguration::getOrAddPrebuiltLibrary(Node *libraryFile, const TargetType libraryType)
 {
     const string key = FORMAT("{}:{}", static_cast<uint8_t>(libraryType), libraryFile->filePath);
     if (const auto existing = prebuiltLibraries.find(key); existing != prebuiltLibraries.end())
@@ -1046,7 +1069,7 @@ PLOAT &UeConfiguration::getOrAddPrebuiltLibrary(Node *libraryFile, const TargetT
     }
 
     Node *directory = Node::getNode(libraryPath.parent_path().string(), false);
-    PLOAT &library = targets<PLOAT>.emplace_back(*this, outputName, directory, libraryType,
+    Ploat &library = targets<Ploat>.emplace_back(*this, outputName, directory, libraryType,
                                                  name + slashc + "prebuilt-" + std::to_string(prebuiltLibraries.size()),
                                                  false, false);
     ploats.emplace_back(&library);
@@ -1055,7 +1078,7 @@ PLOAT &UeConfiguration::getOrAddPrebuiltLibrary(Node *libraryFile, const TargetT
 }
 
 DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const UeFileKind fileKind,
-                                                     const UeConfProfile moduleUeConfProfile)
+                                                      const UeConfProfile moduleUeConfProfile)
 {
     // At this point the scanner registry has selected a logical rules declaration,
     // but its specify() functions have not yet populated the target.
@@ -1074,12 +1097,12 @@ DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const 
     const bool defines = fileKind == UeFileKind::Module;
     const string apiMacro = defines ? makeApiMacro(logicalName) : string();
 
-    PLOAT *output = nullptr;
+    Ploat *output = nullptr;
     switch (fileKind)
     {
     case UeFileKind::Target:
         // The top-level target owns the one monolithic executable output.
-        output = &GetExeLOAT(logicalName);
+        output = &getExeLoat(logicalName);
         break;
     case UeFileKind::Module:
         if (moduleUeConfProfile != ueConfProfile)
@@ -1107,10 +1130,10 @@ DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const 
         {
         case TargetType::LIBRARY_SHARED:
             // Modular mode remains one shared output per C++ module for now.
-            output = &getSharedLOAT(logicalName);
+            output = &getSharedLoat(logicalName);
             break;
         case TargetType::LIBRARY_STATIC:
-            output = &getStaticLOAT(logicalName);
+            output = &getStaticLoat(logicalName);
             break;
         case TargetType::LIBRARY_OBJECT:
             // Object-only modules contribute their objects directly to the eventual executable.
@@ -1127,7 +1150,7 @@ DSC<UeCppTarget> &UeConfiguration::makeDscUeCppTarget(string logicalName, const 
         break;
     }
     // DSC carries compile visibility and, when present, the module's physical output. LIBRARY_OBJECT modules have no
-    // PLOAT; their object-producer graph is resolved transitively by the eventual executable.
+    // Ploat; their object-producer graph is resolved transitively by the eventual executable.
     DSC<UeCppTarget> &dsc = targets<DSC<UeCppTarget>>.emplace_back(&cppTarget, output, defines, apiMacro);
     dsc.configuration = this;
     initializeApiMacro(dsc, defines);

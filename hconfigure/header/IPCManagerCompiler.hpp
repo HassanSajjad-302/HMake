@@ -56,7 +56,7 @@ class IPCManagerCompiler : Manager
     // IPCManagerCompiler::responses cache.
     [[nodiscard]] tl::expected<void, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
 
-public:
+  public:
     // Internal cache for the possible future requests.
     std::unordered_map<std::string_view, Response> responses;
 
@@ -69,7 +69,7 @@ public:
     [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(uint32_t fileSize) const;
 
   public:
-   // Stores the mockFilePath. Needed so compiler could generate argument correctly.
+    // Stores the mockFilePath. Needed so compiler could generate argument correctly.
     std::string mockFilePath;
 
     // Whether we are mocking or are we doing IPC with the build-system

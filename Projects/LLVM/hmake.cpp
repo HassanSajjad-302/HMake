@@ -11,10 +11,11 @@ void editOutFilesRecursive(CppTarget *t, string directory, string extension, set
         set<Node *> noInclude;
         for (const string &str : doNotInclude)
         {
-            noInclude.emplace(Node::getNodeNonNormalized(directory + slashc + str, true));
+            noInclude.emplace(Node::getNode<PathType::NEITHER>(directory + slashc + str, true));
         }
 
-        for (const auto &f : recursive_directory_iterator(srcNode->filePath / path(directory)))
+        Node *directoryNode = Node::getNode((path(srcNode->filePath) / directory).string(), false);
+        for (const auto &f : recursive_directory_iterator(directoryNode->filePath))
         {
             if (f.is_regular_file() && f.path().extension() == extension)
             {
@@ -170,15 +171,16 @@ void configurationSpecification(Configuration &config)
     // header-units.
 
     DSC<CppTarget> *llvmSupportCDscPointer = nullptr;
-    PLOAT *llvmSupportCPloatPointer = nullptr;
+    Ploat *llvmSupportCPloatPointer = nullptr;
 
     if (config.name == "hu")
     {
-        PLOAT &llvmSupportCPloat = config.getStaticPLOAT(
+        Ploat &llvmSupportCPloat = config.getStaticPloat(
             "LLVMSupportC",
             bsMode == BSMode::CONFIGURE
-                ? Node::getNodeNonNormalized(
-                      configureNode->filePath + string{slashc} + "standard" + string{slashc} + "LLVMSupportC", false)
+                ? Node::getNode<PathType::NORMAL_ABSOLUTE>(string(configureNode->filePath) + slashc + "standard" +
+                                                              slashc + "LLVMSupportC",
+                                                          false)
                 : nullptr);
         llvmSupportCPloatPointer = &llvmSupportCPloat;
     }
@@ -314,7 +316,7 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &llvmMinTableGen =
         config.getCppExeDSC("LLVMMinTableGen")
             .privateDeps(llvmDemangle, llvmSupport, llvmTableGen, llvmTableGenBasic, llvmTargetParser);
-    llvmMinTableGen.getLOAT().setOutputName("llvm-min-tblgen");
+    llvmMinTableGen.getLoat().setOutputName("llvm-min-tblgen");
     llvmMinTableGen.getSourceTarget().moduleFiles("llvm/utils/TableGen/llvm-min-tblgen.cpp");
 
     DSC<CppTarget> &dlBitCode = config.getCppObjectDSC("DLBitCode");
@@ -822,7 +824,7 @@ void configurationSpecification(Configuration &config)
         // Not added because of TableGenBackends.h name collision in "clang/utils/TableGen" directory
         DSC<CppTarget> &clangTableGen =
             config.getCppExeDSC("ClangTableGen").privateDeps(llvmDemangle, llvmSupport, llvmTableGen);
-        clangTableGen.getLOAT().setOutputName("clang-tblgen");
+        clangTableGen.getLoat().setOutputName("clang-tblgen");
         clangTableGen.getSourceTarget()
             .moduleDirsRE("clang/utils/TableGen", ".*cpp")
             .moduleDirsRE("clang/lib/Support", ".*cpp")
@@ -832,7 +834,7 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &llvmTableGenExe =
         config.getCppExeDSC("LLVMTableGenExe").privateDeps(llvmCodeGenTypes, llvmDemangle, llvmSupport, llvmTableGen);
     llvmTableGenExe.getSourceTarget().privateIncludesSource("llvm/utils/TableGen");
-    llvmTableGenExe.getLOAT().setOutputName("llvm-tblgen");
+    llvmTableGenExe.getLoat().setOutputName("llvm-tblgen");
     if (bsMode == BSMode::CONFIGURE)
     {
         set<string> llvmTableGenNoInclude;
@@ -859,7 +861,7 @@ void configurationSpecification(Configuration &config)
         clangStaticAnalyzerFrontend, clangFrontendTool, clangCodeGen, clangDependencyScanning,
         clangScalableStaticAnalysisFrameworkCore, clangScalableStaticAnalysisFrameworkAnalyses,
         clangScalableStaticAnalysisFrameworkFrontend, clangUnifiedSymbolResolution);
-    clang.getLOAT().setOutputName("clang-23");
+    clang.getLoat().setOutputName("clang-23");
     clang.getSourceTarget()
         .moduleDirsRE("clang/tools/driver", ".*cpp")
         .moduleFiles("llvm/my-fork/tools/clang/tools/driver/clang-driver.cpp")

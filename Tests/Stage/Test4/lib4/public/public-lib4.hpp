@@ -4,7 +4,3 @@
 unsigned short getValueLib4();
 
 #endif // HMAKE_PUBLIC_LIB4_HPP
-
-
-
-

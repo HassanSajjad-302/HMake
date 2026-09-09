@@ -17,7 +17,8 @@ class IPCManagerBS : public Manager
     tl::expected<void, std::string> writeInternal(std::string_view buffer) const override;
 
     explicit IPCManagerBS(uint64_t writeFd_);
-    static tl::expected<void, std::string> receiveMessage(char (&ctbBuffer)[320], CTB &messageType, std::string_view serverReadString) ;
+    static tl::expected<void, std::string> receiveMessage(char (&ctbBuffer)[320], CTB &messageType,
+                                                          std::string_view serverReadString);
     [[nodiscard]] tl::expected<void, std::string> sendMessage(const BTCModule &moduleFile) const;
     [[nodiscard]] tl::expected<void, std::string> sendMessage(const BTCNonModule &nonModule) const;
     [[nodiscard]] tl::expected<void, std::string> sendMessage(const BTCLastMessage &lastMessage) const;

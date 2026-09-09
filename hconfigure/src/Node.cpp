@@ -1,114 +1,184 @@
 #include "Node.hpp"
 #include "Manager.hpp"
 #include "rapidhash/rapidhash.h"
-
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <utility>
+#include <cstring>
 
 #ifdef _WIN32
 #include "Windows.h"
 #else
 #include <cerrno>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #endif
 
-using std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
+using std::filesystem::file_type;
 
-string getStatusString(const path &p)
+static bool canSkipNormalization(const string_view filePath, const PathType pathType, bool &absolute)
 {
-    switch (status(p).type())
+    if (!filePath.empty())
     {
-    case file_type::none:
-        return " has `not-evaluated-yet` type";
-    case file_type::not_found:
-        return " does not exist";
-    case file_type::regular:
-        return " is a regular file";
-    case file_type::directory:
-        return " is a directory";
-    case file_type::symlink:
-        return " is a symlink";
-    case file_type::block:
-        return " is a block device";
-    case file_type::character:
-        return " is a character device";
-    case file_type::fifo:
-        return " is a named IPC pipe";
-    case file_type::socket:
-        return " is a named IPC socket";
-    case file_type::unknown:
-        return " has `unknown` type";
-    default:
-        return " has `implementation-defined` type";
+        const char lastCharacter = filePath.back();
+        bool endsInSeparator = lastCharacter == slashc;
+        if constexpr (os == OS::NT)
+        {
+            endsInSeparator = endsInSeparator || lastCharacter == '/';
+        }
+        if (endsInSeparator)
+        {
+            printErrorMessage(
+                FORMAT("A path passed to Node must not end in a directory separator.\nPath: {}", filePath));
+        }
     }
+
+    absolute = pathType == PathType::ABSOLUTE || Node::isAbsolute(filePath);
+    if (!absolute)
+    {
+        return false;
+    }
+    if (pathType == PathType::NORMAL)
+    {
+        return true;
+    }
+    if constexpr (os == OS::NT)
+    {
+        // Even a lexically clean Windows path may still need separator conversion and lower-casing.
+        return false;
+    }
+
+    uint64_t offset = 1;
+    while (offset < filePath.size())
+    {
+        const uint64_t componentStart = offset;
+        while (offset < filePath.size() && filePath[offset] != '/')
+        {
+            ++offset;
+        }
+        const uint64_t componentSize = offset - componentStart;
+        if (componentSize == 0 || (filePath[componentStart] == '.' &&
+                                   (componentSize == 1 || (componentSize == 2 && filePath[componentStart + 1] == '.'))))
+        {
+            return false;
+        }
+        if (offset < filePath.size())
+        {
+            ++offset;
+        }
+    }
+    return true;
 }
 
-bool NodeEqual::operator()(const Node &lhs, const Node &rhs) const
+template <typename String> static void normalizeNodePath(String &filePath, const bool prependBase)
 {
-    return lhs.filePath == rhs.filePath;
-}
+    if (prependBase)
+    {
+        assert(!normalizationBasePath.empty());
+        const uint64_t pathSize = filePath.size();
+        const bool addSeparator = normalizationBasePath.back() != slashc;
+        const uint64_t prefixSize = normalizationBasePath.size() + addSeparator;
+        filePath.resize(prefixSize + pathSize);
+        memmove(filePath.data() + prefixSize, filePath.data(), pathSize);
+        memcpy(filePath.data(), normalizationBasePath.data(), normalizationBasePath.size());
+        if (addSeparator)
+        {
+            filePath[normalizationBasePath.size()] = slashc;
+        }
+    }
 
-bool NodeEqual::operator()(const Node &lhs, const string_view &rhs) const
-{
-    return lhs.filePath == rhs;
-}
+    if constexpr (os == OS::NT)
+    {
+        path normalized{string(filePath)};
+        normalized = normalized.lexically_normal();
+        normalized.make_preferred();
+        string normalizedString = normalized.string();
+        lowerCaseOnWindows(normalizedString.data(), normalizedString.size());
+        filePath.assign(normalizedString.data(), normalizedString.size());
+    }
+    else
+    {
+        assert(!filePath.empty() && filePath.front() == '/');
+        const uint64_t inputSize = filePath.size();
+        uint64_t readOffset = 1;
+        uint64_t writeOffset = 1;
 
-bool NodeEqual::operator()(const string_view &lhs, const Node &rhs) const
-{
-    return lhs == rhs.filePath;
-}
-
-std::size_t NodeHash::operator()(const Node &node) const
-{
-    return rapidhash(node.filePath.c_str(), node.filePath.size());
-}
-
-std::size_t NodeHash::operator()(const string_view &str) const
-{
-    return rapidhash(str.data(), str.size());
+        while (readOffset < inputSize)
+        {
+            while (readOffset < inputSize && filePath[readOffset] == '/')
+            {
+                ++readOffset;
+            }
+            const uint64_t componentStart = readOffset;
+            while (readOffset < inputSize && filePath[readOffset] != '/')
+            {
+                ++readOffset;
+            }
+            const uint64_t componentSize = readOffset - componentStart;
+            if (componentSize == 0 || (componentSize == 1 && filePath[componentStart] == '.'))
+            {
+                continue;
+            }
+            if (componentSize == 2 && filePath[componentStart] == '.' && filePath[componentStart + 1] == '.')
+            {
+                if (writeOffset > 1)
+                {
+                    while (writeOffset > 1 && filePath[writeOffset - 1] != '/')
+                    {
+                        --writeOffset;
+                    }
+                    if (writeOffset > 1)
+                    {
+                        --writeOffset;
+                    }
+                }
+                continue;
+            }
+            if (writeOffset > 1)
+            {
+                filePath[writeOffset++] = '/';
+            }
+            memmove(filePath.data() + writeOffset, filePath.data() + componentStart, componentSize);
+            writeOffset += componentSize;
+        }
+        filePath.resize(writeOffset);
+    }
 }
 
 Node::Node(const string_view filePath_) : filePath(filePath_), myId(idCount++)
 {
+    assert(filePath_.data()[filePath_.size()] == '\0');
     if (myId >= 128 * 1024)
     {
-        printErrorMessage(FORMAT("Maximum node count exceeded.\nLimit: {}\nPath: {}", 128 * 1024, filePath));
+        printErrorMessage(FORMAT("Maximum node count exceeded.\nLimit: {}\nPath: {}", 128 * 1024, filePath_));
     }
     nodeIndices.emplace_back(this);
 }
 
-string Node::getFileName() const
+bool Node::isAbsolute(string_view fileSystemPath)
 {
-    if (const size_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
+    if (fileSystemPath.empty())
     {
-        return string(filePath.substr(slashPos + 1));
+        return false;
     }
-    return filePath;
-}
 
-string Node::getFileStem() const
-{
-    const size_t slashPos = filePath.find_last_of(slashc);
-    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const size_t dotPos = filePath.find_last_of('.');
-    if (dotPos == string::npos || dotPos <= nameStart)
+    if constexpr (os == OS::NT)
     {
-        return string(filePath.substr(nameStart));
-    }
-    return string(filePath.substr(nameStart, dotPos - nameStart));
-}
+        const auto isSeparator = [](const char character) { return character == '\\' || character == '/'; };
 
-string Node::getExtension() const
-{
-    const size_t slashPos = filePath.find_last_of(slashc);
-    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
-    const size_t dotPos = filePath.find_last_of('.');
-    if (dotPos == string::npos || dotPos <= nameStart)
-    {
-        return {};
+        if (fileSystemPath.size() >= 2 && isSeparator(fileSystemPath[0]) && isSeparator(fileSystemPath[1]))
+        {
+            return true;
+        }
+
+        const char driveLetter = fileSystemPath[0];
+        const bool isAsciiLetter =
+            (driveLetter >= 'A' && driveLetter <= 'Z') || (driveLetter >= 'a' && driveLetter <= 'z');
+        return fileSystemPath.size() >= 3 && isAsciiLetter && fileSystemPath[1] == ':' &&
+               isSeparator(fileSystemPath[2]);
     }
-    return filePath.substr(dotPos);
+    else
+    {
+        return fileSystemPath.front() == '/';
+    }
 }
 
 void Node::performSystemCheck()
@@ -121,7 +191,7 @@ void Node::performSystemCheck()
     const uint64_t persistedLastWriteTime = lastWriteTime;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
-    if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
+    if (!GetFileAttributesExA(filePath.data(), GetFileExInfoStandard, &attrs))
     {
         if (const DWORD win_err = GetLastError(); win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
         {
@@ -166,7 +236,7 @@ void Node::performSystemCheck()
     lastWriteTime = std::chrono::duration_cast<std::chrono::nanoseconds>(unix_time).count();
 #else
     struct stat st{};
-    if (stat(filePath.c_str(), &st) != 0)
+    if (stat(filePath.data(), &st) != 0)
     {
         if (errno == ENOENT || errno == ENOTDIR)
         {
@@ -184,46 +254,84 @@ void Node::performSystemCheck()
     {
         fileType = file_type::regular;
         fileSize = static_cast<uint64_t>(st.st_size);
-        // ... lastWriteTime as before
-#if defined(__APPLE__)
-        lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL +
-                        static_cast<int64_t>(st.st_mtimespec.tv_nsec);
-#else
-        lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
-#endif
     }
     else if (S_ISDIR(st.st_mode))
     {
         fileType = file_type::directory;
-        lastWriteTime = {};
     }
     else
     {
         fileType = file_type::unknown;
         lastWriteTime = {};
+        return;
     }
+
+#if defined(__APPLE__)
+    lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL + st.st_mtimespec.tv_nsec;
+#else
+    lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
+#endif
 #endif
 
+    // Resolve directory fingerprints during the system check so they never reach regular-file hashing.
+    if (fileType == file_type::directory)
+    {
+        contentHash = lastWriteTime;
+        hashCompleted = true;
+    }
     // Until this check, lastWriteTime/contentHash hold one persisted snapshot. An unchanged regular-file timestamp
-    // makes that content hash current, so Builder::checkNodes() can omit the file from its hashing work.
-    if (fileType == file_type::regular && contentHash != missingContentHash &&
-        lastWriteTime == persistedLastWriteTime)
+    // makes that content hash current. Do not reuse a directory fingerprint if its path became a regular file.
+    else if (fileType == file_type::regular && contentHash != missingContentHash &&
+             contentHash != persistedLastWriteTime && lastWriteTime == persistedLastWriteTime)
     {
         hashCompleted = true;
     }
 }
 
-Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
+Node *Node::finishNode(Node *const node, const bool isFile, const bool mayNotExist)
 {
-    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
-    Node *node = &const_cast<Node &>(*it);
-
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
     {
+        string_view status;
+        switch (node->fileType)
+        {
+        case file_type::none:
+            status = " has `not-evaluated-yet` type";
+            break;
+        case file_type::not_found:
+            status = " does not exist";
+            break;
+        case file_type::regular:
+            status = " is a regular file";
+            break;
+        case file_type::directory:
+            status = " is a directory";
+            break;
+        case file_type::symlink:
+            status = " is a symlink";
+            break;
+        case file_type::block:
+            status = " is a block device";
+            break;
+        case file_type::character:
+            status = " is a character device";
+            break;
+        case file_type::fifo:
+            status = " is a named IPC pipe";
+            break;
+        case file_type::socket:
+            status = " is a named IPC socket";
+            break;
+        case file_type::unknown:
+            status = " has `unknown` type";
+            break;
+        default:
+            status = " has `implementation-defined` type";
+            break;
+        }
         printErrorMessage(FORMAT("Filesystem entry has the wrong type.\nPath: {}\nExpected type: {}\nActual status:{}",
-                                 node->filePath, isFile ? "regular file" : "directory",
-                                 getStatusString(node->filePath)));
+                                 node->filePath, isFile ? "regular file" : "directory", status));
     }
     return node;
 }
@@ -232,7 +340,7 @@ Node *Node::getNode(const std::filesystem::directory_entry &entry)
 {
     string filePath = entry.path().string();
     lowerCaseOnWindows(filePath.data(), filePath.size());
-    return getNode(filePath, entry.is_regular_file());
+    return getNode<PathType::NORMAL_ABSOLUTE>(std::move(filePath), entry.is_regular_file());
 }
 
 void Node::performContentHash()
@@ -244,19 +352,19 @@ void Node::performContentHash()
                                  filePath, static_cast<int>(fileType)));
     }
 
+    if (hashCompleted)
+    {
+        return;
+    }
+
     if (fileSize == 0)
     {
         contentHash = 0;
         hashCompleted = true;
         return;
     }
-
-    if (hashCompleted)
-    {
-        return;
-    }
 #ifdef _WIN32
-    HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    HANDLE hFile = CreateFileA(filePath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -284,7 +392,7 @@ void Node::performContentHash()
     CloseHandle(hMap);
     CloseHandle(hFile);
 #else
-    const int fd = open(filePath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int fd = open(filePath.data(), O_RDONLY | O_CLOEXEC);
     if (fd == -1)
     {
         printErrorMessage(FORMAT("Could not open a file for content hashing.\nPath: {}\nOperation: open\n"
@@ -313,33 +421,56 @@ void Node::performContentHash()
 #endif
 }
 
-Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
+Node *Node::getHalfNodeImpl(const string_view filePath_)
 {
-    return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
+    const auto iterator = nodeAllFiles.lazy_emplace(filePath_, [&](const auto &constructor) {
+        nodeStrings.emplace_back(filePath_);
+        constructor(string_view(nodeStrings.back()));
+    });
+    return &const_cast<Node &>(*iterator);
 }
 
-string_view Node::getDirectoryStringView() const
+Node *Node::getHalfNodeImpl(string &&filePath_)
 {
-    const size_t separator = filePath.find_last_of(slashc);
-    if (separator == string::npos)
+    const string_view lookupPath = filePath_;
+    const auto iterator = nodeAllFiles.lazy_emplace(lookupPath, [&](const auto &constructor) {
+        nodeStrings.emplace_back(std::move(filePath_));
+        constructor(string_view(nodeStrings.back()));
+    });
+    return &const_cast<Node &>(*iterator);
+}
+
+Node *Node::getHalfNodeImpl(const string_view filePath_, const PathType pathType)
+{
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
     {
-        return {};
+        return getHalfNodeImpl(filePath_);
     }
-    return string_view(filePath).substr(0, separator);
+
+    STACK_PMR_STRING(normalizedPath, 4 * 1024)
+    normalizedPath.assign(filePath_);
+    normalizeNodePath(normalizedPath, !absolute);
+    return getHalfNodeImpl(string_view(normalizedPath));
 }
 
-Node *Node::getHalfNode(const string_view filePath_)
+Node *Node::getHalfNodeImpl(string &&filePath_, const PathType pathType)
 {
-    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
-    return &const_cast<Node &>(*it);
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
+    {
+        return getHalfNodeImpl(std::move(filePath_));
+    }
+    normalizeNodePath(filePath_, !absolute);
+    return getHalfNodeImpl(std::move(filePath_));
 }
 
-Node *Node::getHalfNodeNonNormalized(const string_view filePath_)
+void Node::normalizeImpl(std::pmr::string &filePath_, const PathType pathType)
 {
-    return getHalfNode(getNormalizedPath(filePath_));
-}
-
-Node *Node::getHalfNode(const uint32_t index)
-{
-    return nodeIndices[index];
+    bool absolute;
+    if (canSkipNormalization(filePath_, pathType, absolute))
+    {
+        return;
+    }
+    normalizeNodePath(filePath_, !absolute);
 }

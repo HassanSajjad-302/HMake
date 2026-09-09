@@ -1,6 +1,9 @@
 # Prerequisites
 *.d
 
+# Local toolchain registry lock
+toolchains.json.lock
+
 # Compiled Object files
 *.slo
 *.lo

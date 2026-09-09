@@ -5,4 +5,3 @@
 unsigned short getValueLib3();
 
 #endif // HMAKE_PUBLIC_LIB3_HPP
-

@@ -1,5 +1,5 @@
 
-#include "LOAT.hpp"
+#include "Loat.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Configuration.hpp"
@@ -8,86 +8,92 @@
 
 #include <filesystem>
 #include <memory_resource>
-#include <stack>
 #include <utility>
 
-#ifndef _WIN32
-#include <sys/wait.h>
-#endif
-
-using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard;
-
-bool operator<(const LOAT &lhs, const LOAT &rhs)
-{
-    return lhs.name < rhs.name;
-}
-
-void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
+void Loat::makeBuildCacheFilesDirPathAtConfigTime()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (!myBuildDir)
         {
-            myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
+            string buildDirectory(configureNode->filePath);
+            buildDirectory += slashc;
+            buildDirectory += name;
+            myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildDirectory));
         }
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 }
 
-LOAT::LOAT(Configuration &config_, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, false, false)
+Loat::Loat(Configuration &config_, const string &name_, const TargetType targetType)
+    : Ploat(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, false, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, buildExplicit, false)
+Loat::Loat(Configuration &config_, const bool buildExplicit, const string &name_, const TargetType targetType)
+    : Ploat(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-LOAT::LOAT(Configuration &config_, Node *myBuildDir_, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, false, false),
+Loat::Loat(Configuration &config_, Node *myBuildDir_, const string &name_, const TargetType targetType)
+    : Ploat(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, false, false),
       myBuildDir(myBuildDir_)
 {
     makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-LOAT::LOAT(Configuration &config_, Node *myBuildDir_, const bool buildExplicit, const string &name_,
+Loat::Loat(Configuration &config_, Node *myBuildDir_, const bool buildExplicit, const string &name_,
            const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, buildExplicit, false),
+    : Ploat(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, buildExplicit, false),
       myBuildDir(myBuildDir_)
 {
     makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-void LOAT::setOutputName(string str)
+void Loat::setOutputName(string str)
 {
 #ifndef BUILD_MODE
     outputName = std::move(str);
 #endif
 }
 
-void LOAT::setUpdateStatus()
+void Loat::copyRuntimeDlls() const
 {
-    RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus != UpdateStatus::UNCHECKED)
+    const uint64_t previousCompletionTime = realBTargets[0].completionTime;
+    const bool copyAll = previousCompletionTime == -1 || outputFileNode->fileType != file_type::regular;
+    const string_view outputDirectory = getOutputDirectoryV();
+    STACK_PMR_STRING(copiedDllPath, 1024)
+    copiedDllPath.reserve(outputDirectory.size() + 64);
+    for (const uint32_t packedDependency : cachedReqDeps)
     {
-        return;
-    }
+        const Ploat *dependency =
+            static_cast<Ploat *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+        if (!dependency->evaluate(TargetType::LIBRARY_SHARED) && !dependency->evaluate(TargetType::PLIBRARY_SHARED))
+        {
+            continue;
+        }
+        if (!copyAll && dependency->realBTargets[0].completionTime <= previousCompletionTime)
+        {
+            continue;
+        }
 
-    if (outputFileNode->fileType == file_type::not_found)
-    {
-        rb.updateStatus = UpdateStatus::UPDATE_NEEDED;
-        return;
+        copiedDllPath.assign(outputDirectory);
+        copiedDllPath += slashc;
+        copiedDllPath += dependency->getActualOutputName();
+        if (string_view(copiedDllPath.data(), copiedDllPath.size()) !=
+            string_view(dependency->outputFileNode->filePath))
+        {
+            copy_file(dependency->outputFileNode->filePath, copiedDllPath,
+                      std::filesystem::copy_options::overwrite_existing);
+        }
     }
-
-    PLOAT::setUpdateStatus();
 }
 
-void LOAT::completeRoundOne()
+void Loat::completeRoundOne()
 {
-    PLOAT::completeRoundOne();
+    Ploat::completeRoundOne();
     if constexpr (bsMode == BSMode::BUILD)
     {
         myBuildDir = readHalfNode(bTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
@@ -101,45 +107,10 @@ void LOAT::completeRoundOne()
         linkWithoutTargets += config.linkDependenciesPrefix;
         linkWithoutTargets += config.linkCommandSuffix;
         realBTargets[0].cumulativeHash = rapidhash(linkWithoutTargets.data(), linkWithoutTargets.size());
-
-        if constexpr (os == OS::NT)
-        {
-            if (linkTargetType != TargetType::EXECUTABLE ||
-                config.ploatFeatures.copyToExeDirOnNtOs != CopyDLLToExeDirOnNTOs::YES ||
-                realBTargets[0].updateStatus != UpdateStatus::UPDATE_NEEDED)
-            {
-                return;
-            }
-
-            // cachedReqDeps is already the unique, flattened PLOAT closure; another graph traversal is redundant.
-            dllsToBeCopied.reserve(cachedReqDeps.size());
-            const string_view outputDirectory = getOutputDirectoryV();
-            string copiedDllPath;
-            copiedDllPath.reserve(outputDirectory.size() + 64);
-            for (const uint32_t packedDependency : cachedReqDeps)
-            {
-                PLOAT *dependency = static_cast<PLOAT *>(
-                    bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
-                if (!dependency->evaluate(TargetType::LIBRARY_SHARED))
-                {
-                    continue;
-                }
-
-                copiedDllPath.assign(outputDirectory);
-                copiedDllPath += slashc;
-                copiedDllPath += dependency->getActualOutputName();
-                const Node *copiedDll = Node::getNode(copiedDllPath, true, true);
-                if (copiedDll->fileType == file_type::not_found ||
-                    copiedDll->lastWriteTime < dependency->outputFileNode->lastWriteTime)
-                {
-                    dllsToBeCopied.emplace_back(dependency);
-                }
-            }
-        }
     }
 }
 
-string LOAT::getPrintName() const
+string Loat::getPrintName() const
 {
     string str;
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -154,12 +125,16 @@ string LOAT::getPrintName() const
     {
         str = "Executable";
     }
-    return str + " " + configureNode->filePath + slashc + name;
+    str += ' ';
+    str += configureNode->filePath;
+    str += slashc;
+    str += name;
+    return str;
 }
 
-void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
+void Loat::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
 {
-    STACK_PMR_VECTOR(const ObjectFileProducer *, producers, 16 * 1024);
+    STACK_PMR_VECTOR(const ObjectFileProducer *, producers, 4 * 1024);
     for (const ObjectFileProducer *root : rootObjectFileProducers)
     {
         producers.emplace_back(root);
@@ -173,7 +148,7 @@ void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
     }
 
     std::ranges::sort(producers);
-    for (size_t index = 1; index < producers.size(); ++index)
+    for (uint64_t index = 1; index < producers.size(); ++index)
     {
         if (producers[index - 1] == producers[index])
         {
@@ -207,7 +182,7 @@ void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
     }
 
     std::ranges::sort(objectNodes, {}, &Node::myId);
-    for (size_t index = 1; index < objectNodes.size(); ++index)
+    for (uint64_t index = 1; index < objectNodes.size(); ++index)
     {
         if (objectNodes[index - 1]->myId == objectNodes[index]->myId)
         {
@@ -218,7 +193,7 @@ void LOAT::populateObjectNodes(std::pmr::vector<Node *> &objectNodes) const
     }
 }
 
-void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const bool returnWithoutTargets,
+void Loat::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const bool returnWithoutTargets,
                                     const span<Node *> objectNodes) const
 {
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -239,9 +214,18 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     linkWithTargets += "\" ";
 
     const BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
+    if constexpr (os == OS::NT)
+    {
+        if (linkTargetType == TargetType::LIBRARY_SHARED && linkerFamily == BTFamily::MSVC)
+        {
+            linkWithTargets += "/IMPLIB:\"";
+            linkWithTargets += importLibraryNode->filePath;
+            linkWithTargets += "\" ";
+        }
+    }
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (const LibDirNode &libDirNode : reqLibraryDirs)
+        for (const Node *libraryDirectory : config.toolchainLibraryDirs)
         {
             if (linkerFamily == BTFamily::MSVC)
             {
@@ -249,10 +233,9 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
             }
             else if (linkerFamily == BTFamily::GCC)
             {
-
                 linkWithTargets += "-L\"";
             }
-            linkWithTargets += libDirNode.node->filePath;
+            linkWithTargets += libraryDirectory->filePath;
             linkWithTargets += "\" ";
         }
     }
@@ -264,7 +247,9 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
 
     for (const Node *objectNode : objectNodes)
     {
-        linkWithTargets += '\"' + objectNode->filePath + "\" ";
+        linkWithTargets += '\"';
+        linkWithTargets += objectNode->filePath;
+        linkWithTargets += "\" ";
     }
 
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -281,8 +266,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
 
     for (const uint32_t packedDependency : cachedReqDeps)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
-        if (reqDep->bTargetType == BTargetType::LOAT && !reqDep->hasObjectFiles)
+        Ploat *reqDep = static_cast<Ploat *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+        if (!reqDep->suppliesLinkerInput())
         {
             continue;
         }
@@ -290,9 +275,9 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         if (linkerFamily == BTFamily::MSVC)
         {
             linkWithTargets += '\"';
-            linkWithTargets += string(reqDep->getOutputDirectoryV());
-            linkWithTargets += slashc;
-            linkWithTargets += reqDep->getOutputName() + ".lib\" ";
+            linkWithTargets +=
+                reqDep->importLibraryNode ? reqDep->importLibraryNode->filePath : reqDep->outputFileNode->filePath;
+            linkWithTargets += "\" ";
         }
         else
         {
@@ -308,8 +293,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     {
         for (const uint32_t packedDependency : cachedReqDeps)
         {
-            if (const PLOAT *reqDep =
-                    static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+            if (const Ploat *reqDep =
+                    static_cast<Ploat *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
                 reqDep->evaluate(TargetType::LIBRARY_SHARED) || reqDep->evaluate(TargetType::PLIBRARY_SHARED))
             {
                 if (os != OS::NT)
@@ -327,8 +312,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
         {
             for (const uint32_t packedDependency : cachedReqDeps)
             {
-                if (const PLOAT *reqDep =
-                        static_cast<PLOAT *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+                if (const Ploat *reqDep =
+                        static_cast<Ploat *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
                     reqDep->evaluate(TargetType::LIBRARY_SHARED) || reqDep->evaluate(TargetType::PLIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
@@ -340,7 +325,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const boo
     linkWithTargets += config.linkCommandSuffix;
 }
 
-bool LOAT::isEventRegistered(Builder &builder)
+bool Loat::isEventRegistered(Builder &builder)
 {
     if (const RealBTarget &realBTarget = realBTargets[0]; realBTarget.exitStatus == EXIT_FAILURE || !selectiveBuild)
     {
@@ -362,9 +347,23 @@ bool LOAT::isEventRegistered(Builder &builder)
             realBTargets[0].updateStatus = UpdateStatus::UPDATE_NOT_NEEDED;
             return false;
         }
-        // An executable/shared library may intentionally obtain every object through required static archives.
-        // PLOAT::completeRoundOne() has already folded that closure into hasObjectFiles.
-        if (!hasObjectFiles)
+        bool hasLinkerInput = false;
+        // Executables and shared libraries may obtain every object through required libraries. Empty generated static
+        // wrappers remain transparent because their flattened dependencies are checked independently.
+        if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            for (const uint32_t packedDependency : cachedReqDeps)
+            {
+                const Ploat *dependency =
+                    static_cast<Ploat *>(bTargetCaches[PloatDepInfo::getCacheIndex(packedDependency)].bTarget);
+                if (dependency->suppliesLinkerInput())
+                {
+                    hasLinkerInput = true;
+                    break;
+                }
+            }
+        }
+        if (!hasLinkerInput)
         {
             printErrorMessage(FORMAT("Link target has no object files.\nTarget: {}\n"
                                      "Hint: add sources or object-producing dependencies before linking.",
@@ -386,7 +385,9 @@ bool LOAT::isEventRegistered(Builder &builder)
         // Archivers update existing archives instead of removing omitted members. Remove only a failed action's
         // temporary output; the final archive remains valid until the new one has been created successfully.
         std::error_code removeError;
-        std::filesystem::remove(outputFileNode->filePath + ".tmp", removeError);
+        string temporaryArchive(outputFileNode->filePath);
+        temporaryArchive += ".tmp";
+        std::filesystem::remove(temporaryArchive, removeError);
         if (removeError)
         {
             printErrorMessage(FORMAT("Could not remove a stale temporary static library.\n"
@@ -397,18 +398,38 @@ bool LOAT::isEventRegistered(Builder &builder)
 
     if (config.responseFileThreshold != 0 && linkWithTargets.size() > config.responseFileThreshold)
     {
-        commandWithResponseFile(linkWithTargets, myBuildDir->filePath + slashc + outputFileNode->getFileName() + ".rsp",
-                                config.responseFileThreshold);
+        string responseFile(myBuildDir->filePath);
+        responseFile += slashc;
+        responseFile += outputFileNode->getFileName();
+        responseFile += ".rsp";
+        commandWithResponseFile(linkWithTargets, responseFile, config.responseFileThreshold);
+    }
+    if constexpr (os == OS::NT)
+    {
+        if (linkTargetType == TargetType::LIBRARY_SHARED && importLibraryNode)
+        {
+            // LINK may succeed without emitting an import library when the DLL exports no symbols. Removing the old
+            // file prevents a stale import library from making that invocation look successful.
+            std::error_code removeError;
+            std::filesystem::remove(importLibraryNode->filePath, removeError);
+            if (removeError)
+            {
+                printErrorMessage(FORMAT("Could not remove the previous import library.\n"
+                                         "Import library: {}\nError: {}",
+                                         importLibraryNode->filePath, removeError.message()));
+            }
+        }
     }
     run.startAsyncProcess(linkWithTargets.data(), builder, this, false);
     return true;
 }
 
-bool LOAT::isEventCompleted(Builder &builder, string_view)
+bool Loat::isEventCompleted(Builder &builder, string_view)
 {
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
-        const string temporaryArchive = outputFileNode->filePath + ".tmp";
+        string temporaryArchive(outputFileNode->filePath);
+        temporaryArchive += ".tmp";
         if (realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
             std::error_code replaceError;
@@ -437,10 +458,20 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
+        if constexpr (os == OS::NT)
+        {
+            if (linkTargetType == TargetType::LIBRARY_SHARED && importLibraryNode &&
+                !std::filesystem::is_regular_file(importLibraryNode->filePath))
+            {
+                printErrorMessage(FORMAT("The shared-library linker did not create its import library.\n"
+                                         "Target: {}\nImport library: {}",
+                                         name, importLibraryNode->filePath));
+            }
+        }
         buildFooterUpdated = true;
     }
 
-    string outputStr;
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -495,19 +526,15 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
             config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
             realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
-            for (const PLOAT *ploat : dllsToBeCopied)
-            {
-                copy_file(ploat->outputFileNode->filePath,
-                          string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(),
-                          std::filesystem::copy_options::overwrite_existing);
-            }
+            copyRuntimeDlls();
         }
     }
+
     return false;
 }
 
-void LOAT::writeConfigCacheAtConfigTime(string &buffer)
+void Loat::writeConfigCacheAtConfigTime(string &buffer)
 {
-    PLOAT::writeConfigCacheAtConfigTime(buffer);
+    Ploat::writeConfigCacheAtConfigTime(buffer);
     writeNode(buffer, myBuildDir);
 }

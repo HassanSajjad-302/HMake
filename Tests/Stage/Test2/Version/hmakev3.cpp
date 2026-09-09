@@ -6,7 +6,7 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppTarget> &lib4 = config.getCppStaticDSC("lib4");
     lib4.getSourceTarget().publicIncludes("lib4/public");
-    bool useLib4Cpp = CacheVariable<bool>("use-lib4.cpp", true).value;
+    bool useLib4Cpp = CacheVariable<bool>("useLib4", true).value;
     if (useLib4Cpp)
     {
         lib4.getSourceTarget().sourceFiles("lib4/private/lib4.cpp");

@@ -14,6 +14,8 @@
 
 #include "HashValues.hpp"
 #include "gtl/include/gtl/phmap.hpp"
+#include <array>
+#include <cstddef>
 #include <deque>
 #include <filesystem>
 #include <format>
@@ -22,8 +24,17 @@
 #include <string>
 #include <vector>
 
-using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
-    std::deque, gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
+#ifndef _WIN32
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+using std::string, std::filesystem::path, std::unique_ptr, std::make_unique, std::vector, std::deque,
+    gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
+
+class Node;
 
 /// Convenience wrapper used throughout the codebase for compile-time-checked `std::format` calls.
 #define FORMAT(formatStr, ...) std::format(formatStr, __VA_ARGS__)
@@ -46,8 +57,7 @@ enum class NDEB
     YES,
 };
 
-// Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
-// when nlohmann/json is removed.
+// Shared host-native path separator used by cache keys and generated paths.
 #ifdef _WIN32
 inline constexpr char slashc = '\\';
 inline constexpr OS os = OS::NT;
@@ -67,25 +77,49 @@ inline bool isConsole = true;
 
 /// Target names explicitly requested on the `hbuild` command line.
 inline flat_hash_set<string> cmdTargets;
-inline string configCacheGlobal{};
-inline string buildCacheGlobal{};
-inline string nodesCacheGlobal{};
+/// Nonzero only when the generated build executable received hbuild's per-invocation `-j` override.
+inline uint16_t buildJobsOverride = 0;
 
-/// Node representing the project source directory.
+inline constexpr string_view nodesCacheFileName = "nodes-cache.bin";
+inline constexpr string_view configCacheFileName = "config-cache.bin";
+inline constexpr string_view buildCacheFileName = "build-cache.bin";
+
+/// Wall-clock time of the last successful configuration; `-1` marks configuration in progress.
+/// Generated build executables preserve this value when rewriting ordinary target rows.
+extern uint64_t configurationTime;
+/// Filtered cache.txt hash recorded by configuration; ordinary builds preserve this baseline.
+extern uint64_t projectCacheContentHash;
+
+/// Number of Nodes backed by the retained nodes-cache buffer loaded at process start. This remains fixed after a
+/// write because cached Node path views continue to borrow from that buffer.
+extern uint32_t nodesCountBefore;
+
+/// Files whose content changes require rebuilding the generated executables.
+extern flat_hash_set<Node *> recompileNodes;
+/// Files whose content changes, or directories whose entry timestamps change, require configuration.
+/// Successful configure runs establish their fingerprint snapshots.
+/// Generated configure/build code may add inputs. cache.txt is tracked separately by projectCacheContentHash.
+extern flat_hash_set<Node *> reconfigureNodes;
+
+/// Committed input hashes stored in the build-cache prefix, independent of Node's latest observed file state.
+/// An absent or zero entry is unresolved; zero hashes are omitted when reading the prefix.
+/// Only successful bootstrap compilation updates recompileBaselineHashes;
+/// successful configuration updates reconfigureBaselineHashes. Ordinary builds preserve both.
+extern gtl::flat_hash_map<Node *, uint64_t> recompileBaselineHashes;
+extern gtl::flat_hash_map<Node *, uint64_t> reconfigureBaselineHashes;
+
+/// Node representing the project source directory. It always has node ID 0.
 inline class Node *srcNode;
 
-// Base directory used by getNormalizedPath() for relative paths. It normally
-// views srcNode->filePath, but decentralized specifications temporarily point it
-// at the directory containing the active specification file.
+// Base directory used by Node's lexical path normalization. It normally views srcNode->filePath, but decentralized
+// specifications temporarily point it at the directory containing the active specification file.
 inline string_view normalizationBasePath;
 
-/// Node representing the active configure/build directory.
+/// Node representing the active configure/build directory. It always has node ID 1.
 inline Node *configureNode;
 
 /// Directory context currently used while reading a decentralized specification.
 inline Node *currentNode;
-
-inline uint32_t cachedNodesCount = 0;
 
 /**
  * Compile-time build-system phase. `BOTH` aliases the active phase so shared code can use
@@ -130,10 +164,9 @@ template <typename T> inline flat_hash_set<T *> targetPointers;
 inline class Builder *builderPtr;
 
 inline string currentMinusConfigure;
-/// Loads tool/cache-variable state and interns cached nodes for the active configure directory.
+/// Loads tool/cache-variable state and maps target caches after the entry point has restored cached nodes.
 void initializeCache();
-inline const string dashCpp = "-cpp";
-inline const string dashLink = "-link";
+inline constexpr char dashCpp[] = "-cpp";
 
 // Enum with sequential indices for array lookup
 enum class ColorIndex : uint16_t
@@ -433,57 +466,76 @@ inline const char *getColorCode(ColorIndex c)
     return ColorCodes[static_cast<uint32_t>(c)];
 }
 
-// LZ4 decompression allocates `(compressed size * bufferMultiplier) + 1` bytes.
-// Compression validates that the original-to-compressed size ratio fits within this bound.
-void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer);
+/// Holds an exclusive, non-inherited lock until scope exit. Contention or failure terminates with a diagnostic.
+/// The parent directory must exist. The lock file is created if absent and is never deleted or replaced here.
+/// Use a stable companion file when protecting data that is replaced atomically; do not unlink an active lock file.
+class FileLock
+{
+  public:
+    explicit FileLock(const path &lockFile);
+    ~FileLock();
+    FileLock(const FileLock &) = delete;
+    FileLock &operator=(const FileLock &) = delete;
 
-/// Compares equal-length byte strings. Despite the name, this is an equality test performed back to front.
+  private:
+#ifdef _WIN32
+    void *handle;
+#else
+    int descriptor;
+#endif
+};
+
+/// Writes a complete cache payload atomically through a temporary sibling file.
+void writeCacheFile(const string &fileName, string_view fileBuffer);
+/// Replaces destination with a fully written and closed temporary sibling on the same filesystem.
+void replaceFileAtomically(const string &temporaryFile, const string &destinationFile);
+/// Compares equal-length byte strings from the end, which is favorable for normalized paths sharing long roots.
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
+/// Returns true when an already-normalized child path is strictly inside an already-normalized parent directory.
+/// parentDirectory must be nonempty and must not end in slashc.
+bool isPathInDirectory(string_view childPath, string_view parentDirectory);
+
+/// Finds the nearest parent of start containing hmake.cpp. Returns that source directory when buildDirectory is false,
+/// or its immediate child on the path to start otherwise. Returns an empty path when no matching parent exists.
+path findProjectDirectory(const path &start, bool buildDirectory);
 
 /// Lowercases a mutable path buffer on Windows and is a no-op on other hosts.
 void lowerCaseOnWindows(char *ptr, uint64_t size);
 
-/**
- * Makes a path absolute relative to `normalizationBasePath`, applies lexical normalization,
- * and lowercases it on Windows. It does not access the filesystem or resolve symlinks.
- */
-string getNormalizedPath(path filePath);
+/// Reads an entire file into a string. The path view must be NUL-terminated, and the file must be readable.
+string fileToString(string_view fileName);
+/// Reads an entire file into caller-provided polymorphic-allocator storage. The path view must be NUL-terminated.
+void fileToString(string_view fileName, std::pmr::string &buffer);
 
-/// Returns true when two normalized paths are equal or `child` is below `parent` at a path-component boundary.
-bool childInParentPathNormalized(string_view parent, string_view child);
-
-/// Returns true when an already-normalized path is inside the active configure/build directory. Compiler dependency
-/// scanners omit such generated files because their producing BTarget, rather than their content hash, controls
-/// invalidation.
-bool isPathInConfigureDirectory(string_view filePath);
-
-/// Reads an entire file into a string. The file must exist and be readable.
-string fileToString(const string &fileName);
-/// Reads an entire file into caller-provided polymorphic-allocator storage.
-void fileToString(const string &fileName, std::pmr::string &buffer);
+/// Decodes `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`, and fixed-width `\xHH` escapes within the owned input buffer.
+[[nodiscard]] string decodeBackslashEscapes(string value);
 
 /**
  * Leaves \p command unchanged while it fits within \p threshold. For a larger command, writes the final launched
  * arguments (everything except argv[0]) to \p responseFile and replaces \p command with `tool @response-file`.
  *
- * The input command buffer is reused while creating the response file, avoiding another command-sized allocation.
+ * The input command buffer is reused for response-file output; Linux tokenizes a temporary copy to keep argv valid.
  * A zero threshold disables response files. Callers should hash the original command before calling this helper;
  * response files change process transport, not build semantics.
  */
 void commandWithResponseFile(std::pmr::string &command, const string &responseFile, uint64_t threshold);
 void commandWithResponseFile(string &command, const string &responseFile, uint64_t threshold);
 
-/// Reads and decompresses an HMake cache file (or reads it directly when compression is disabled).
-string readBufferFromCompressedFile(const string &fileName);
-void readConfigCache();
-void readBuildCache();
-/// Writes node paths and resolved filesystem snapshots to `nodes.bin`.
-/// Each record is uint16 path size, path, `lastWriteTime`, `contentHash`.
+/// Reads `[u16 path-size][path][NUL][u64 mtime][u64 content-hash]...` from `nodes-cache.bin` and restores node IDs 0
+/// and 1 as `srcNode` and `configureNode`. The retained file buffer owns the path views for the process lifetime.
+void loadNodesCache(const path &fileName);
+
+/// Atomically writes the same repeated-record representation to `nodes-cache.bin` when its bytes changed. Existing
+/// path records are retained from the loaded cache; only their resolved metadata and newly discovered Nodes are
+/// serialized.
 void writeNodesCache();
-string getConfigCache();
+/// Appends the build-cache invalidation prefix, including its four-byte total-size field, to an empty buffer.
+void writeBuildCacheInvalidationPrefix(string &cacheBytes);
+/// Restores invalidation state and returns the prefix size. Shared cache readers trust HMake-written files;
+/// format checks are debug invariants.
+uint64_t readBuildCacheInvalidationPrefix(string_view cacheBytes);
 string getBuildCache();
 string getThreadId();
-string getFileNameJsonOrOut(const string &name);
 
 /// Writes exactly `message` to stdout and flushes; no newline is appended.
 void printMessage(const string &message);
@@ -493,14 +545,36 @@ void printMessage(const std::pmr::string &message);
 [[noreturn]] void printErrorMessage(const string &message);
 /// Prints a standardized error without exiting. Use when assembling a multi-error diagnostic.
 void printErrorMessageNoReturn(const string &message);
-void printErrorMessageColor(const string &message, uint32_t color);
+
+/// Call at startup before threads; repaired standard descriptors stay open for the process lifetime.
+inline void sanitizeStandardDescriptors()
+{
+#ifndef _WIN32
+    while (true)
+    {
+        const int fd = open("/dev/null", O_RDWR);
+        if (fd == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            printErrorMessage(
+                FORMAT("Could not initialize standard descriptors.\nSystem error: {}", std::strerror(errno)));
+        }
+        if (fd > STDERR_FILENO)
+        {
+            close(fd);
+            return;
+        }
+    }
+#endif
+}
 
 #define HMAKE_HMAKE_INTERNAL_ERROR                                                                                     \
     printErrorMessage(FORMAT("Internal HMake invariant failed.\nSource file: {}\nSource line: {}", __FILE__, __LINE__));
 
 string getLastNameAfterSlash(string_view name);
-string_view getLastNameAfterSlashV(string_view name);
-string getNameBeforeLastSlash(string_view name);
 string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
@@ -517,8 +591,6 @@ void destructGlobals();
 
 /// Wraps text in ordinary double quotes.
 string addQuotes(string_view pstr);
-/// Wraps text in escaped double quotes suitable for embedding in another command string.
-string addEscapedQuotes(const string &pstr);
 
 /** Splits into non-owning views, preserving empty fields. The input storage must outlive the result. */
 vector<string_view> split(string_view str, char token);
@@ -559,26 +631,26 @@ template <typename T> struct TPointerLess
     static alignas(16) inline char _##var[sizeof(type)];                                                               \
     static inline type &var = reinterpret_cast<type &>(_##var);
 
-// Stack-backed pmr::vector with automatic alignment accounting.
-// Allocates 'StackCap_' elements inline on the stack via a monotonic_buffer_resource.
-// The buffer is oversized by (alignof - 1) bytes to absorb worst-case alignment padding,
-// and reserve() is computed to exactly fill the usable portion.
-// If the vector grows beyond StackCap_, it spills transparently to heap via new/delete.
-// Spilled memory is freed when the monotonic_buffer_resource goes out of scope —
-// monotonic_buffer_resource::deallocate() is a no-op; cleanup happens in its destructor
-// which releases all upstream chunks at once. Vector and resource must share the same scope.
-#define STACK_PMR_VECTOR(Type_, Name_, StackCap_)                                                                      \
-    char Name_##_buf_[sizeof(Type_) * (StackCap_) + alignof(Type_) - 1];                                               \
-    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+// Stack-backed, initially empty PMR containers.
+// For STACK_PMR_VECTOR, Count_ is the positive compile-time element capacity (number of Type_ items).
+// For STACK_PMR_STRING, Bytes_ is the positive compile-time byte/character capacity.
+// std::array deliberately makes a runtime-sized invocation ill-formed instead of accepting a compiler VLA extension.
+// The small allowance covers alignment, string terminators, capacity rounding, and debug-library allocator
+// bookkeeping without increasing the capacity reserved by the container. Growth beyond the inline storage uses the
+// resource's upstream fallback and is released with the local resource. Use these multi-declaration macros only at
+// braced block scope with a simple Name_; alias a Type_ containing commas first.
+#define STACK_PMR_VECTOR(Type_, Name_, Count_)                                                                         \
+    static_assert((Count_) > 0);                                                                                       \
+    alignas(Type_) std::array<std::byte, sizeof(Type_) * (Count_) + alignof(Type_) - 1 + 64> Name_##_buf_;             \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::vector<Type_> Name_(&Name_##_res_);                                                                      \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(Type_) + 1) / sizeof(Type_));
+    Name_.reserve((Name_##_buf_.size() - alignof(Type_) + 1 - 64) / sizeof(Type_));
 
-// Stack-backed pmr::string. Same semantics as STACK_PMR_VECTOR.
-// StackCap_ is in bytes (chars), not elements.
-#define STACK_PMR_STRING(Name_, StackCap_)                                                                             \
-    char Name_##_buf_[(StackCap_) + alignof(char) - 1];                                                                \
-    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+#define STACK_PMR_STRING(Name_, Bytes_)                                                                                \
+    static_assert((Bytes_) > 0);                                                                                       \
+    alignas(std::max_align_t) std::array<std::byte, (Bytes_) + 64> Name_##_buf_;                                       \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_.data(), Name_##_buf_.size());                        \
     std::pmr::string Name_(&Name_##_res_);                                                                             \
-    Name_.reserve((sizeof(Name_##_buf_) - alignof(char) + 1) / sizeof(char));
+    Name_.reserve(Name_##_buf_.size() - 64);
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

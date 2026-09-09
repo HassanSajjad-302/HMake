@@ -9,16 +9,6 @@
 
 using std::string, std::string_view;
 
-enum class ProcessState
-{
-    LAUNCHED,
-    OUTPUT_CONNECTED,
-    COMPLETED,
-    CONNECTED,
-    IPCFD_CLOSED,
-    OUTPUTFD_CLOSED,
-};
-
 enum class CompleteReadType
 {
     INCOMPLETE,
@@ -26,25 +16,32 @@ enum class CompleteReadType
     COMPLETE_MESSAGE,
 };
 
+/// POSIX callers must sanitize standard descriptors once before launching processes and keep descriptors 0-2 open.
+/// HMake's executable entry points call sanitizeStandardDescriptors() before starting any threads.
 struct RunCommand
 {
-    static constexpr uint64_t invalidHandle = static_cast<uint64_t>(-1);
+    struct OutputAndStatus
+    {
+        string output;
+        int exitStatus = EXIT_FAILURE;
+    };
 
-    /// Leased from the process-wide output pool while a result is live. Every non-null pointer is pool-owned.
+    static constexpr uint64_t invalidHandle = -1;
+
+    /// Leased from the process-wide output pool while an asynchronous result is live. Every non-null pointer is
+    /// pool-owned; synchronous runs return their own string in OutputAndStatus.
     string *output = nullptr;
-    uint64_t readPipe = static_cast<uint64_t>(-1);
-    uint64_t writePipe = static_cast<uint64_t>(-1);
-    uint64_t pid = static_cast<uint64_t>(-1);
+    uint64_t readPipe = invalidHandle;
+    uint64_t writePipe = invalidHandle;
+    uint64_t pid = invalidHandle;
     int exitStatus = EXIT_FAILURE;
     bool haveWritePipe = false;
 #ifdef _WIN32
-    uint64_t index = static_cast<uint64_t>(-1);
+    uint64_t index = invalidHandle;
     bool readPending = false;
     bool pipeEof = false;
 #endif
 
-    // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
-    // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     RunCommand() = default;
     ~RunCommand();
     RunCommand(const RunCommand &) = delete;
@@ -52,8 +49,25 @@ struct RunCommand
     RunCommand(RunCommand &&) = delete;
     RunCommand &operator=(RunCommand &&) = delete;
 
-    void runProcess(const char *command);
+    /// Runs a noninteractive command synchronously with stdout/stderr captured through one pipe by default.
+    /// With captureOutput false, stdout/stderr inherit the parent's respective streams and output stays empty
+    /// unless a launch or wait failure returns a diagnostic.
+    /// Stdin reads EOF from NUL on Windows or /dev/null on Linux; the parent's input is never consumed.
+    /// Concurrent calls own independent process handles and output; no pooled asynchronous state is used.
+    /// The command view is copied before launching and therefore need not be null-terminated.
+    /// Always waits for the child to exit; when capturing, also waits for all inherited output writers to close,
+    /// including those held by descendants.
+    /// Launch/capture failures return EXIT_FAILURE with a diagnostic appended to any captured output.
+    /// Linux splits quotes/backslash escapes without shell expansion; Windows uses native command-line quoting.
+    /// Invoke a shell explicitly if the command needs shell operators or built-ins.
+    /// workingDirectory selects the child's directory; nullptr or an empty string inherits the parent's directory.
+    /// On Windows, executable lookup uses the parent's directory, not workingDirectory; use an absolute executable
+    /// path when launching a program from the child's directory.
+    [[nodiscard]] static OutputAndStatus runProcess(string_view command, const char *workingDirectory = nullptr,
+                                                    bool captureOutput = true);
 
+    /// Consumes the writable, NUL-terminated command buffer; its original contents need not survive process launch.
+    /// Linux uses the same literal quoting/escape rules as runProcess, without shell expansion.
     uint64_t startAsyncProcess(char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe_);
     /// Restores the inactive default state and returns the output buffer to the pool. Call explicitly before reusing
     /// this object after an asynchronous process has terminated.

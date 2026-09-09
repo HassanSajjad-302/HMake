@@ -134,10 +134,6 @@ class ScannerMetadataTests(unittest.TestCase):
         compiler = self.write("toolchain/clang++", "")
         (self.root / "Engine" / "Source").mkdir(parents=True)
         base_command = f'{compiler} -c -I. -DVALUE=1 -fno-rtti -fno-exceptions -x c++ -std=c++20'
-        metadata = self.write(
-            "Intermediate/Debug/UnrealServerMetadata.txt",
-            "Module: CoreUObject\nModule: Engine\n",
-        )
         self.write(
             "Intermediate/Debug/Core/SharedDefinitions.Core.Cpp20.h",
             "#pragma once\n#define VALUE 1\n#define UE_VALIDATE_INTERNAL_API 0\n#define CORE_API \n",
@@ -146,10 +142,10 @@ class ScannerMetadataTests(unittest.TestCase):
             "Intermediate/Debug/BuildSettings/Definitions.h",
             '#pragma once\n#define UE_WITH_DEBUG_INFO 1\n#define UE_VFS_PATHS "/UEVFS/Root;/checkout;"\n',
         )
-        definitions = scanner.ubt_definition_arguments(base_command, metadata)
+        definitions = scanner.ubt_definition_arguments(base_command, self.root / "Intermediate" / "Debug")
         shared_header = self.write(
             "Engine/Source/HMakeSharedDefs.h",
-            scanner.generate_shared_definitions(metadata, self.root),
+            scanner.generate_shared_definitions({"CoreUObject": {}, "Engine": {}}),
         )
 
         cpp_command, c_command = scanner.compile_commands(base_command, self.root, definitions, shared_header)

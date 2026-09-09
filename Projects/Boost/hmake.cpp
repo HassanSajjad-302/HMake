@@ -3,17 +3,12 @@
 // 1) Download boost_1_88_0.zip and extract it in C:\boost (important for shorter compile-commands).
 // 2) Build HMake with the CMake Release configuration.
 // 3) Add the build-dir to Environment Variable
-// 4) Run htools as administrator. This registers the include and library dirs of the installed latest msvc tool.
+// 4) Register the MSVC toolchain in %LOCALAPPDATA%\HMake\toolchains.json if it is not the installed default.
 // 5) Copy the Projects/boost/* to boost/
-// 6) In C:\boost/boost/    Run "hwrite -r .hpp".     --> This writes header-units.json files recursively. Otherwise,
-// header-units not considered by MSVC for include translation.
-//
-// 7) In boost/, mkdir BoostBuild, cd BoostBuild.
-// 8) hhelper
-// 9) hhelper
-// 10) cd conventional-d && hbuild    --> This will full build the conventional-d configuration.
-// 11) cd ../hu-d/ScanOnly   &&   hbuild    --> This will just scan, but not build the hu-d configuration.
-// 12) cd ../ && hbuild      --> This will full build the hu-d configuration. Just sit-back and enjoy.
+// 6) In boost/, run hbuild -B BoostBuild --toolchain <name>.
+// 7) cd BoostBuild/conventional-d && hbuild -B .. --> This will full build the conventional-d configuration.
+// 8) cd ../hu-d/ScanOnly && hbuild -B ../.. --> This will just scan, but not build the hu-d configuration.
+// 9) cd ../ && hbuild -B .. --> This will full build the hu-d configuration. Just sit-back and enjoy.
 
 // Results
 
@@ -92,23 +87,28 @@ void configurationSpecification(Configuration &config)
         {
             containerHash.testReqHeaderFiles.erase("config.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./config.hpp", Node::getNodeNonNormalized("libs/container_hash/test/config.hpp", true));
+                "./config.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/config.hpp", true));
             containerHash.testReqHeaderFiles.erase("compile_time.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./compile_time.hpp", Node::getNodeNonNormalized("libs/container_hash/test/compile_time.hpp", true));
+                "./compile_time.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/compile_time.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_set_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_set_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_set_test.hpp", true));
+                "./hash_set_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_set_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_map_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_map_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_map_test.hpp", true));
+                "./hash_map_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_map_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_sequence_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
                 "./hash_sequence_test.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/hash_sequence_test.hpp", true));
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_sequence_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_fwd_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_fwd_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_fwd_test.hpp", true));
+                "./hash_fwd_test.hpp",
+                Node::getNode<PathType::NEITHER>("libs/container_hash/test/hash_fwd_test.hpp", true));
         }
     }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);

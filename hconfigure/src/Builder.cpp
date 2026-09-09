@@ -1,11 +1,11 @@
 
 #include "Builder.hpp"
-#include "Cache.hpp"
-#include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
+#include "ProjectCache.hpp"
 #include "RunCommand.hpp"
 
+#include <cassert>
 #include <cerrno>
 #include <csignal>
 #include <mutex>
@@ -127,16 +127,7 @@ void Builder::executeRoundOne()
     }
 
     execute();
-    if (updatedCount != readyBTargetsSizeGoal)
-    {
-        // Unreachable for a closed, immutable, acyclic graph whose FULL/WAIT edge counts are symmetric. Retain the
-        // check as a cheap guard against future custom targets mutating raw scheduler state during round one.
-        printErrorMessage(FORMAT("Internal round-one scheduler invariant failed.\nCompleted targets: {}\n"
-                                 "Expected targets: {}\n"
-                                 "Hint: a target, blocking edge, dependency count, or queue entry changed during "
-                                 "round-one execution.",
-                                 updatedCount, readyBTargetsSizeGoal));
-    }
+    assert(updatedCount == readyBTargetsSizeGoal);
 }
 
 void Builder::executeRoundZero()
@@ -146,11 +137,11 @@ void Builder::executeRoundZero()
     RealBTarget::sortGraph();
     // RealBTarget::printSortedGraph();
 
-    if (const size_t topologicalTargetCount = RealBTarget::sorted.size())
+    if (const uint64_t topologicalTargetCount = RealBTarget::sorted.size())
     {
         // Visit consumers before producers: selective work pulls its required dependencies into the build, while a
         // changed relationship updates the dependency contract persisted for the consumer.
-        for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
+        for (uint64_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
         {
             RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
 
@@ -186,14 +177,7 @@ void Builder::executeRoundZero()
                             ++observedBlockingDependencies;
                         }
                     }
-                    if (observedBlockingDependencies != target.dependenciesSize)
-                    {
-                        printErrorMessage(FORMAT("Internal dependency-count invariant failed.\nTarget: {}\n"
-                                                 "Recorded blocking count: {}\nObserved blocking dependencies: {}",
-                                                 target.getBTarget()->getPrintName(),
-                                                 static_cast<uint32_t>(target.dependenciesSize),
-                                                 observedBlockingDependencies));
-                    }
+                    assert(observedBlockingDependencies == target.dependenciesSize);
                     targetCache.depsCache = updatedDependencies;
                 }
                 else
@@ -218,7 +202,7 @@ void Builder::executeRoundZero()
     // Most targets consume one queue slot. Dynamic module promotions may add tombstoned replacement slots later,
     // for which PointerArrayList retains geometric growth.
     readyBTargets.reserve(RealBTarget::sorted.size());
-    for (size_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
+    for (uint64_t reverseTopologicalIndex = RealBTarget::sorted.size(); reverseTopologicalIndex-- > 0;)
     {
         RealBTarget &target = *RealBTarget::sorted[reverseTopologicalIndex];
         if (!target.dependenciesSize)
@@ -235,13 +219,10 @@ void Builder::executeRoundZero()
 
     // One limit caps active child processes; the other limits aggregate compiler pressure. A fully idle scheduler may
     // still start one process, so conservative throttling cannot prevent the graph from making initial progress.
-    const uint16_t maxRunningProcessAllowed = cache.numberOfBuildProcesses;
+    const uint16_t maxRunningProcessAllowed = projectCache.defaultJobs;
     availableProcessSlots = maxRunningProcessAllowed;
 
-    if (!availableProcessSlots)
-    {
-        printErrorMessage("Invalid process limit.\nConfigured parallel-process count: 0\nHint: set it to at least 1.");
-    }
+    assert(availableProcessSlots != 0);
     const uint32_t hardwareThreads = std::max(1u, std::thread::hardware_concurrency());
     maxSimultaneousProcessDesired = hardwareThreads * 8;
 
@@ -277,8 +258,8 @@ void Builder::executeRoundZero()
     sigemptyset(&ignoredSigpipe.sa_mask);
     if (sigaction(SIGPIPE, &ignoredSigpipe, &oldSigpipe) == -1)
     {
-        printErrorMessage(FORMAT("Could not install the build IPC SIGPIPE policy.\nSystem error: {}",
-                                 P2978::getErrorString()));
+        printErrorMessage(
+            FORMAT("Could not install the build IPC SIGPIPE policy.\nSystem error: {}", P2978::getErrorString()));
     }
 
     const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
@@ -344,12 +325,7 @@ void Builder::executeRoundZero()
 
             if (target->isEventRegistered(*this))
             {
-                if (!availableProcessSlots)
-                {
-                    printErrorMessage(FORMAT("Internal process-slot underflow before target launch.\nTarget: {}\n"
-                                             "Configured slots: {}",
-                                             target->getPrintName(), maxRunningProcessAllowed));
-                }
+                assert(availableProcessSlots != 0);
                 --availableProcessSlots;
 
 #ifdef _WIN32
@@ -399,14 +375,18 @@ void Builder::executeRoundZero()
             if (eventIndex == -1)
             {
                 const string buildCache = getBuildCache();
+                Builder::checkNodes();
                 writeNodesCache();
-                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // getBuildCache() deliberately returns an empty string when neither target data nor the invalidation
+                // prefix changed.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                                buildCache);
+                    string buildCachePath(configureNode->filePath);
+                    buildCachePath += slashc;
+                    buildCachePath += buildCacheFileName;
+                    writeCacheFile(buildCachePath, buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
@@ -431,13 +411,7 @@ void Builder::executeRoundZero()
                 if (!targetActive)
                 {
                     decrementFromDependents(target->realBTargets[0]);
-                    if (availableProcessSlots >= maxRunningProcessAllowed)
-                    {
-                        printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
-                                                 "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
-                                                 target->getPrintName(), availableProcessSlots,
-                                                 maxRunningProcessAllowed));
-                    }
+                    assert(availableProcessSlots < maxRunningProcessAllowed);
                     ++availableProcessSlots;
                 }
             }
@@ -459,17 +433,7 @@ void Builder::executeRoundZero()
         if constexpr (ndeb == NDEB::NO)
         {
             // +1 accounts for possible signalfd readiness event.
-            if (readyEventCount != -1 && readyEventCount > maxRunningProcessAllowed - availableProcessSlots + 1)
-            {
-                for (const BTarget *ptr : eventData)
-                {
-                    if (ptr)
-                    {
-                        printMessage(ptr->getPrintName() + '\n');
-                    }
-                }
-                HMAKE_HMAKE_INTERNAL_ERROR
-            }
+            assert(readyEventCount == -1 || readyEventCount <= maxRunningProcessAllowed - availableProcessSlots + 1);
         }
 
         for (int readyEventIndex = 0; readyEventIndex < readyEventCount; readyEventIndex++)
@@ -478,7 +442,7 @@ void Builder::executeRoundZero()
             if (eventFd == sfd)
             {
                 signalfd_siginfo signalInfo{};
-                const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
+                const int64_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
                 if (bytesRead == -1)
                 {
                     if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -497,18 +461,22 @@ void Builder::executeRoundZero()
                 }
 
                 const string buildCache = getBuildCache();
+                Builder::checkNodes();
                 writeNodesCache();
-                // getBuildCache() deliberately returns an empty string when no completed target changed the cache.
+                // getBuildCache() deliberately returns an empty string when neither target data nor the invalidation
+                // prefix changed.
                 // Preserve the previous cache in that case. Replacing it with an empty file makes the next
                 // configure/build invocation interpret missing records as a serialized build cache.
                 if (!buildCache.empty())
                 {
-                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                                buildCache);
+                    string buildCachePath(configureNode->filePath);
+                    buildCachePath += slashc;
+                    buildCachePath += buildCacheFileName;
+                    writeCacheFile(buildCachePath, buildCache);
                 }
                 std::_Exit(EXIT_SUCCESS);
             }
-            if (eventFd < 0 || static_cast<size_t>(eventFd) >= eventData.size())
+            if (eventFd < 0 || static_cast<uint64_t>(eventFd) >= eventData.size())
             {
                 printErrorMessage(FORMAT("Linux build event has an invalid file descriptor.\n"
                                          "File descriptor: {}\nEvent table size: {}",
@@ -522,12 +490,7 @@ void Builder::executeRoundZero()
             if (!callIsEventCompleted(bt, eventFd))
             {
                 decrementFromDependents(bt->realBTargets[0]);
-                if (availableProcessSlots >= maxRunningProcessAllowed)
-                {
-                    printErrorMessage(FORMAT("Internal process-slot invariant failed after target completion.\n"
-                                             "Target: {}\nAvailable slots: {}\nConfigured slots: {}",
-                                             bt->getPrintName(), availableProcessSlots, maxRunningProcessAllowed));
-                }
+                assert(availableProcessSlots < maxRunningProcessAllowed);
                 ++availableProcessSlots;
             }
         }
@@ -536,11 +499,7 @@ void Builder::executeRoundZero()
 
     if (updatedCount != readyBTargetsSizeGoal)
     {
-        // At this point the list must be empty
-        if (readyBTargets.hasElement())
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
+        assert(!readyBTargets.hasElement());
         /*for (uint32_t i = 0; i < readyBTargetsSizeGoal; ++i)
         {
             printMessage(readyBTargets.array[i].value->bTarget->getPrintName() + '\n');
@@ -588,8 +547,8 @@ void Builder::executeRoundZero()
     }
     if (sigaction(SIGPIPE, &oldSigpipe, nullptr) == -1)
     {
-        printErrorMessage(FORMAT("Could not restore the process SIGPIPE policy.\nSystem error: {}",
-                                 P2978::getErrorString()));
+        printErrorMessage(
+            FORMAT("Could not restore the process SIGPIPE policy.\nSystem error: {}", P2978::getErrorString()));
     }
     if (close(static_cast<int>(serverFd)) == -1)
     {
@@ -609,7 +568,7 @@ void Builder::executeRoundZero()
             FORMAT("Could not close the Windows build event loop.\nSystem error: {}", P2978::getErrorString()));
     }
 #endif
-    serverFd = static_cast<uint64_t>(-1);
+    serverFd = -1;
 }
 
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
@@ -640,7 +599,7 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 #else
     if (fd >= eventData.size())
     {
-        eventData.resize(std::max<size_t>(fd + 1, eventData.size() * 2), nullptr);
+        eventData.resize(std::max<uint64_t>(fd + 1, eventData.size() * 2), nullptr);
     }
     eventData[fd] = target_;
     epoll_event ev{};
@@ -652,7 +611,6 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         printErrorMessage(FORMAT("Could not register target output with the build event loop.\nTarget: {}\n"
                                  "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_ADD)\nSystem error: {}",
                                  target_->getPrintName(), fd, P2978::getErrorString()));
-        HMAKE_HMAKE_INTERNAL_ERROR
     }
     return fd;
 #endif
@@ -723,7 +681,7 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
         return;
     }
     key.target = nullptr;
-    key.handle = static_cast<uint64_t>(-1);
+    key.handle = -1;
     unusedKeysIndices.emplace_back(index);
 #else
     if (index >= eventData.size() || !eventData[index])
@@ -736,7 +694,6 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
         printErrorMessage(FORMAT("Could not unregister target output from the build event loop.\nTarget: {}\n"
                                  "File descriptor: {}\nOperation: epoll_ctl(EPOLL_CTL_DEL)\nSystem error: {}",
                                  eventData[index]->getPrintName(), index, P2978::getErrorString()));
-        HMAKE_HMAKE_INTERNAL_ERROR
     }
     eventData[index] = nullptr;
 #endif
@@ -755,7 +712,8 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T> &v, uint16_t n)
+template <typename T>
+static void divideInChunk(std::pmr::vector<std::span<T>> &result, std::pmr::vector<T> &v, uint16_t n)
 {
     // Produce non-owning partitions for regular-cost work. Content hashing uses a different strategy below because
     // file sizes make its individual items highly uneven.
@@ -767,12 +725,12 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
 
     if (n > v.size())
     {
-        for (size_t i = 0; i < v.size(); ++i)
+        for (uint64_t i = 0; i < v.size(); ++i)
         {
             result.emplace_back(v.data() + i, 1);
         }
 
-        for (size_t i = v.size(); i < n; ++i)
+        for (uint64_t i = v.size(); i < n; ++i)
         {
             result.emplace_back();
         }
@@ -780,13 +738,13 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
         return;
     }
 
-    const size_t chunk_size = v.size() / n;
-    const size_t remainder = v.size() % n;
-    size_t start_pos = 0;
+    const uint64_t chunk_size = v.size() / n;
+    const uint64_t remainder = v.size() % n;
+    uint64_t start_pos = 0;
 
     for (uint16_t i = 0; i < n; ++i)
     {
-        size_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
+        uint64_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
 
         result.emplace_back(v.data() + start_pos, current_chunk_size);
         start_pos += current_chunk_size;
@@ -795,10 +753,12 @@ template <typename T> void divideInChunk(vector<std::span<T>> &result, vector<T>
 
 void Builder::checkNodes()
 {
-    vector<Node *> statNodes;
-    vector<Node *> hashNodes;
-    statNodes.reserve(Node::idCount);
-    hashNodes.reserve(Node::idCount);
+    STACK_PMR_VECTOR(Node *, statNodes, 32 * 1024);
+    STACK_PMR_VECTOR(Node *, hashNodes, 8 * 1024);
+
+    constexpr uint32_t initialNodeCheckCapacity = 1024;
+    statNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
+    hashNodes.reserve(std::min(Node::idCount, initialNodeCheckCapacity));
 
     // statCompleted/hashCompleted distinguish the initial snapshot from later calls. The same pass therefore also
     // picks up headers and other nodes discovered while the build is running.
@@ -825,11 +785,11 @@ void Builder::checkNodes()
     if (!statNodes.empty())
     {
         const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
-        vector<std::span<Node *>> chunks;
+        STACK_PMR_VECTOR(std::span<Node *>, chunks, 256)
         chunks.reserve(workerCount);
         divideInChunk(chunks, statNodes, workerCount);
 
-        vector<thread> workers;
+        STACK_PMR_VECTOR(thread, workers, 256)
         workers.reserve(workerCount - 1);
         for (uint32_t i = 1; i < workerCount; ++i)
         {
@@ -898,7 +858,7 @@ void Builder::checkNodes()
         }
     };
 
-    vector<thread> workers;
+    STACK_PMR_VECTOR(thread, workers, 256)
     workers.reserve(workerCount - 1);
     for (uint32_t i = 1; i < workerCount; ++i)
     {
@@ -938,11 +898,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
 {
     // This is the graph's commit point: propagate rebuild/failure state and one predecessor completion to each FULL
     // consumer. A consumer becomes runnable exactly when its final prerequisite commits here.
-    if (rb.isCompleted)
-    {
-        printErrorMessage(FORMAT("Build target completed more than once.\nTarget: {}\nRound: {}",
-                                 rb.getBTarget()->getPrintName(), static_cast<uint32_t>(rb.round)));
-    }
+    assert(!rb.isCompleted);
     ++updatedCount;
 
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
@@ -976,13 +932,7 @@ void Builder::decrementFromDependents(RealBTarget &rb)
             {
                 dependent->exitStatus = EXIT_FAILURE;
             }
-            if (!dependent->dependenciesSize)
-            {
-                printErrorMessage(FORMAT("Build dependency count underflow.\nCompleted dependency: {}\n"
-                                         "Dependent target: {}\nRound: {}",
-                                         rb.getBTarget()->getPrintName(), dependent->getBTarget()->getPrintName(),
-                                         static_cast<uint32_t>(dependent->round)));
-            }
+            assert(dependent->dependenciesSize != 0);
             --dependent->dependenciesSize;
             if (!dependent->dependenciesSize)
             {

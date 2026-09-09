@@ -18,10 +18,11 @@
  * enumerator is not necessarily its default.
  */
 
+#include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
-#include "Cache.hpp"
-
 #include "TargetType.hpp"
+#include <cstdint>
+#include <string>
 #include <vector>
 
 using std::vector;
@@ -72,14 +73,12 @@ enum class Arch : uint8_t // Architecture
     NONE,
 };
 
-
 enum class AddressModel : uint8_t // AddressModel
 {
     A_32,
     A_64,
     NONE,
 };
-
 
 /// Raw compiler flags appended to a target through `Configuration::assign()`.
 struct CxxFlags : string
@@ -251,9 +250,6 @@ enum class RuntimeDebugging : bool
 string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
 /// Recovers HMake's logical target name from a platform-specific artifact name.
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
-/// Returns the platform-appropriate command path for an executable (`./name` or `name.exe`).
-string getSlashedExecutableName(const string &name);
-
 /// @name Language and optimization features
 /// @{
 /// C++ language-standard spellings supported by HMake's compiler adapters.
@@ -407,8 +403,6 @@ template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
     }
 }
 
-
-
 /**
  * @brief Typed settings used to construct linker and archiver command lines.
  *
@@ -427,18 +421,15 @@ struct LinkerFeatures
     LTO lto = LTO::OFF;
     LTOMode ltoMode = LTOMode::FULL;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
-    RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
-    TargetOS targetOs;
-    DebugSymbols debugSymbols = DebugSymbols::ON;
+    RuntimeDebugging runtimeDebugging = RuntimeDebugging::OFF;
+    TargetOS targetOs = TargetOS::NONE;
+    DebugSymbols debugSymbols = DebugSymbols::OFF;
     Profiling profiling = Profiling::OFF;
     Visibility visibility = Visibility::HIDDEN;
 
-    ConfigType configurationType;
-
-    // Following two are initialized in constructor
-    // AddressModel and Architecture to target for.
-    Arch arch;
-    AddressModel addModel;
+    // Address model and architecture to target.
+    Arch arch = Arch::NONE;
+    AddressModel addModel = AddressModel::NONE;
 
     // Windows Specifc
     DebugStore debugStore = DebugStore::OBJECT;
@@ -448,7 +439,7 @@ struct LinkerFeatures
     // Windows specific
     UserInterface userInterface = UserInterface::CONSOLE;
     InstructionSet instructionSet = InstructionSet::OFF;
-    CpuType cpuType;
+    CpuType cpuType = CpuType::NONE;
 
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
@@ -457,11 +448,8 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    TargetType libraryType;
-    LinkerFeatures();
-
     /// Produces flags for the selected linker and current feature values.
-    string getLinkerFlags();
+    string getLinkerFlags() const;
 
     /// Produces the command prefix used to link an executable or shared library.
     string getLinkCommand() const;
@@ -476,39 +464,67 @@ struct LinkerFeatures
     template <typename T> bool evaluate(T property) const;
 
     /** Applies typed properties from left to right and returns `*this` for chaining. */
-    template <typename T, typename... Property>
-    LinkerFeatures &assign(T property, Property... properties) {
-        if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
-        else if constexpr (std::is_same_v<T, LeakSanitizer>) leakSanitizer = property;
-        else if constexpr (std::is_same_v<T, ThreadSanitizer>) threadSanitizer = property;
-        else if constexpr (std::is_same_v<T, UndefinedSanitizer>) undefinedSanitizer = property;
-        else if constexpr (std::is_same_v<T, Coverage>) coverage = property;
-        else if constexpr (std::is_same_v<T, LTO>) lto = property;
-        else if constexpr (std::is_same_v<T, LTOMode>) ltoMode = property;
-        else if constexpr (std::is_same_v<T, RuntimeLink>) runtimeLink = property;
-        else if constexpr (std::is_same_v<T, RuntimeDebugging>) runtimeDebugging = property;
-        else if constexpr (std::is_same_v<T, TargetOS>) targetOs = property;
-        else if constexpr (std::is_same_v<T, DebugSymbols>) debugSymbols = property;
-        else if constexpr (std::is_same_v<T, Profiling>) profiling = property;
-        else if constexpr (std::is_same_v<T, Visibility>) visibility = property;
-        else if constexpr (std::is_same_v<T, ConfigType>) setConfigType(property);
-        else if constexpr (std::is_same_v<T, Arch>) arch = property;
-        else if constexpr (std::is_same_v<T, AddressModel>) addModel = property;
-        else if constexpr (std::is_same_v<T, DebugStore>) debugStore = property;
-        else if constexpr (std::is_same_v<T, UserInterface>) userInterface = property;
-        else if constexpr (std::is_same_v<T, InstructionSet>) instructionSet = property;
-        else if constexpr (std::is_same_v<T, CpuType>) cpuType = property;
-        else if constexpr (std::is_same_v<T, Strip>) strip = property;
-        else if constexpr (std::is_same_v<T, CxxSTD>) cxxStd = property;
-        else if constexpr (std::is_same_v<T, CxxSTDDialect>) cxxStdDialect = property;
-        else if constexpr (std::is_same_v<T, Linker>) linker = property;
-        else if constexpr (std::is_same_v<T, Archiver>) archiver = property;
-        else if constexpr (std::is_same_v<T, Threading>) threading = property;
-        else if constexpr (std::is_same_v<T, TargetType>) libraryType = property;
+    template <typename T, typename... Property> LinkerFeatures &assign(T property, Property... properties)
+    {
+        if constexpr (std::is_same_v<T, AddressSanitizer>)
+            addressSanitizer = property;
+        else if constexpr (std::is_same_v<T, LeakSanitizer>)
+            leakSanitizer = property;
+        else if constexpr (std::is_same_v<T, ThreadSanitizer>)
+            threadSanitizer = property;
+        else if constexpr (std::is_same_v<T, UndefinedSanitizer>)
+            undefinedSanitizer = property;
+        else if constexpr (std::is_same_v<T, Coverage>)
+            coverage = property;
+        else if constexpr (std::is_same_v<T, LTO>)
+            lto = property;
+        else if constexpr (std::is_same_v<T, LTOMode>)
+            ltoMode = property;
+        else if constexpr (std::is_same_v<T, RuntimeLink>)
+            runtimeLink = property;
+        else if constexpr (std::is_same_v<T, RuntimeDebugging>)
+            runtimeDebugging = property;
+        else if constexpr (std::is_same_v<T, TargetOS>)
+            targetOs = property;
+        else if constexpr (std::is_same_v<T, DebugSymbols>)
+            debugSymbols = property;
+        else if constexpr (std::is_same_v<T, Profiling>)
+            profiling = property;
+        else if constexpr (std::is_same_v<T, Visibility>)
+            visibility = property;
+        else if constexpr (std::is_same_v<T, ConfigType>)
+            setConfigType(property);
+        else if constexpr (std::is_same_v<T, Arch>)
+            arch = property;
+        else if constexpr (std::is_same_v<T, AddressModel>)
+            addModel = property;
+        else if constexpr (std::is_same_v<T, DebugStore>)
+            debugStore = property;
+        else if constexpr (std::is_same_v<T, UserInterface>)
+            userInterface = property;
+        else if constexpr (std::is_same_v<T, InstructionSet>)
+            instructionSet = property;
+        else if constexpr (std::is_same_v<T, CpuType>)
+            cpuType = property;
+        else if constexpr (std::is_same_v<T, Strip>)
+            strip = property;
+        else if constexpr (std::is_same_v<T, CxxSTD>)
+            cxxStd = property;
+        else if constexpr (std::is_same_v<T, CxxSTDDialect>)
+            cxxStdDialect = property;
+        else if constexpr (std::is_same_v<T, Linker>)
+            linker = property;
+        else if constexpr (std::is_same_v<T, Archiver>)
+            archiver = property;
+        else if constexpr (std::is_same_v<T, Threading>)
+            threading = property;
 
-        if constexpr (sizeof...(properties)) {
+        if constexpr (sizeof...(properties))
+        {
             return assign(properties...);
-        } else {
+        }
+        else
+        {
             return *this;
         }
     }
@@ -517,7 +533,8 @@ struct LinkerFeatures
     template <typename T, typename... Condition>
     LinkerFeatures &assign(bool assignBool, T property, Condition... conditions)
     {
-        if (assignBool) {
+        if (assignBool)
+        {
             return assign(property, conditions...);
         }
         return *this;
@@ -636,8 +653,6 @@ template <typename T> bool LinkerFeatures::evaluate(T property) const
     }
 }
 
-
-
 /**
  * @brief Typed settings used to select a compiler and construct C/C++ compile commands.
  *
@@ -704,9 +719,6 @@ struct CppCompilerFeatures
     /// Resolves host defaults and the selected compiler. Called by `getCompileCommand()`.
     void initialize();
 
-    void setCpuType();
-    bool isCpuTypeG7();
-
     /// Applies a configuration preset and records it in `configType`.
     void setConfigType(ConfigType configType_);
 
@@ -720,47 +732,84 @@ struct CppCompilerFeatures
     template <typename T> bool evaluate(T property) const;
 
     /** Applies typed properties from left to right and returns `*this` for chaining. */
-    template <typename T, typename... Property>
-    CppCompilerFeatures &assign(T property, Property... properties) {
-        if constexpr (std::is_same_v<T, AddressSanitizer>) addressSanitizer = property;
-        else if constexpr (std::is_same_v<T, LeakSanitizer>) leakSanitizer = property;
-        else if constexpr (std::is_same_v<T, ThreadSanitizer>) threadSanitizer = property;
-        else if constexpr (std::is_same_v<T, UndefinedSanitizer>) undefinedSanitizer = property;
-        else if constexpr (std::is_same_v<T, Coverage>) coverage = property;
-        else if constexpr (std::is_same_v<T, LTO>) lto = property;
-        else if constexpr (std::is_same_v<T, LTOMode>) ltoMode = property;
-        else if constexpr (std::is_same_v<T, RuntimeLink>) runtimeLink = property;
-        else if constexpr (std::is_same_v<T, RuntimeDebugging>) runtimeDebugging = property;
-        else if constexpr (std::is_same_v<T, TargetOS>) targetOs = property;
-        else if constexpr (std::is_same_v<T, DebugSymbols>) debugSymbols = property;
-        else if constexpr (std::is_same_v<T, Profiling>) profiling = property;
-        else if constexpr (std::is_same_v<T, Visibility>) localVisibility = property;
-        else if constexpr (std::is_same_v<T, ConfigType>) setConfigType(property);
-        else if constexpr (std::is_same_v<T, Arch>) arch = property;
-        else if constexpr (std::is_same_v<T, AddressModel>) addModel = property;
-        else if constexpr (std::is_same_v<T, DebugStore>) debugStore = property;
+    template <typename T, typename... Property> CppCompilerFeatures &assign(T property, Property... properties)
+    {
+        if constexpr (std::is_same_v<T, AddressSanitizer>)
+            addressSanitizer = property;
+        else if constexpr (std::is_same_v<T, LeakSanitizer>)
+            leakSanitizer = property;
+        else if constexpr (std::is_same_v<T, ThreadSanitizer>)
+            threadSanitizer = property;
+        else if constexpr (std::is_same_v<T, UndefinedSanitizer>)
+            undefinedSanitizer = property;
+        else if constexpr (std::is_same_v<T, Coverage>)
+            coverage = property;
+        else if constexpr (std::is_same_v<T, LTO>)
+            lto = property;
+        else if constexpr (std::is_same_v<T, LTOMode>)
+            ltoMode = property;
+        else if constexpr (std::is_same_v<T, RuntimeLink>)
+            runtimeLink = property;
+        else if constexpr (std::is_same_v<T, RuntimeDebugging>)
+            runtimeDebugging = property;
+        else if constexpr (std::is_same_v<T, TargetOS>)
+            targetOs = property;
+        else if constexpr (std::is_same_v<T, DebugSymbols>)
+            debugSymbols = property;
+        else if constexpr (std::is_same_v<T, Profiling>)
+            profiling = property;
+        else if constexpr (std::is_same_v<T, Visibility>)
+            localVisibility = property;
+        else if constexpr (std::is_same_v<T, ConfigType>)
+            setConfigType(property);
+        else if constexpr (std::is_same_v<T, Arch>)
+            arch = property;
+        else if constexpr (std::is_same_v<T, AddressModel>)
+            addModel = property;
+        else if constexpr (std::is_same_v<T, DebugStore>)
+            debugStore = property;
 
-        else if constexpr (std::is_same_v<T, StdLib>) stdLib = property;
-        else if constexpr (std::is_same_v<T, Optimization>) optimization = property;
-        else if constexpr (std::is_same_v<T, Inlining>) inlining = property;
-        else if constexpr (std::is_same_v<T, Vectorize>) vectorize = property;
-        else if constexpr (std::is_same_v<T, Warnings>) warnings = property;
-        else if constexpr (std::is_same_v<T, WarningsAsErrors>) warningsAsErrors = property;
-        else if constexpr (std::is_same_v<T, ExceptionHandling>) exceptionHandling = property;
-        else if constexpr (std::is_same_v<T, AsyncExceptions>) asyncExceptions = property;
-        else if constexpr (std::is_same_v<T, ExternCNoThrow>) externCNoThrow = property;
-        else if constexpr (std::is_same_v<T, RTTI>) rtti = property;
-        else if constexpr (std::is_same_v<T, InstructionSet>) instructionSet = property;
-        else if constexpr (std::is_same_v<T, CpuType>) cpuType = property;
-        else if constexpr (std::is_same_v<T, CSourceTargetEnum>) cSourceTarget = property;
-        else if constexpr (std::is_same_v<T, CxxSTD>) cxxStd = property;
-        else if constexpr (std::is_same_v<T, CxxSTDDialect>) cxxStdDialect = property;
-        else if constexpr (std::is_same_v<T, Compiler>) compiler = property;
-        else if constexpr (std::is_same_v<T, Threading>) threading = property;
+        else if constexpr (std::is_same_v<T, StdLib>)
+            stdLib = property;
+        else if constexpr (std::is_same_v<T, Optimization>)
+            optimization = property;
+        else if constexpr (std::is_same_v<T, Inlining>)
+            inlining = property;
+        else if constexpr (std::is_same_v<T, Vectorize>)
+            vectorize = property;
+        else if constexpr (std::is_same_v<T, Warnings>)
+            warnings = property;
+        else if constexpr (std::is_same_v<T, WarningsAsErrors>)
+            warningsAsErrors = property;
+        else if constexpr (std::is_same_v<T, ExceptionHandling>)
+            exceptionHandling = property;
+        else if constexpr (std::is_same_v<T, AsyncExceptions>)
+            asyncExceptions = property;
+        else if constexpr (std::is_same_v<T, ExternCNoThrow>)
+            externCNoThrow = property;
+        else if constexpr (std::is_same_v<T, RTTI>)
+            rtti = property;
+        else if constexpr (std::is_same_v<T, InstructionSet>)
+            instructionSet = property;
+        else if constexpr (std::is_same_v<T, CpuType>)
+            cpuType = property;
+        else if constexpr (std::is_same_v<T, CSourceTargetEnum>)
+            cSourceTarget = property;
+        else if constexpr (std::is_same_v<T, CxxSTD>)
+            cxxStd = property;
+        else if constexpr (std::is_same_v<T, CxxSTDDialect>)
+            cxxStdDialect = property;
+        else if constexpr (std::is_same_v<T, Compiler>)
+            compiler = property;
+        else if constexpr (std::is_same_v<T, Threading>)
+            threading = property;
 
-        if constexpr (sizeof...(properties)) {
+        if constexpr (sizeof...(properties))
+        {
             return assign(properties...);
-        } else {
+        }
+        else
+        {
             return *this;
         }
     }
@@ -769,7 +818,8 @@ struct CppCompilerFeatures
     template <typename T, typename... Condition>
     CppCompilerFeatures &assign(bool assignBool, T property, Condition... conditions)
     {
-        if (assignBool) {
+        if (assignBool)
+        {
             return assign(property, conditions...);
         }
         return *this;

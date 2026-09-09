@@ -3,15 +3,21 @@
 
 #include "Builder.hpp"
 
-HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &macroName, const string &macroValueFile)
+HeaderGen::HeaderGen(const string &name, Loat *codeGenerator_, const string &macroName, const string &macroValueFile)
     : BTarget(name, rapidhash(name.data(), name.size()), true, BTargetType::UNKNOWN), codeGenerator(codeGenerator_)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
-        create_directories(myBuildDir->filePath);
-        sourceNode = Node::getNodeNonNormalized(macroValueFile, true, false);
-        outputHeader = Node::getHalfNode(myBuildDir->filePath + slashc + string("output.h"));
+        string buildDirectory(configureNode->filePath);
+        buildDirectory += slashc;
+        buildDirectory += name;
+        myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildDirectory));
+        std::filesystem::create_directories(myBuildDir->filePath);
+        sourceNode = Node::getNode<PathType::NEITHER>(macroValueFile, true, false);
+        string outputPath(myBuildDir->filePath);
+        outputPath += slashc;
+        outputPath += "output.h";
+        outputHeader = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(outputPath));
     }
     else
     {
@@ -20,12 +26,13 @@ HeaderGen::HeaderGen(const string &name, LOAT *codeGenerator_, const string &mac
         const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
         {
-            uint32_t bytesRead = 0;
+            uint64_t bytesRead = 0;
             // reading config-cache
             myBuildDir = readHalfNode(configCache.data(), bytesRead);
             sourceNode = readHalfNode(configCache.data(), bytesRead);
             sourceNode->doHashFile = true;
             outputHeader = readHalfNode(configCache.data(), bytesRead);
+            outputHeader->doStatFile = true;
 
             command = codeGenerator->outputFileNode->filePath;
             command += ' ';
@@ -81,8 +88,9 @@ bool HeaderGen::isEventRegistered(Builder &builder)
         return false;
     }
 
-    // CreateProcessA may temporarily modify its command-line buffer; preserve the cached command used for hashing.
-    string mutableCommand = command;
+    // Process launch may modify its command-line buffer; preserve the cached command used for hashing.
+    STACK_PMR_STRING(mutableCommand, 64 * 1024)
+    mutableCommand.assign(command);
     run.startAsyncProcess(mutableCommand.data(), builder, this, false);
     return true;
 }
@@ -98,7 +106,7 @@ bool HeaderGen::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    string outputStr;
+    STACK_PMR_STRING(outputStr, 4 * 1024)
     if (isConsole)
     {
         outputStr += getColorCode(ColorIndex::cyan);

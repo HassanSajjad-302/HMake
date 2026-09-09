@@ -3,7 +3,9 @@
 BTarget *b, *c;
 struct OurTarget : BTarget
 {
-    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN){}
+    explicit OurTarget(const string &str) : BTarget(str, false, BTargetType::UNKNOWN)
+    {
+    }
     bool isEventRegistered(Builder &builder) override
     {
         b->addDep<0>(c);

@@ -33,7 +33,7 @@ IspcTarget::IspcTarget(CppTarget *cppTarget_)
     validate();
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
     else
     {
@@ -54,8 +54,8 @@ void IspcTarget::validate() const
     const IspcCompilerFeatures &features = cppTarget->configuration->ispcCompilerFeatures;
     if (features.compiler == nullptr || myBuildDir == nullptr)
     {
-        printErrorMessage(FORMAT("ISPC target requires a C++ target, compiler, and output directory.\nTarget: {}",
-                                 cppTarget->name));
+        printErrorMessage(
+            FORMAT("ISPC target requires a C++ target, compiler, and output directory.\nTarget: {}", cppTarget->name));
     }
     if (features.targets.empty())
     {
@@ -85,8 +85,8 @@ void IspcTarget::initializeGraph()
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // Treat ISPC output as a private raw-object dependency. With no PLOAT on this DSC, deps() exports the objects
-        // through useReq so a LIBRARY_OBJECT module can carry them to its eventual linker. A real static/shared PLOAT
+        // Treat ISPC output as a private raw-object dependency. With no Ploat on this DSC, deps() exports the objects
+        // through useReq so a LIBRARY_OBJECT module can carry them to its eventual linker. A real static/shared Ploat
         // absorbs that private dependency and prevents it from propagating beyond the library boundary.
         DSC dep{this, nullptr};
         DSC{cppTarget, nullptr}.deps(DepType::PRIVATE, false, true, dep);
@@ -127,7 +127,7 @@ void IspcTarget::initializeSource(Node *source)
     headerTargets.emplace_back(header);
     objectTargets.emplace_back(object);
     // Object actions are materialized before Builder constructs the round-one graph. Publish their availability now
-    // so every eventual PLOAT can establish the ordinary round-zero producer edge from its flattened dependency cache.
+    // so every eventual Ploat can establish the ordinary round-zero producer edge from its flattened dependency cache.
     hasObjectFiles = true;
 
     object->realBTargets[0].addDep<BTargetType::ISPC_HEADER>(&header->realBTargets[0]);
@@ -151,16 +151,6 @@ void IspcTarget::initializeCommands()
         return;
     }
 
-    vector<const Define *> definitions;
-    definitions.reserve(cppTarget->reqCompileDefinitions.size());
-    for (const Define &definition : cppTarget->reqCompileDefinitions)
-    {
-        definitions.emplace_back(&definition);
-    }
-    std::ranges::sort(definitions, [](const Define *lhs, const Define *rhs) {
-        return lhs->name < rhs->name || (lhs->name == rhs->name && lhs->value < rhs->value);
-    });
-
     const Configuration *configuration = cppTarget->configuration;
     if (configuration->ispcCompileCommand.empty())
     {
@@ -168,7 +158,7 @@ void IspcTarget::initializeCommands()
                                  configuration->name, cppTarget->name));
     }
 
-    STACK_PMR_STRING(command, 256 * 1024)
+    STACK_PMR_STRING(command, 64 * 1024)
     command.append(configuration->ispcCompileCommand);
     for (const InclNode &include : cppTarget->reqIncls)
     {
@@ -176,17 +166,17 @@ void IspcTarget::initializeCommands()
         command += include.node->filePath;
         command += "\" ";
     }
-    for (const Define *definition : definitions)
+    for (const Define &definition : cppTarget->reqCompileDefinitions)
     {
-        if (definition->value.contains("\\\\U") || definition->value.contains("\\\\u"))
+        if (definition.value.contains("\\\\U") || definition.value.contains("\\\\u"))
         {
             // Matches UBT's guard against an ISPC universal-character warning for these escaped values.
             continue;
         }
         command += "-D";
-        command += definition->name;
+        command += definition.name;
         command.push_back('=');
-        command += definition->value;
+        command += definition.value;
         command.push_back(' ');
     }
     headerCommand.assign(command.data(), command.size());
@@ -217,7 +207,7 @@ void IspcTarget::readConfigCacheAtBuildTime()
 {
     const string_view configCache = bTargetCaches[cacheIndex].configCache;
     const char *ptr = configCache.data();
-    uint32_t bytesRead = configCacheRead;
+    uint64_t bytesRead = configCacheRead;
     const uint32_t sourceCount = readUint32(ptr, bytesRead);
     sourceNodes.reserve(sourceCount);
     for (uint32_t index = 0; index < sourceCount; ++index)
@@ -240,12 +230,23 @@ uint64_t getIspcActionCacheName(const IspcTarget *target, const Node *source, co
 
 string getIspcActionName(const IspcTarget *target, const Node *source, const string_view action)
 {
-    return target->name + '/' + string(action) + '-' + source->getFileName() + toString(source->myId);
+    string result;
+    result.reserve(target->name.size() + action.size() + source->getFileName().size() + 10);
+    result += target->name;
+    result += '/';
+    result += action;
+    result += '-';
+    result += source->getFileName();
+    result += toString(source->myId);
+    return result;
 }
 
 string getHeaderOutputBase(const IspcTarget *target, const Node *source)
 {
-    return target->myBuildDir->filePath + slashc + source->getFileName();
+    string result(target->myBuildDir->filePath);
+    result += slashc;
+    result += source->getFileName();
+    return result;
 }
 
 string getObjectOutputBase(const IspcTarget *target, const Node *source)
@@ -263,20 +264,20 @@ string getDependencyListPath(const IspcTarget *target, const Node *source)
     return getHeaderOutputBase(target, source) + ".txt";
 }
 
-bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
+bool filesHaveSameContents(const string_view lhsPath, const string_view rhsPath)
 {
-    constexpr size_t bufferSize = 64 * 1024;
+    constexpr uint64_t bufferSize = 64 * 1024;
     alignas(64) std::array<char, bufferSize> lhsBuffer;
     alignas(64) std::array<char, bufferSize> rhsBuffer;
 
 #ifdef _WIN32
-    const HANDLE lhs = CreateFileA(lhsPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    const HANDLE lhs = CreateFileA(lhsPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (lhs == INVALID_HANDLE_VALUE)
     {
         return false;
     }
-    const HANDLE rhs = CreateFileA(rhsPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    const HANDLE rhs = CreateFileA(rhsPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (rhs == INVALID_HANDLE_VALUE)
     {
@@ -324,12 +325,12 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
     CloseHandle(lhs);
     return same;
 #else
-    const int lhs = open(lhsPath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int lhs = open(lhsPath.data(), O_RDONLY | O_CLOEXEC);
     if (lhs == -1)
     {
         return false;
     }
-    const int rhs = open(rhsPath.c_str(), O_RDONLY | O_CLOEXEC);
+    const int rhs = open(rhsPath.data(), O_RDONLY | O_CLOEXEC);
     if (rhs == -1)
     {
         close(lhs);
@@ -346,14 +347,14 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
         return false;
     }
 
-    const auto readFully = [](const int file, char *destination, size_t bytes) {
+    const auto readFully = [](const int file, char *destination, uint64_t bytes) {
         while (bytes != 0)
         {
-            const ssize_t bytesRead = read(file, destination, bytes);
+            const int64_t bytesRead = read(file, destination, bytes);
             if (bytesRead > 0)
             {
                 destination += bytesRead;
-                bytes -= bytesRead;
+                bytes -= static_cast<uint64_t>(bytesRead);
             }
             else if (bytesRead != -1 || errno != EINTR)
             {
@@ -366,7 +367,7 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
     bool same = true;
     while (remaining != 0)
     {
-        const size_t bytes = remaining < bufferSize ? remaining : bufferSize;
+        const uint64_t bytes = remaining < bufferSize ? remaining : bufferSize;
         if (!readFully(lhs, lhsBuffer.data(), bytes) || !readFully(rhs, rhsBuffer.data(), bytes) ||
             std::memcmp(lhsBuffer.data(), rhsBuffer.data(), bytes) != 0)
         {
@@ -384,7 +385,7 @@ bool filesHaveSameContents(const string &lhsPath, const string &rhsPath)
 void printIspcResult(const BTarget &action, const Builder &builder, const string_view actionName,
                      const Node *sourceNode, const string_view ownerName, const std::pmr::string &command)
 {
-    string output;
+    STACK_PMR_STRING(output, 4 * 1024)
     if (isConsole)
     {
         output += getColorCode(ColorIndex::hot_pink);
@@ -419,7 +420,7 @@ IspcHeader::IspcHeader(IspcTarget *target_, Node *sourceNode_)
       target(target_), sourceNode(sourceNode_)
 {
     const string outputBase = getHeaderOutputBase(target, sourceNode);
-    finalHeader = Node::getHalfNode(outputBase + ".generated.h");
+    finalHeader = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(outputBase + ".generated.h");
 
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -427,7 +428,7 @@ IspcHeader::IspcHeader(IspcTarget *target_, Node *sourceNode_)
         finalHeader->doStatFile = true;
 
         const string_view buildCache = bTargetCaches[cacheIndex].getBuildCache();
-        uint32_t bytesRead = 0;
+        uint64_t bytesRead = 0;
         const uint32_t dependencyCount = readUint32(buildCache.data(), bytesRead);
         cachedDependencies = span{reinterpret_cast<const uint32_t *>(buildCache.data() + bytesRead), dependencyCount};
         bytesRead += dependencyCount * sizeof(uint32_t);
@@ -457,7 +458,7 @@ void IspcHeader::getCommand(std::pmr::string &command) const
 
 uint64_t IspcHeader::getDependencyHash(const uint64_t modifiedAfter) const
 {
-    const size_t dependencyCount = dependenciesRefreshed ? discoveredDependencies.size() : cachedDependencies.size();
+    const uint64_t dependencyCount = dependenciesRefreshed ? discoveredDependencies.size() : cachedDependencies.size();
     STACK_PMR_VECTOR(uint64_t, hashes, 256)
     hashes.reserve(dependencyCount * 2 + 1);
     hashes.emplace_back(dependencyCount);
@@ -514,7 +515,7 @@ bool IspcHeader::isEventRegistered(Builder &builder)
         return false;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     if (dryRun)
     {
@@ -539,7 +540,9 @@ void IspcHeader::parseDependencyList()
 
     discoveredDependencies.clear();
     flat_hash_set<Node *> uniqueDependencies;
-    const string contents = fileToString(dependencyListPath);
+    STACK_PMR_STRING(contents, 64 * 1024)
+    fileToString(dependencyListPath, contents);
+    STACK_PMR_STRING(dependency, 1024)
     for (string_view entry : split(contents, '\n'))
     {
         while (!entry.empty() && (entry.back() == '\r' || entry.back() == ' ' || entry.back() == '\t'))
@@ -555,21 +558,20 @@ void IspcHeader::parseDependencyList()
             continue;
         }
 
-        string dependency(entry);
-        for (size_t escaped = dependency.find("\\\\"); escaped != string::npos;
+        dependency.assign(entry);
+        for (uint64_t escaped = dependency.find("\\\\"); escaped != string::npos;
              escaped = dependency.find("\\\\", escaped + 1))
         {
             dependency.erase(escaped, 1);
         }
-        path dependencyPath(dependency);
-        if (dependencyPath.is_relative())
+        if (!Node::isAbsolute(dependency))
         {
             printErrorMessage(FORMAT("ISPC emitted a relative dependency; a full path is required.\n"
                                      "Target: {}\nSource: {}\nDependency: {}",
                                      target->cppTarget->name, sourceNode->filePath, dependency));
         }
-        Node *node = Node::getHalfNode(dependencyPath.string());
-        if (isPathInConfigureDirectory(node->filePath))
+        Node *node = Node::getHalfNode<PathType::ABSOLUTE>(dependency);
+        if (isPathInDirectory(node->filePath, configureNode->filePath))
         {
             continue;
         }
@@ -612,7 +614,7 @@ bool IspcHeader::isEventCompleted(Builder &builder, string_view)
         }
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     printIspcResult(*this, builder, "ISPC Header", sourceNode, target->cppTarget->name, fullCommand);
     return false;
@@ -620,7 +622,9 @@ bool IspcHeader::isEventCompleted(Builder &builder, string_view)
 
 string IspcHeader::getPrintName() const
 {
-    return "ISPC header " + sourceNode->filePath;
+    string result = "ISPC header ";
+    result += sourceNode->filePath;
+    return result;
 }
 
 void IspcHeader::writeBuildCacheAtConfigTime(string &buffer)
@@ -643,7 +647,7 @@ void IspcHeader::writeBuildCacheAtBuildTime(string &buffer)
 
 void IspcHeader::verifyBuildCache(const string_view buildCache) const
 {
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     const uint32_t dependencyCount = readUint32(buildCache.data(), bytesRead);
     for (uint32_t index = 0; index < dependencyCount; ++index)
     {
@@ -669,12 +673,13 @@ IspcObject::IspcObject(IspcTarget *target_, IspcHeader *headerTarget_, Node *sou
         objectNodes.reserve(features.targets.size() + 1);
         for (const string &targetName : features.targets)
         {
-            objectNodes.emplace_back(Node::getNode(outputBase + '_' + targetName.substr(0, targetName.find('-')) +
-                                                       string(features.getObjectSuffix()),
-                                                   true, true));
+            objectNodes.emplace_back(Node::getNode<PathType::NORMAL_ABSOLUTE>(
+                outputBase + '_' + targetName.substr(0, targetName.find('-')) + string(features.getObjectSuffix()),
+                true, true));
         }
     }
-    objectNodes.emplace_back(Node::getNode(outputBase + string(features.getObjectSuffix()), true, true));
+    objectNodes.emplace_back(
+        Node::getNode<PathType::NORMAL_ABSOLUTE>(outputBase + string(features.getObjectSuffix()), true, true));
 
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -728,7 +733,7 @@ bool IspcObject::isEventRegistered(Builder &builder)
         return false;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     if (dryRun)
     {
@@ -754,7 +759,7 @@ bool IspcObject::isEventCompleted(Builder &builder, string_view)
         buildFooterUpdated = true;
     }
 
-    STACK_PMR_STRING(fullCommand, 256 * 1024)
+    STACK_PMR_STRING(fullCommand, 64 * 1024)
     getCommand(fullCommand);
     printIspcResult(*this, builder, "ISPC Object", sourceNode, target->cppTarget->name, fullCommand);
     return false;
@@ -762,7 +767,9 @@ bool IspcObject::isEventCompleted(Builder &builder, string_view)
 
 string IspcObject::getPrintName() const
 {
-    return "ISPC object " + sourceNode->filePath;
+    string result = "ISPC object ";
+    result += sourceNode->filePath;
+    return result;
 }
 
 void IspcObject::writeBuildCacheAtBuildTime(string &)

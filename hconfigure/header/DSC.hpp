@@ -3,8 +3,9 @@
 
 #include "DepType.hpp"
 #include "Features.hpp"
-#include "LOAT.hpp"
+#include "Loat.hpp"
 #include "ObjectFileProducer.hpp"
+#include "Ploat.hpp"
 
 // Optional target-specific additions to DSC. A frontend can specialize this without duplicating DSC itself.
 template <typename T, typename Derived> struct DSCExtension
@@ -35,7 +36,7 @@ template <typename T> struct DSC : DSCFeatures, DSCExtension<T, DSC<T>>
 
     T *stored = nullptr;
     T *objectFileProducer = nullptr;
-    PLOAT *ploat = nullptr;
+    Ploat *ploat = nullptr;
 
     DSC &save(T &ptr);
     DSC &saveAndReplace(T &ptr);
@@ -43,7 +44,7 @@ template <typename T> struct DSC : DSCFeatures, DSCExtension<T, DSC<T>>
 
     string define;
 
-    DSC(T *ptr, PLOAT *ploat_, bool defines = false, string define_ = "");
+    DSC(T *ptr, Ploat *ploat_, bool defines = false, string define_ = "");
 
     template <typename U, typename... V> DSC &publicDeps(DSC<U> &dependency, V... dependencies);
     template <typename U, typename... V> DSC &privateDeps(DSC<U> &dependency, V... dependencies);
@@ -64,10 +65,10 @@ template <typename T> struct DSC : DSCFeatures, DSCExtension<T, DSC<T>>
     template <typename U, typename... V> DSC &privateLinkDeps(DSC<U> &dependency, V... dependencies);
     template <typename U, typename... V> DSC &interfaceLinkDeps(DSC<U> &dependency, V... dependencies);
     template <typename U, typename... V> DSC &linkDeps(DepType depType, DSC<U> &dependency, V... dependencies);
-    DSC &publicLinkDeps(PLOAT &dependency);
-    DSC &privateLinkDeps(PLOAT &dependency);
-    DSC &interfaceLinkDeps(PLOAT &dependency);
-    DSC &linkDeps(DepType depType, PLOAT &dependency);
+    DSC &publicLinkDeps(Ploat &dependency);
+    DSC &privateLinkDeps(Ploat &dependency);
+    DSC &interfaceLinkDeps(Ploat &dependency);
+    DSC &linkDeps(DepType depType, Ploat &dependency);
     DSC &publicLinkDeps(ObjectFileProducer &dependency);
     DSC &privateLinkDeps(ObjectFileProducer &dependency);
     DSC &interfaceLinkDeps(ObjectFileProducer &dependency);
@@ -75,8 +76,8 @@ template <typename T> struct DSC : DSCFeatures, DSCExtension<T, DSC<T>>
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
-    PLOAT &getPLOAT() const;
-    LOAT &getLOAT();
+    Ploat &getPloat() const;
+    Loat &getLoat();
 };
 
 template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
@@ -85,7 +86,7 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 }
 
 template <typename T>
-DSC<T>::DSC(T *ptr, PLOAT *ploat_, const bool defines, string define_) : objectFileProducer(ptr), ploat(ploat_)
+DSC<T>::DSC(T *ptr, Ploat *ploat_, const bool defines, string define_) : objectFileProducer(ptr), ploat(ploat_)
 {
     if (objectFileProducer && ploat)
     {
@@ -96,7 +97,7 @@ DSC<T>::DSC(T *ptr, PLOAT *ploat_, const bool defines, string define_) : objectF
                                      ploat->getPrintName(), objectFileProducer->getPrintName()));
         }
 
-        // PLOAT decides its round-zero object dependencies after producer round one has finalized hasObjectFiles.
+        // Ploat decides its round-zero object dependencies after producer round one has finalized hasObjectFiles.
         ploat->realBTargets[1].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[1]);
     }
 
@@ -139,14 +140,14 @@ DSC<T> &DSC<T>::deps(const DepType depType, const bool needsOpDependency, const 
                      DSC<U> &dependency, V... rest)
 {
     ObjectFileProducer *dependencyProducer = dependency.objectFileProducer;
-    PLOAT *dependencyPloat = dependency.ploat;
+    Ploat *dependencyPloat = dependency.ploat;
 
     // req is consumed by this target; useReq is inherited by its consumers:
     // PUBLIC -> req + useReq, PRIVATE -> req only, INTERFACE -> useReq only.
     const bool isReq = depType != DepType::INTERFACE;
     const bool isUseReq = depType != DepType::PRIVATE;
 
-    // A dependency with a PLOAT supplies its binary through the PLOAT relation below. Without one, LINK means that
+    // A dependency with a Ploat supplies its binary through the Ploat relation below. Without one, LINK means that
     // the dependency producer's raw object files must travel through the ObjectFileProducer relation instead.
     const bool rawObjectLinkDependency = needsLinkDependency && !dependencyPloat;
 
@@ -186,7 +187,7 @@ DSC<T> &DSC<T>::deps(const DepType depType, const bool needsOpDependency, const 
             }
 
             const bool objectsAreAbsorbedHere = ploat && ploat->bTargetType == BTargetType::LOAT;
-            // PRIVATE hides compile usage, but raw objects must remain exported until a LOAT absorbs them.
+            // PRIVATE hides compile usage, but raw objects must remain exported until a Loat absorbs them.
             const OpDepInfo useReqDependency{needsOpDependency && isUseReq,
                                              rawObjectLinkDependency && (isUseReq || !objectsAreAbsorbedHere),
                                              acyclicDependency};
@@ -222,7 +223,7 @@ DSC<T> &DSC<T>::deps(const DepType depType, const bool needsOpDependency, const 
             const PloatDepInfo dependencyInfo{addBTargetDependency};
             if (ploat)
             {
-                // A physical link boundary can retain the relation directly. PLOAT flattens it through useReqDeps
+                // A physical link boundary can retain the relation directly. Ploat flattens it through useReqDeps
                 // before writing the final required-library closure to its configuration cache.
                 if (isReq)
                 {
@@ -239,7 +240,7 @@ DSC<T> &DSC<T>::deps(const DepType depType, const bool needsOpDependency, const 
             else
             {
                 // An object-only target has no output at which a PRIVATE link requirement can be absorbed. Carry it
-                // through the producer graph until an eventual PLOAT consumes this producer's object files.
+                // through the producer graph until an eventual Ploat consumes this producer's object files.
                 if (isReq)
                 {
                     mergePloatDependency(objectFileProducer->reqPloatDeps, dependencyPloat, dependencyInfo);
@@ -250,7 +251,7 @@ DSC<T> &DSC<T>::deps(const DepType depType, const bool needsOpDependency, const 
 
         if constexpr (addBTargetDependency)
         {
-            // This edge is required in both modes: the direct PLOAT or deferred producer must observe the dependency's
+            // This edge is required in both modes: the direct Ploat or deferred producer must observe the dependency's
             // finalized link interface before its own round-one completion.
             RealBTarget &consumerRoundOne = ploat ? ploat->realBTargets[1] : objectFileProducer->realBTargets[1];
             consumerRoundOne.addDep<BTargetType::UNKNOWN>(&dependencyPloat->realBTargets[1]);
@@ -360,22 +361,22 @@ DSC<T> &DSC<T>::linkDeps(const DepType depType, DSC<U> &dependency, V... rest)
     return deps(depType, false, true, dependency, rest...);
 }
 
-template <typename T> DSC<T> &DSC<T>::publicLinkDeps(PLOAT &dependency)
+template <typename T> DSC<T> &DSC<T>::publicLinkDeps(Ploat &dependency)
 {
     return linkDeps(DepType::PUBLIC, dependency);
 }
 
-template <typename T> DSC<T> &DSC<T>::privateLinkDeps(PLOAT &dependency)
+template <typename T> DSC<T> &DSC<T>::privateLinkDeps(Ploat &dependency)
 {
     return linkDeps(DepType::PRIVATE, dependency);
 }
 
-template <typename T> DSC<T> &DSC<T>::interfaceLinkDeps(PLOAT &dependency)
+template <typename T> DSC<T> &DSC<T>::interfaceLinkDeps(Ploat &dependency)
 {
     return linkDeps(DepType::INTERFACE, dependency);
 }
 
-template <typename T> DSC<T> &DSC<T>::linkDeps(const DepType depType, PLOAT &dependency)
+template <typename T> DSC<T> &DSC<T>::linkDeps(const DepType depType, Ploat &dependency)
 {
     DSC<ObjectFileProducer> dependencyDsc(nullptr, &dependency);
     return deps(depType, false, true, dependencyDsc);
@@ -412,14 +413,14 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
     return objectFileProducer;
 }
 
-template <typename T> PLOAT &DSC<T>::getPLOAT() const
+template <typename T> Ploat &DSC<T>::getPloat() const
 {
     return *ploat;
 }
 
-template <typename T> LOAT &DSC<T>::getLOAT()
+template <typename T> Loat &DSC<T>::getLoat()
 {
-    return static_cast<LOAT &>(*ploat);
+    return static_cast<Loat &>(*ploat);
 }
 
 #endif // HMAKE_DSC_HPP

@@ -26,12 +26,12 @@ inline constexpr char delimiter[] =
     "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
     "DELIMITER"; // 32 bytes total
 
-static void writeAll(int fd, const char *buf, std::size_t len)
+static void writeAll(int fd, const char *buf, uint64_t len)
 {
-    std::size_t written = 0;
+    uint64_t written = 0;
     while (written < len)
     {
-        const ssize_t n = ::write(fd, buf + written, len - written);
+        const int64_t n = ::write(fd, buf + written, len - written);
         if (n == -1)
         {
             if (errno == EINTR)
@@ -39,7 +39,7 @@ static void writeAll(int fd, const char *buf, std::size_t len)
             std::perror("ipc::writeAll");
             std::exit(EXIT_FAILURE);
         }
-        written += static_cast<std::size_t>(n);
+        written += static_cast<uint64_t>(n);
     }
 }
 

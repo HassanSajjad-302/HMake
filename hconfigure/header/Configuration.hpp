@@ -114,6 +114,13 @@ enum class JumboBuild : bool
     YES,
 };
 
+/// Selects how MSVC-style compilers report included headers for ordinary source compilation.
+enum class MSVCHeaderDependencyMode : bool
+{
+    DEPENDENCY_FILE,
+    SHOW_INCLUDES,
+};
+
 /// Source-control query used by adaptive jumbo builds to keep locally edited files standalone.
 enum class WorkingSetProvider : uint8_t
 {
@@ -177,8 +184,8 @@ enum class DuplicationWarning : bool
 };
 
 class CSourceTarget;
-class PLOAT;
-class LOAT;
+class Ploat;
+class Loat;
 class Node;
 
 /// Internal lookup entry used while resolving header files, header units, and modules.
@@ -222,7 +229,7 @@ struct HfOrCppMod
  *
  * Prefer the `getCpp*DSC()` family for normal C++ targets. A `DSC<CppTarget>` keeps
  * compilation and linking together and provides `privateDeps()`, `publicDeps()`, and
- * `interfaceDeps()`. The lower-level `getCppObject()`/`get*LOAT()` factories are available
+ * `interfaceDeps()`. The lower-level `getCppObject()`/`get*Loat()` factories are available
  * when those two stages need to be assembled manually.
  *
  * Factory names are configuration-scoped by default: requesting `"app"` from configuration
@@ -241,8 +248,8 @@ class Configuration : public BTarget
     /// Targets owned by this configuration. These collections are primarily used by HMake internals.
     vector<class BoostCppTarget *> boostCppTargets;
     vector<CppTarget *> cppTargets;
-    vector<LOAT *> loats;
-    vector<PLOAT *> ploats;
+    vector<Loat *> loats;
+    vector<Ploat *> ploats;
 
     /// Typed compile, prebuilt-link, and link settings. `assign()` is the usual user-facing entry point.
     CppCompilerFeatures compilerFeatures;
@@ -259,13 +266,13 @@ class Configuration : public BTarget
     string linkCommand;
     // Optional text placed immediately before and after linked dependency
     // libraries. Integrations can use this for linker groups or target-specific
-    // runtime/system libraries while LOAT still owns object/library enumeration.
+    // runtime/system libraries while Loat still owns object/library enumeration.
     string linkDependenciesPrefix;
     string linkCommandSuffix;
     string archiveCommand;
 
     /// Commands at or below this size are launched directly. Larger compile/link/archive commands use a response
-    /// file in the owning CppTarget/LOAT build directory. Zero disables automatic response files.
+    /// file in the owning CppTarget/Loat build directory. Zero disables automatic response files.
     uint64_t responseFileThreshold = os == OS::NT ? 24 * 1024 : 128 * 1024;
 
     /// Standard-library dependency automatically attached by high-level target factories when enabled.
@@ -282,6 +289,7 @@ class Configuration : public BTarget
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
     JumboBuild jumboBuild = JumboBuild::NO;
+    MSVCHeaderDependencyMode msvcHeaderDependencyMode = MSVCHeaderDependencyMode::DEPENDENCY_FILE;
     /// Approximate source-byte budget for each generated jumbo translation unit.
     uint64_t jumboFileSize = 384 * 1024;
     AddCppSource addCppSource = AddCppSource::YES;
@@ -292,6 +300,10 @@ class Configuration : public BTarget
     AlwaysConfigureThis alwaysConfigureThis = AlwaysConfigureThis::NO;
     StandAloneCommand standAloneCommand = StandAloneCommand::NO;
     DuplicationWarning duplicationWarning = DuplicationWarning::NO;
+
+    /// Configuration-wide library search paths supplied by the toolchain and platform SDK integrations.
+    /// Every physical link target consumes these directly; concrete project/vendor libraries remain Ploat dependencies.
+    vector<Node *> toolchainLibraryDirs;
 
     // todo
     // add CppTarget::imodNames map here as-well.
@@ -321,16 +333,16 @@ class Configuration : public BTarget
     CppTarget &getCppObject(bool explicitBuild, Node *myBuildDir, const string &name_);
     CppTarget &getCppObjectAddStdTarget(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    LOAT &GetExeLOAT(const string &name_);
-    LOAT &GetExeLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
-    LOAT &getStaticLOAT(const string &name_);
-    LOAT &getStaticLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
-    LOAT &getSharedLOAT(const string &name_);
-    LOAT &getSharedLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getExeLoat(const string &name_);
+    Loat &getExeLoat(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getStaticLoat(const string &name_);
+    Loat &getStaticLoat(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getSharedLoat(const string &name_);
+    Loat &getSharedLoat(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    PLOAT &getPLOAT(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
-    PLOAT &getStaticPLOAT(const string &name_, Node *myBuildDir);
-    PLOAT &getSharedPLOAT(const string &name_, Node *myBuildDir);
+    Ploat &getPloat(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
+    Ploat &getStaticPloat(const string &name_, Node *myBuildDir);
+    Ploat &getSharedPloat(const string &name_, Node *myBuildDir);
     /// @}
 
     /// Adds the configured standard C++ target when `AssignStandardCppTarget::YES`.
@@ -370,8 +382,8 @@ class Configuration : public BTarget
 
     /**
      * @name Prebuilt-library factories
-     * `_P` factories pair a source/interface target with a `PLOAT` instead of building the
-     * linked artifact with a `LOAT`. `myBuildDir` identifies the directory containing the
+     * `_P` factories pair a source/interface target with a `Ploat` instead of building the
+     * linked artifact with a `Loat`. `myBuildDir` identifies the directory containing the
      * prebuilt artifact.
      */
     /// @{
@@ -395,16 +407,16 @@ class Configuration : public BTarget
     CppTarget &getCppObjectNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
     CppTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    LOAT &GetExeLOATNoName(const string &name_);
-    LOAT &GetExeLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
-    LOAT &getStaticLOATNoName(const string &name_);
-    LOAT &getStaticLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
-    LOAT &getSharedLOATNoName(const string &name_);
-    LOAT &getSharedLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getExeLoatNoName(const string &name_);
+    Loat &getExeLoatNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getStaticLoatNoName(const string &name_);
+    Loat &getStaticLoatNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
+    Loat &getSharedLoatNoName(const string &name_);
+    Loat &getSharedLoatNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    PLOAT &getPLOATNoName(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
-    PLOAT &getStaticPLOATNoName(const string &name_, Node *myBuildDir);
-    PLOAT &getSharedPLOATNoName(const string &name_, Node *myBuildDir);
+    Ploat &getPloatNoName(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
+    Ploat &getStaticPloatNoName(const string &name_, Node *myBuildDir);
+    Ploat &getSharedPloatNoName(const string &name_, Node *myBuildDir);
     // CSourceTarget &GetCPTNoName();
 
     DSC<CppTarget> &getCppObjectDSCNoName(const string &name_, bool defines = false, string define = "");
@@ -423,7 +435,7 @@ class Configuration : public BTarget
     DSC<CppTarget> &getCppSharedDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,
                                           bool defines = false, string define = "");
 
-    // _P means it will use PLOAT instead of LOAT
+    // _P means it will use Ploat instead of Loat
 
     DSC<CppTarget> &getCppTargetDSC_PNoName(const string &name_, Node *myBuildDir, bool defines = false,
                                             string define = "");
@@ -442,6 +454,8 @@ class Configuration : public BTarget
 
     /// Internal round-one hook; users normally declare work in `configurationSpecification()`.
     void completeRoundOne() override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
+    void readConfigCacheAtBuildTime();
 
     /// Constructs a named configuration. Prefer `getConfiguration()` in build specifications.
     explicit Configuration(const string &name_);
@@ -527,6 +541,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), JumboBuild>)
     {
         return jumboBuild == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), MSVCHeaderDependencyMode>)
+    {
+        return msvcHeaderDependencyMode == property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddCppSource>)
     {

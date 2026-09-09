@@ -7,12 +7,13 @@
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
 #include "gtl/include/gtl/btree.hpp"
-#include <filesystem>
+#include <cstring>
 #include <list>
+#include <span>
 #include <utility>
 #include <vector>
 
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
+using std::vector, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
 
 class CppTarget;
 class CppSrc;
@@ -35,6 +36,34 @@ enum class SourceType : uint8_t
     ASSEMBLY,
 };
 
+/// Byte-backed file snapshot matching the cache layout, including records at unaligned byte offsets.
+struct DepRecord
+{
+    char data[12]; // 4-byte node ID followed by an 8-byte content hash.
+
+    uint32_t nodeId() const noexcept
+    {
+        uint32_t id;
+        std::memcpy(&id, data, sizeof(id));
+        return id;
+    }
+
+    uint64_t contentHash() const noexcept
+    {
+        uint64_t hash;
+        std::memcpy(&hash, data + sizeof(uint32_t), sizeof(hash));
+        return hash;
+    }
+
+    Node *node() const noexcept
+    {
+        return Node::getHalfNode(nodeId());
+    }
+};
+
+static_assert(sizeof(DepRecord) == 12);
+static_assert(alignof(DepRecord) == 1);
+
 /// Compiles one C, C++, or assembly translation unit into an object file.
 class CppSrc : public ObjectFile
 {
@@ -49,8 +78,7 @@ class CppSrc : public ObjectFile
     const Node *node;
 
     /// Hash of the compile command for this file (flags, defines, includes, etc.). Set in
-    /// `CppTarget::setCommandHashes()`. Combined with source/header content hashes to form
-    /// `RealBTarget::cumulativeHash`.
+    /// `CppTarget::setCommandHashes()` and stored as `RealBTarget::cumulativeHash`.
     uint64_t commandHash;
 
     /// Language inferred from the source extension.
@@ -60,18 +88,14 @@ class CppSrc : public ObjectFile
     /// pre-compilation barrier through AdaptiveManager and must not receive a redundant direct edge.
     bool isAJumboBuild = false;
 
-    /// Header-file node indices restored from build-cache (`Node::getHalfNode(index)`), used in `setUpdateStatus()`.
-    span<const uint32_t> cachedHeaderFiles;
+    /// Records borrowed from the retained build-cache buffer: source first, then headers.
+    /// Compared individually in `setUpdateStatus()`; the backing bytes must stay stable while this span is used.
+    /// The source hash is captured before compilation; newly discovered headers are hashed after compilation.
+    span<const DepRecord> cachedFileHashes;
 
     CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
     string getPrintName() const override;
     void getCompileCommand(std::pmr::string &compileCommand) const;
-    /// MSVC prints header-files with the compilation output. This function parses them out from that output.
-    void parseHeadersFromMSVCTextOutput(string &output, bool isClang);
-    /// Parses header dependencies from a GCC-compatible `.d` file.
-    void parseHeadersFromGccDepsOutput();
-    /// Dispatches to the dependency parser for the selected compiler.
-    void parseHeaderDeps(string &output);
     /// Computes the input fingerprint and decides whether recompilation is required.
     void setUpdateStatus() override;
 
@@ -116,15 +140,15 @@ struct CppModWithDirectHash
 {
     using is_transparent = void;
 
-    size_t operator()(const CppModWithDirect &e) const
+    uint64_t operator()(const CppModWithDirect &e) const
     {
         // alignof(CppMod) >= 8, so low 3 bits are always zero — shift for better distribution
-        return reinterpret_cast<size_t>(e.getPointer()) >> 3;
+        return reinterpret_cast<uint64_t>(e.getPointer()) >> 3;
     }
 
-    size_t operator()(const CppMod *ptr) const
+    uint64_t operator()(const CppMod *ptr) const
     {
-        return reinterpret_cast<size_t>(ptr) >> 3;
+        return reinterpret_cast<uint64_t>(ptr) >> 3;
     }
 };
 
@@ -162,6 +186,7 @@ class CppMod : public CppSrc
 
     /// Headers composed directly into this module or header unit. Unlike `CppSrc::headerFiles`, this excludes headers
     /// inherited from dependencies.
+    /// Build-directory entries stay in the map but are omitted from the build-cache file records.
     flat_hash_map<string, Node *> composingHeaders;
 
     vector<string_view> composingNames;

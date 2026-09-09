@@ -5,6 +5,7 @@
 #include <vector>
 #include <regex>
 #include <filesystem>
+#include <cstdint>
 
 // Reads an entire file into a vector of lines.
 // Returns false if file cannot be opened (instead of exiting).
@@ -188,7 +189,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "Error: cannot write to: " << readmePath << "\n";
         return 1;
     }
-    for (std::size_t i = 0; i < output.size(); ++i) {
+    for (uint64_t i = 0; i < output.size(); ++i) {
         fout << output[i];
         if (i + 1 < output.size())
             fout << '\n';

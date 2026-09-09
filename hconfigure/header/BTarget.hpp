@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string,
-    std::string_view, gtl::btree_set;
+using std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string, std::string_view,
+    gtl::btree_set;
 
 class BTarget;
 
@@ -146,15 +146,15 @@ struct RBTDepTypeHash
 {
     using is_transparent = void;
 
-    size_t operator()(const RBTWithType &e) const
+    uint64_t operator()(const RBTWithType &e) const
     {
         // RealBTarget is alignas(128) so low 7 bits are always zero — shift them out for better distribution
-        return reinterpret_cast<size_t>(e.getPointer()) >> 7;
+        return reinterpret_cast<uint64_t>(e.getPointer()) >> 7;
     }
 
-    size_t operator()(RealBTarget *ptr) const
+    uint64_t operator()(RealBTarget *ptr) const
     {
-        return reinterpret_cast<size_t>(ptr) >> 7;
+        return reinterpret_cast<uint64_t>(ptr) >> 7;
     }
 };
 
@@ -227,25 +227,29 @@ class alignas(128) RealBTarget
     /// Content fingerprint for incremental builds when `BTarget::launchesProcess` is true.
     ///
     /// Subclasses (e.g. `CppSrc`, `CppMod`, `HeaderGen`) compute this in `setUpdateStatus()` — typically a rapidhash
-    /// over `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setUpdateStatus()`,
-    /// which compares the live value to the footer stored in `BTargetCache` (loaded by `readBuildCache()` / updated at
-    /// end of build via `getBuildCache()`). A mismatch sets `updateStatus` to `UpdateStatus::UPDATE_NEEDED`.
+    /// over `commandHash` plus `Node::contentHash` values from `checkNodes()` — then call `BTarget::setUpdateStatus()`.
+    /// If a process target only needs to observe an input file's `lastWriteTime`, it should include that integer here
+    /// as another hash input. The base compares the live value to the footer stored in `BTargetCache` (loaded by
+    /// `readBuildCache()` / updated at end of build via `getBuildCache()`). A mismatch sets `updateStatus` to
+    /// `UpdateStatus::UPDATE_NEEDED`.
     uint64_t cumulativeHash = 0;
 
     /// Timestamp of the last successful completion, in nanoseconds since the Unix epoch.
     ///
-    /// When `BTarget::launchesProcess` is true:
+    /// For a process-launching target this has one responsibility: recording the last successful observable-output
+    /// change. It is:
     ///   - Set by `Builder::decrementFromDependents()` when updated work completes successfully.
     ///   - Restored from the build-cache footer in `initializeBTarget()`.
-    ///   - `BTarget::setUpdateStatus()` marks the target stale if any FULL/WAIT dependency has a greater `completionTime`
+    ///   - `BTarget::setUpdateStatus()` marks the target stale if any FULL/WAIT dependency has a greater
+    ///   `completionTime`
     ///     (a dependency was rebuilt after this target last ran).
     ///
-    /// When `BTarget::launchesProcess` is false:
+    /// For a non-process target this has two responsibilities:
     ///   - Not read from the build-cache footer.
-    ///   - After recursively evaluating dependencies, `BTarget::setUpdateStatus()` sets this to the maximum
-    ///     `completionTime` among those dependencies so upstream targets can detect downstream rebuilds.
+    ///   - An override may seed it with the newest directly represented file timestamp before calling
+    ///     `BTarget::setUpdateStatus()`; the base then replaces it with the maximum of that seed and every blocking
+    ///     dependency's `completionTime`, so upstream targets can detect downstream rebuilds.
     uint64_t completionTime = -1;
-
 
     /// Direct dependency selected by the latest `setUpdateStatus()` evaluation. Meaningful only while `updateStatus` is
     /// `UPDATE_NEEDED`. Null means cutoff is not eligible: this target is stale because of its own inputs or because a
@@ -371,7 +375,7 @@ class BTarget // BTarget
     string name;
 
     /// Unique runtime id assigned at construction (`++total`).
-    size_t id = 0;
+    uint64_t id = 0;
 
     /// Index into `bTargetCaches` / `nameToIndexMap` for this target's persisted cache slice.
     uint32_t cacheIndex = -1;
@@ -461,9 +465,6 @@ class BTarget // BTarget
     /// arguments. Called in round1 before `completeRoundOne` call.
     void setSelectiveBuild();
 
-    /// Returns true when `hbuild` runs in this target directory or one of its children.
-    bool isHBuildInSameOrChildDirectory() const;
-
     /// string is used in logs and cycle diagnostics.
     virtual string getPrintName() const;
 
@@ -505,7 +506,8 @@ class BTarget // BTarget
     /// build-cache footer — a mismatch immediately sets `UPDATE_NEEDED`. Otherwise, `highestTime` starts at
     /// `realBTargets[0].completionTime` (restored from the footer by `initializeBTarget()`).
     ///
-    /// When `launchesProcess` is false: `highestTime` starts at 0.
+    /// When `launchesProcess` is false: `highestTime` starts at 0 if `completionTime` is the unset `-1` sentinel,
+    /// otherwise at the directly represented file timestamp seeded by the override.
     ///
     /// Recurses over FULL/WAIT dependencies (calling `setUpdateStatus()` on any that are still `UNCHECKED`). For each:
     /// - If the dependency is `UPDATE_NEEDED`, this target is also `UPDATE_NEEDED`.
@@ -514,15 +516,17 @@ class BTarget // BTarget
     /// - Otherwise `highestTime = max(highestTime, depRb->completionTime)`.
     ///
     /// If no dependency triggers a rebuild, sets `UPDATE_NOT_NEEDED`. When `launchesProcess` is false, propagates
-    /// `highestTime` into `realBTargets[0].completionTime` so upstream targets can detect downstream rebuilds.
+    /// `highestTime` into `realBTargets[0].completionTime` so upstream targets can detect downstream rebuilds. A
+    /// process target interested only in an input file's `lastWriteTime` must include it in `cumulativeHash`; it must
+    /// not replace its scheduler-owned `completionTime`.
     ///
     /// A successfully executed process target may change `UPDATE_NEEDED` back to `UPDATE_NOT_NEEDED` after proving that
     /// every observable output is unchanged. That status assignment is the target author's entire cutoff operation;
     /// HMake owns reason invalidation and re-evaluation. Builder then leaves `completionTime` untouched while allowing
     /// the new `cumulativeHash` to be cached. See "Unchanged-output cutoff" in the project README.
     ///
-    /// Subclasses (`CppSrc`, `CppMod`, `LOAT`, `HeaderGen`) compute `cumulativeHash` from content hashes of inputs
-    /// and call this base implementation via `ObjectFile::setUpdateStatus()` / `PLOAT::setUpdateStatus()`.
+    /// Subclasses compute their own `cumulativeHash` before calling this implementation. `CppSrc` and `CppMod`
+    /// use only the compile-command hash here; they compare cached source/header hashes individually first.
     virtual void setUpdateStatus();
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be
@@ -547,7 +551,7 @@ class BTarget // BTarget
     virtual void verifyConfigCache(string_view configCache) const
     {
     }
-    void verifyBTargetHeader(string_view buildCache, uint32_t &bytesRead) const;
+    void verifyBTargetHeader(string_view buildCache, uint64_t &bytesRead) const;
 
     template <unsigned round, BTargetType type = BTargetType::UNKNOWN, RelationType depType = RelationType::FULL>
     void addDep(BTarget *dep);
@@ -586,9 +590,10 @@ inline BTarget *RealBTarget::getBTarget() const
 /// Per-target slices of the on-disk caches managed by `initializeCache()` / `configureOrBuild()` in
 /// `BuildSystemFunctions.cpp`.
 ///
-/// On disk (under the configure directory, optionally LZ4-compressed):
-/// - `config-cache` — one entry per target: `cacheName`, sized `configCache` blob (written at configure-time).
-/// - `build-cache` — parallel array: inline `depsCache` (round-0 FULL/WAIT `cacheIndex` list), then sized per-target
+/// On disk (under the configure directory as uncompressed binary files):
+/// - `config-cache.bin` — one entry per target: `cacheName`, sized `configCache` blob.
+/// - `build-cache.bin` — a u32-sized invalidation prefix followed by a parallel target array: inline `depsCache`
+///   (round-0 FULL/WAIT `cacheIndex` list), then sized per-target
 ///   body; process-launching targets append a 16-byte footer (`cumulativeHash`, `completionTime`).
 ///
 /// `readConfigCache()` / `readBuildCache()` fill `bTargetCaches` and `nameToIndexMap` before `buildSpecification()`.
@@ -652,12 +657,12 @@ enum class CppModType : uint8_t
     PRIMARY_IMPLEMENTATION = 4, ///< Module implementation unit for the primary module.
 };
 
-bool readBool(const char *ptr, uint32_t &bytesRead);
-uint8_t readUint8(const char *ptr, uint32_t &bytesRead);
-uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
-uint64_t readUint64(const char *ptr, uint32_t &bytesRead);
-string_view readStringView(const char *ptr, uint32_t &bytesRead);
-Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
+bool readBool(const char *ptr, uint64_t &bytesRead);
+uint8_t readUint8(const char *ptr, uint64_t &bytesRead);
+uint32_t readUint32(const char *ptr, uint64_t &bytesRead);
+uint64_t readUint64(const char *ptr, uint64_t &bytesRead);
+string_view readStringView(const char *ptr, uint64_t &bytesRead);
+Node *readHalfNode(const char *ptr, uint64_t &bytesRead);
 
 void writeBool(string &buffer, const bool &value);
 void writeUint8(string &buffer, const uint8_t &data);

@@ -5,9 +5,10 @@ This directory contains the scanner that connects decentralized Unreal Engine
 
 ## Structure
 
-- `scanner.py` scans the UE checkout for `*.hmake.hpp` files and generates the
-  checkout-root `hmake.cpp` and `Engine/Source/HMakeSharedDefs.h`.
-- `UnrealServerMetadata.txt` and the adjacent UBT response files provide the
+- `scanner.py`, copied to the UE checkout root, scans that checkout for
+  `*.hmake.hpp` files and generates the checkout-root `hmake.cpp` and
+  `Engine/Source/HMakeSharedDefs.h`.
+- `UnrealServer.hmake.json` and the adjacent UBT response files provide the
   local compiler, linker, archiver, and target-wide ISPC command environment.
 - `hconfigure/header/ue.hpp` declares the UE-oriented configuration, target,
   registry, dependency, path, and prebuilt-library APIs.
@@ -16,46 +17,59 @@ This directory contains the scanner that connects decentralized Unreal Engine
 - Each UE module or target owns its specification beside its source or target file.
 
 The scanner registers discovered files globally once. Each `UeConfiguration`
-then has its own lazily evaluated target graph, build commands, and PLOAT objects.
+then has its own lazily evaluated target graph, build commands, and Ploat objects.
 A module is not configured merely because the scanner found it; it is configured
 only when requested as a graph root or reached through a dependency.
 
 ## Generate hmake.cpp
 
-Run the scanner manually whenever a `*.hmake.hpp` file is added, removed, or
-renamed:
+First prepare the UBT export from the UE checkout root. For sibling checkouts
+at `~/Projects/HMake` and `~/Projects/UnrealEngine`, with UE's `Setup.sh` completed
+and the HMake UBT changes present:
 
 ```sh
-python3 /home/hassan/Projects/HMake/Projects/UE5/scanner.py \
-  --ue-root /home/hassan/Projects/UnrealEngine
+cd ~/Projects/UnrealEngine
+./Engine/Build/BatchFiles/Linux/Build.sh UnrealServer Linux Debug -buildubt -Mode=JsonExport -HMake
 ```
 
-By default this writes `/home/hassan/Projects/UnrealEngine/hmake.cpp`. Use
-`--output` to select another file. The checkout-root file is the input consumed
-when `hhelper` runs from `/home/hassan/Projects/UnrealEngine/uebuild`; it does not
-need to be copied from `Projects/UE5`. The `Projects/UE5/hmake.cpp` copy exists so
-the repository's `UE5` CMake target can compile the same generated entry point.
-Keep `scanner.py`, its tests, and this documentation in HMake; do not duplicate the
-whole `Projects/UE5` directory in the UE checkout. The UE checkout owns the
-decentralized `*.hmake.hpp` files, its generated root `hmake.cpp`, and the generated
-`Engine/Source/HMakeSharedDefs.h`.
+The `-HMake` export writes the fixed path
+`Engine/Intermediate/Build/Linux/x64/UnrealServer/Debug/UnrealServer.hmake.json`.
+It prepares UHT output, generated definitions headers, and compiler/linker
+response files without performing a full native UE compile and link. Leave UBT's
+PCH and shared-PCH settings enabled so its shared definitions header is generated.
 
-The default command row is read from
-`Engine/Intermediate/Build/Linux/x64/UnrealServer/Debug/UnrealServerMetadata.txt`
-and its adjacent response files. Run the local UBT
-`UnrealServer-Linux-Debug` bootstrap before the scanner. Pass `--metadata` when
-the export is stored elsewhere. Because the scanner resolves paths from the
-selected `--ue-root` and that checkout's UBT artifacts, rerun it on each system
-instead of copying a generated command row between machines.
-
-For a fresh build directory, run `hhelper` once to create `uebuild/cache.json`
-and a second time to compile and execute the generated configure program:
+Copy the scanner into the UE checkout root, make it executable, and run it:
 
 ```sh
-mkdir -p /home/hassan/Projects/UnrealEngine/uebuild
-cd /home/hassan/Projects/UnrealEngine/uebuild
-hhelper
-hhelper
+cp ~/Projects/HMake/Projects/UE5/scanner.py ~/Projects/UnrealEngine/scanner.py
+chmod +x ~/Projects/UnrealEngine/scanner.py
+cd ~/Projects/UnrealEngine
+./scanner.py
+```
+
+The scanner takes no arguments. Its containing directory is the UE root, and it
+reads the fixed JSON export and adjacent response files there. It writes
+`hmake.cpp` at that root and `Engine/Source/HMakeSharedDefs.h`. The root
+`hmake.cpp` is the input consumed when `hbuild` runs from
+`~/Projects/UnrealEngine/uebuild`. The `Projects/UE5/hmake.cpp` copy in HMake
+exists so the repository's `UE5` CMake target can compile the generated entry
+point.
+
+Keep the scanner's maintained source, tests, and this documentation in HMake;
+copy only `scanner.py` into the UE checkout. Refresh that copy after scanner
+changes, and rerun `./scanner.py` whenever a `*.hmake.hpp` file is added, removed,
+or renamed. Regenerate the UBT export and rerun the scanner after relevant UBT
+configuration or toolchain changes. Paths and commands come from that checkout's
+local UBT artifacts, so run this preparation on each system.
+
+This workflow is implemented but awaiting end-to-end validation.
+
+For a fresh build directory, let `hbuild` perform the complete take-off:
+
+```sh
+mkdir -p ~/Projects/UnrealEngine/uebuild
+cd ~/Projects/UnrealEngine/uebuild
+hbuild -B .
 ```
 
 ## File metadata and selection
@@ -170,10 +184,12 @@ outside this first-stage Linux build.
 
 ## Existing UHT output
 
-The first stage does not run UHT. HMake derives each module's UHT and VNI
+HMake consumes existing UHT output; it does not execute UHT. The UBT
+`JsonExport -HMake` preparation step supplies that generated output before the
+scanner and HMake run. HMake derives each module's UHT and VNI
 directories from `setGeneratedIncludeRoot()`, the module location, its enclosing
 plugin descriptor when present, and `setShortName()`. Scanner-time validation
-compares these mechanically derived paths with the selected UBT metadata. A
+compares these mechanically derived paths with the UBT HMake JSON export. A
 missing module UHT directory is simply ignored. Whether module sources are
 compiled comes from link reachability in the HMake dependency graph, not from a
 generated per-module table.
@@ -200,7 +216,7 @@ non-empty C, C++, linker, and archiver command template. HMake still appends the
 source, output, `-c`, `-o`, and graph inputs.
 
 The scanner currently constructs one `Linux/x64/Debug/Server` row. Its C++ prefix
-comes from the local successful UBT `BASE-COMMAND`; HMake owns `-c`, source,
+comes from the local UBT JSON export's `baseCommand`; HMake owns `-c`, source,
 dependency-file, and output arguments, so the scanner removes `-c`. Definitions
 that UBT writes only to its generated Core shared-definitions header are translated
 to ordinary command-line definitions. The scanner also generates
@@ -219,7 +235,7 @@ command. The generated configuration selects UE's bundled ISPC executable with
 `setIspcCompiler()`. Each `IspcTarget` adds its module's propagated include paths
 and definitions to that shared environment.
 
-Additional rows require extending scanner metadata discovery, while
+Additional rows require extending scanner JSON export discovery, while
 `UeConfiguration` already selects rows by platform, architecture, UE build
 configuration, and target type. Per-target command variation remains deferred:
 the initial HMake model requires one compatible base C/C++ command per
@@ -229,7 +245,7 @@ RTTI, exception, and `PLATFORM_EXCEPTIONS_DISABLED` arguments are deliberately
 removed from the shared UBT command row. `UeConfiguration::initialize()` appends
 them from typed HMake properties. `buildSpecification()` declares only
 `UnrealServerLinuxDebug`, with RTTI and exceptions disabled. When that
-configuration is active, its configuration callback creates
+configuration is active, `configurationSpecification()` creates
 `UnrealServerLinuxDebugRttiExcept` with copied settings plus RTTI and exceptions
 enabled, then expands the requested UE roots.
 
@@ -258,7 +274,7 @@ modules whose object directories use `ShortName`).
 A source-less external module can declare its include paths and definitions on its
 `UeCppTarget`, then attach physical libraries through
 `publicPrebuiltStaticLibrary()`, `privatePrebuiltStaticLibrary()`,
-`publicPrebuiltSharedLibrary()`, or their interface forms. The current PLOAT
+`publicPrebuiltSharedLibrary()`, or their interface forms. The current Ploat
 adapter accepts conventional `.a`, `.lib`, `.so`, `.dylib`, and `.dll`
 filenames.
 
@@ -266,7 +282,8 @@ filenames.
 
 Each ordinary UE module has a `UeCppTarget` object producer. The default
 `LIBRARY_OBJECT` configuration contributes those objects directly to the requested
-monolithic executable; prebuilt libraries still enter through PLOAT dependencies.
+monolithic executable; prebuilt libraries still enter through Ploat dependencies.
+
 
 Modules whose scanner front matter selects `RttiExcept` are evaluated in both
 configurations. The producer configuration defaults `AddCppSource` to `NO`; only
@@ -275,9 +292,9 @@ dependencies still provide include paths, definitions, and header units under
 the producer's RTTI/exception semantics, but their source files are not compiled
 again.
 
-The consumer creates its own source-less `UeCppTarget` and static-library PLOAT
+The consumer creates its own source-less `UeCppTarget` and static-library Ploat
 proxy for each profile-marked module. The producer and consumer keep separate
-DSC, PLOAT, and object-producer graphs. Their only connection is a
+DSC, Ploat, and object-producer graphs. Their only connection is a
 `BTargetType::UNKNOWN` dependency from the consumer proxy's round-zero target to
 the producer archive's round-zero target. No BMI or object producer crosses the
 configuration boundary.
@@ -376,6 +393,6 @@ query export, then make the descriptor evaluator reproduce that set.
   implement modular shared-library import-library handling if modular UE targets
   are brought up.
 - Discover and generate additional platform/configuration command rows from their
-  UBT metadata exports.
+  UBT HMake JSON exports.
 - Add native UHT generation only after the standard Debug server graph builds from
   existing generated output.

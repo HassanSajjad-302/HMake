@@ -3,8 +3,7 @@
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "ConfigurationAssign.hpp"
-#include "LOAT.hpp"
-#include "ToolsCache.hpp"
+#include "Loat.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>
@@ -12,8 +11,8 @@
 #include <regex>
 #include <utility>
 
-using std::filesystem::create_directories, std::filesystem::directory_iterator,
-    std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
+using std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream,
+    std::regex, std::regex_error;
 
 namespace
 {
@@ -50,7 +49,8 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         "private-header-units", "interface-header-units", "interface-files",        "module-files",
     };
 
-    string str = fileToString(dir + "module-map.txt");
+    STACK_PMR_STRING(str, 64 * 1024)
+    fileToString(dir + "module-map.txt", str);
     uint32_t start = 0;
     int currentModeIndex = -1;
     string_view pendingLogicalName;
@@ -118,7 +118,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
             continue;
         }
 
-        Node *node = Node::getNodeNonNormalized(string(line), true, true);
+        Node *node = Node::getNode<PathType::NEITHER>(string(line), true, true);
         if (node->fileType == file_type::not_found)
         {
             printErrorMessage(
@@ -195,7 +195,7 @@ void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
     }
 }
 
-void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include)
+void readInclDirsAtBuildTime(const char *ptr, uint64_t &bytesRead, vector<InclNode> &include)
 {
     const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize);
@@ -209,7 +209,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNo
 void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_view, HfOrCppMod> &headerNameMapping)
 {
     // Reserve space for the count, fill it in after iteration.
-    const uint32_t countOffset = buffer.size();
+    const uint64_t countOffset = buffer.size();
     writeUint32(buffer, 0);
 
     uint32_t written = 0;
@@ -221,6 +221,7 @@ void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_vie
         }
         writeStringView(buffer, s);
         writeNode(buffer, h.data.node);
+        assert(written != static_cast<uint32_t>(-1));
         ++written;
     }
 
@@ -240,13 +241,16 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     {
         if (!myBuildDir_)
         {
-            myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
+            string buildDirectory(configureNode->filePath);
+            buildDirectory += slashc;
+            buildDirectory += name;
+            myBuildDir = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(std::move(buildDirectory));
         }
         else
         {
             myBuildDir = myBuildDir_;
         }
-        create_directories(myBuildDir->filePath);
+        std::filesystem::create_directories(myBuildDir->filePath);
     }
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -275,8 +279,8 @@ BTarget &CppTarget::getOrCreateBeforeTarget()
     }
     const uint64_t beforeCacheName =
         rapidhash_withSeed(&cacheName, sizeof(cacheName), 0x4245464F52450000ULL); // "BEFORE"
-    beforeTarget = new BTarget(name + "/before", beforeCacheName, false, BTargetType::BEFORE_TARGET, false, false,
-                               true, false);
+    beforeTarget =
+        new BTarget(name + "/before", beforeCacheName, false, BTargetType::BEFORE_TARGET, false, false, true, false);
     return *beforeTarget;
 }
 
@@ -339,21 +343,14 @@ string_view CppTarget::getAdaptiveIncludeName(const Node *node) const
     }
 
     // Node paths are already lexically normalized (and lower-cased on Windows), so deriving the include name only
-    // requires removing the source-root prefix. Keep the separator check: a plain starts_with() would incorrectly
-    // accept a sibling such as `/repo/project-other` for the source root `/repo/project`.
-    const string_view sourceRoot = srcNode->filePath;
-    const string_view sourcePath = node->filePath;
-    size_t relativeStart = sourceRoot.size();
-    const bool rootEndsInSeparator = !sourceRoot.empty() && sourceRoot.back() == slashc;
-    if (!sourcePath.starts_with(sourceRoot) || sourcePath.size() <= relativeStart ||
-        (!rootEndsInSeparator && sourcePath[relativeStart] != slashc))
+    // requires removing the source-root prefix.
+    if (!isPathInDirectory(node->filePath, srcNode->filePath))
     {
         printErrorMessage(FORMAT("Adaptive-unity source is outside the project source root.\nTarget: {}\n"
                                  "Source root: {}\nSource: {}",
                                  name, srcNode->filePath, node->filePath));
     }
-    relativeStart += !rootEndsInSeparator;
-    const string_view includeName = sourcePath.substr(relativeStart);
+    const string_view includeName = string_view(node->filePath).substr(srcNode->filePath.size() + 1);
     if (includeName.contains('"'))
     {
         printErrorMessage(FORMAT("Adaptive-unity include path contains a quote.\nSource: {}", node->filePath));
@@ -459,7 +456,7 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
 {
     constexpr string_view kModuleTag = "// module:";
 
-    ifstream file(node->filePath);
+    ifstream file(node->filePath.data());
     if (!file)
     {
         printErrorMessage(
@@ -467,7 +464,7 @@ string CppTarget::getExportNameFromFirstLine(const Node *node)
         return {};
     }
 
-    string firstLine;
+    STACK_PMR_STRING(firstLine, 1024)
     if (!std::getline(file, firstLine))
     {
         printErrorMessage(FORMAT("Could not read the module declaration line.\nModule file: {}", node->filePath));
@@ -513,8 +510,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
 
     if (exportName.empty())
     {
-        string fileName = node->getFileName();
-        if (const string ext = node->getExtension(); ext == ".cppm" || ext == ".ixx")
+        if (const string_view extension = node->getFileExtension(); extension == ".cppm" || extension == ".ixx")
         {
             exportName = node->getFileStem();
         }
@@ -617,13 +613,17 @@ void CppTarget::populateNameMappingsAndNodesType()
                 const HfOrCppMod local = it->second[0];
                 if (hfOrCppMod.type == FileType::HEADER_FILE)
                 {
-                    tried = "Header-File " + hfOrCppMod.data.node->filePath;
-                    alreadyAdded = "Header-File " + local.data.node->filePath;
+                    tried = "Header-File ";
+                    tried += hfOrCppMod.data.node->filePath;
+                    alreadyAdded = "Header-File ";
+                    alreadyAdded += local.data.node->filePath;
                 }
                 else
                 {
-                    tried = "CppMod " + hfOrCppMod.data.cppMod->node->filePath;
-                    alreadyAdded = "CppMod " + local.data.cppMod->node->filePath;
+                    tried = "CppMod ";
+                    tried += hfOrCppMod.data.cppMod->node->filePath;
+                    alreadyAdded = "CppMod ";
+                    alreadyAdded += local.data.cppMod->node->filePath;
                 }
 
                 printErrorMessage(FORMAT("Header logical name maps to multiple files.\nConfiguration: {}\n"
@@ -716,13 +716,17 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HfOrCppMod hf
     string tried;
     if (hfOrCppMod.type == FileType::HEADER_FILE)
     {
-        tried = "Header-File " + hfOrCppMod.data.node->filePath;
-        alreadyAdded = "Header-File " + local.data.node->filePath;
+        tried = "Header-File ";
+        tried += hfOrCppMod.data.node->filePath;
+        alreadyAdded = "Header-File ";
+        alreadyAdded += local.data.node->filePath;
     }
     else
     {
-        tried = "Header-Unit " + hfOrCppMod.data.cppMod->node->filePath;
-        alreadyAdded = "Header-Unit " + local.data.cppMod->node->filePath;
+        tried = "Header-Unit ";
+        tried += hfOrCppMod.data.cppMod->node->filePath;
+        alreadyAdded = "Header-Unit ";
+        alreadyAdded += local.data.cppMod->node->filePath;
     }
 
     printErrorMessage(FORMAT("Header logical name maps to multiple files.\nTarget: {}\nMapping scope: {}\n"
@@ -1203,7 +1207,7 @@ void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &pre
                 // has string_view so it is fast initialized at build-time.
                 logicalName = new string(prefix + string{str.data() + includeDir->filePath.size() + 1,
                                                          str.size() - includeDir->filePath.size() - 1});
-                headerNode = Node::getHalfNode(str);
+                headerNode = Node::getHalfNode<PathType::NORMAL_ABSOLUTE>(str);
 
                 if constexpr (os == OS::NT)
                 {
@@ -1236,9 +1240,13 @@ CppMod *CppTarget::getPublicBigHu(const bool addNew)
     {
         const uint32_t index = publicBigHus.size();
         publicBigHus.emplace_back(nullptr);
-        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
-                         std::to_string(cacheIndex) + ".hpp");
-        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        string str(myBuildDir->filePath);
+        str += slashc;
+        str += std::to_string(index);
+        str += "public-";
+        str += std::to_string(cacheIndex);
+        str += ".hpp";
+        const Node *bigHuNode = Node::getNode<PathType::NORMAL_ABSOLUTE>(std::move(str), true, true);
         publicBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         publicBigHus[index]->isReqHu = true;
         publicBigHus[index]->isUseReqHu = true;
@@ -1254,9 +1262,13 @@ CppMod *CppTarget::getPrivateBigHu(const bool addNew)
     {
         const uint32_t index = privateBigHus.size();
         privateBigHus.emplace_back(nullptr);
-        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
-                         std::to_string(cacheIndex) + ".hpp");
-        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        string str(myBuildDir->filePath);
+        str += slashc;
+        str += std::to_string(index);
+        str += "private-";
+        str += std::to_string(cacheIndex);
+        str += ".hpp";
+        const Node *bigHuNode = Node::getNode<PathType::NORMAL_ABSOLUTE>(std::move(str), true, true);
         privateBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         privateBigHus[index]->isReqHu = true;
         emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
@@ -1270,9 +1282,13 @@ CppMod *CppTarget::getInterfaceBigHu(const bool addNew)
     {
         const uint32_t index = interfaceBigHus.size();
         interfaceBigHus.emplace_back(nullptr);
-        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
-                         std::to_string(cacheIndex) + ".hpp");
-        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        string str(myBuildDir->filePath);
+        str += slashc;
+        str += std::to_string(index);
+        str += "interface-";
+        str += std::to_string(cacheIndex);
+        str += ".hpp";
+        const Node *bigHuNode = Node::getNode<PathType::NORMAL_ABSOLUTE>(std::move(str), true, true);
         interfaceBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         interfaceBigHus[index]->isUseReqHu = true;
         emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
@@ -1639,13 +1655,15 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
         }
 
         char *ptr = const_cast<char *>(bTargetCaches[cppMod.cacheIndex].getBuildCache().data());
+        uint64_t bytesRead = 1; // (1 headerStatusChanged)
+        const uint32_t filesSize = readUint32(ptr, bytesRead);
+        const std::span<const DepRecord> headers =
+            std::span(reinterpret_cast<const DepRecord *>(ptr + bytesRead), filesSize).subspan(1);
         if (calledFromConfiguration)
         {
-            uint32_t bytesRead = 1; // (1 headerStatusChanged)
-            const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
-            for (uint32_t i = 0; i < headerFilesSize; ++i)
+            for (const DepRecord &header : headers)
             {
-                Node *headerNode = readHalfNode(ptr, bytesRead);
+                Node *headerNode = header.node();
 
                 if (auto it = configuration->nodesType.find(headerNode); it != configuration->nodesType.end())
                 {
@@ -1664,11 +1682,9 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
             return;
         }
 
-        uint32_t bytesRead = 1; // (1 headerStatusChanged)
-        const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
-        for (uint32_t i = 0; i < headerFilesSize; ++i)
+        for (const DepRecord &header : headers)
         {
-            Node *headerNode = readHalfNode(ptr, bytesRead);
+            Node *headerNode = header.node();
 
             if (auto it = reqNodesType.find(headerNode); it != reqNodesType.end())
             {
@@ -1701,15 +1717,15 @@ void CppTarget::writeBigHeaderUnits()
         {
             if (bigHu)
             {
-                string str;
+                STACK_PMR_STRING(str, 16 * 1024)
                 for (const auto &[s, _] : bigHu->composingHeaders)
                 {
                     str += "#include \"" + s + "\"\n";
                 }
-                string fileStr;
+                STACK_PMR_STRING(fileStr, 16 * 1024)
                 if (bigHu->node->fileType != file_type::not_found)
                 {
-                    fileStr = fileToString(bigHu->node->filePath);
+                    fileToString(bigHu->node->filePath, fileStr);
                     if constexpr (os == OS::NT)
                     {
                         fileStr.erase(std::remove(fileStr.begin(), fileStr.end(), '\r'), fileStr.end());
@@ -1717,7 +1733,7 @@ void CppTarget::writeBigHeaderUnits()
                 }
                 if (fileStr != str)
                 {
-                    ofstream(bigHu->node->filePath) << str;
+                    ofstream(bigHu->node->filePath.data()) << str;
                 }
                 huDeps.emplace_back(bigHu);
             }
@@ -1734,7 +1750,7 @@ void CppTarget::readConfigCacheAtBuildTime()
     const string_view configCache = bTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
-    uint32_t bytesRead = configCacheRead;
+    uint64_t bytesRead = configCacheRead;
 
     RealBTarget &rb = realBTargets[0];
 
@@ -1847,7 +1863,11 @@ void CppTarget::readConfigCacheAtBuildTime()
 
 string CppTarget::getPrintName() const
 {
-    return "CppTarget " + configureNode->filePath + slashc + name;
+    string result = "CppTarget ";
+    result += configureNode->filePath;
+    result += slashc;
+    result += name;
+    return result;
 }
 
 CppTarget &CppTarget::publicCompilerFlags(const string &compilerFlags)
@@ -1904,21 +1924,18 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
         }
     };
 
-    if (string s = getNormalizedPath(sourceDirectory); !exists(path(s)))
-    {
-        printErrorMessage(FORMAT("Source directory does not exist.\nTarget: {}\nDirectory: {}", name, s));
-    }
+    Node *const sourceDirectoryNode = Node::getNode<PathType::NEITHER>(sourceDirectory, false);
 
     if (recursive)
     {
-        for (const auto &k : recursive_directory_iterator(getNormalizedPath(sourceDirectory)))
+        for (const auto &k : recursive_directory_iterator(sourceDirectoryNode->filePath))
         {
             addNewFile(k);
         }
     }
     else
     {
-        for (const auto &k : directory_iterator(getNormalizedPath(sourceDirectory)))
+        for (const auto &k : directory_iterator(sourceDirectoryNode->filePath))
         {
             addNewFile(k);
         }
@@ -1927,7 +1944,7 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
 
 BTarget &CppTarget::getCppSrc(const string &str)
 {
-    Node *node = Node::getNodeNonNormalized(str, true);
+    Node *node = Node::getNode<PathType::NEITHER>(str, true);
     if (const auto source = std::ranges::find(srcFileDeps, node, [](const CppSrc *cppSrc) { return cppSrc->node; });
         source != srcFileDeps.end())
     {
@@ -1938,31 +1955,25 @@ BTarget &CppTarget::getCppSrc(const string &str)
         return getOrCreateAdaptiveManager();
     }
     printErrorMessage(FORMAT("Source file is not registered with the target.\nTarget: {}\nSource file: {}", name, str));
-    std::unreachable();
 }
 
 CppMod &CppTarget::getCppInterfaceModule(const string &str)
 {
-    const string normalized = getNormalizedPath(str);
+    const Node *const node = Node::getHalfNode<PathType::NEITHER>(str);
     for (CppMod *cppMod : imodFileDeps)
     {
-        if (!cppMod)
-        {
-            continue;
-        }
-        if (compareStringsFromEnd(cppMod->node->filePath, normalized))
+        if (cppMod->node == node)
         {
             return *cppMod;
         }
     }
     printErrorMessage(
         FORMAT("Module interface is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
-    std::unreachable();
 }
 
 BTarget &CppTarget::getCppModule(const string &str)
 {
-    Node *node = Node::getNodeNonNormalized(str, true);
+    Node *node = Node::getNode<PathType::NEITHER>(str, true);
     if (const auto module = std::ranges::find(modFileDeps, node, [](const CppMod *cppMod) { return cppMod->node; });
         module != modFileDeps.end())
     {
@@ -1974,7 +1985,6 @@ BTarget &CppTarget::getCppModule(const string &str)
     }
     printErrorMessage(
         FORMAT("Module implementation is not registered with the target.\nTarget: {}\nModule file: {}", name, str));
-    std::unreachable();
 }
 
 CppTarget &CppTarget::makeJumboToNormal(const NodeOrStr source)
@@ -2115,7 +2125,6 @@ CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, cons
         }
     }
     printErrorMessage(FORMAT("Header unit is not registered with the target.\nTarget: {}\nHeader unit: {}", name, str));
-    std::unreachable();
 }
 
 string CppTarget::escapeAndQuoteDefineValue(string_view val)
@@ -2252,7 +2261,7 @@ string CppTarget::getDependenciesString() const
 
 void CppTarget::verifyConfigCache(const string_view configCache) const
 {
-    uint32_t bytesRead = 0;
+    uint64_t bytesRead = 0;
     verifyObjectFileProducerConfigCache(configCache, bytesRead);
 
     const uint32_t cachedSrcFileDepsSize = readUint32(configCache.data(), bytesRead);
@@ -2530,7 +2539,7 @@ bool operator<(const CppTarget &lhs, const CppTarget &rhs)
     return lhs.name < rhs.name;
 }
 
-template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, const bool defines, string define_)
+template <> DSC<CppTarget>::DSC(CppTarget *ptr, Ploat *ploat_, const bool defines, string define_)
 {
     objectFileProducer = ptr;
     ploat = ploat_;
@@ -2542,7 +2551,7 @@ template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, const bool define
                                      "Link target: {}\nProducer: {}",
                                      ploat->getPrintName(), objectFileProducer->getPrintName()));
         }
-        // PLOAT decides its round-zero object dependencies after producer round one has finalized hasObjectFiles.
+        // Ploat decides its round-zero object dependencies after producer round one has finalized hasObjectFiles.
         ploat->realBTargets[1].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[1]);
     }
 

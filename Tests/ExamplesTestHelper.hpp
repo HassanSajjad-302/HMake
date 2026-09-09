@@ -11,16 +11,18 @@
 using std::string;
 
 static string hbuildBuildStr = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "hbuild");
-static string hhelperStr = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "hhelper");
+static string hconfigureOnlyStr = hbuildBuildStr + " --reconfigure --configure-only";
 
 struct ExamplesTestHelper
 {
     static void cleanBuild();
-    static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
+    static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput,
+                                         const char *workingDirectory = nullptr);
     static void getCleanBuildOutputAndStatus(string &output, int32_t &exitStatus);
     static void runCommandAndGetOutput(const string &command, string &output);
     static void getCommandOutputInDir(const string &dir, const string &command, string &output);
     static void recreateBuildDir();
+    static void filterBootstrapMessages(string &output);
 };
 
 std::string removeColorCodes(const std::string &str);

@@ -1,6 +1,8 @@
 #ifndef HMAKE_TARGETTYPE_HPP
 #define HMAKE_TARGETTYPE_HPP
 
+#include <cstdint>
+
 enum class TargetType : uint8_t
 {
     EXECUTABLE,
