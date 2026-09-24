@@ -3,20 +3,18 @@
 #define MANAGER_HPP
 
 #include "Messages.hpp"
-#include "expected.hpp"
+#include "Result.hpp"
 
+#include <new>
 #include <string>
+#include <utility>
 #include <vector>
-
-namespace tl
-{
-template <typename T, typename U> class expected;
-}
 
 namespace P2978
 {
 
-// 32-byte delimiter
+// A 32-byte marker terminates each pipe message. Compiler requests also put a
+// uint32_t payload size immediately before it, separating requests from diagnostics.
 inline const char *delimiter = "DELIMITER"
                                "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
                                "DELIMITER";
@@ -24,63 +22,50 @@ inline const char *delimiter = "DELIMITER"
 enum class ErrorCategory : uint8_t
 {
     NONE,
-
     PARSING_ERROR,
-    // error-category for API errors
     READ_FILE_ZERO_BYTES_READ,
-    INCORRECT_BTC_LAST_MESSAGE,
     UNKNOWN_CTB_TYPE,
 };
 
+// Describe the current errno on Unix or GetLastError() on Windows.
 std::string getErrorString();
-std::string getErrorString(uint32_t bytesRead_, uint32_t bytesProcessed_);
+std::string getErrorString(uint64_t bytesRead_, uint64_t bytesProcessed_);
 std::string getErrorString(ErrorCategory errorCategory_);
-// to facilitate error propagation.
-inline std::string getErrorString(std::string err)
-{
-    return err;
-}
 
-struct Mapping
-{
-    std::string_view file;
-#ifdef _WIN32
-    void *mapping;
-    void *view;
-#endif
-};
-
+// Shared wire encoding and pipe I/O helpers; endpoints do not use polymorphism.
 class Manager
 {
   public:
-    virtual tl::expected<void, std::string> writeInternal(std::string_view buffer) const = 0;
-    virtual ~Manager() = default;
+    // Complete partial writes; the caller owns the descriptor or handle.
 #ifndef _WIN32
-    static tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const uint32_t count);
+    static Result<void> writeAll(const int fd, const char *buffer, const uint64_t count);
+#else
+    static Result<void> writeAll(void *handle, std::string_view buffer);
 #endif
 
     static std::string getBufferWithType(CTB type);
+    // Wire lengths and counts use native-endian uint32_t values.
     static void writeUInt32(std::string &buffer, uint32_t value);
     static void writeString(std::string &buffer, const std::string_view &str);
-    // path is used in system calls. so it is followed by null character while the normal string is not.
+    // Paths include a trailing NUL for OS calls; the encoded length excludes it.
     static void writePath(std::string &buffer, const std::string_view &str);
-    static void writeBMIFile(std::string &buffer, const BMIFile &file);
     static void writeModuleDep(std::string &buffer, const ModuleDep &dep);
     static void writeHuDep(std::string &buffer, const HuDep &dep);
     static void writeHeaderFile(std::string &buffer, const HeaderFile &dep);
     static void writeVectorOfStrings(std::string &buffer, const std::vector<std::string_view> &strs);
-    static void writeVectorOfProcessMappingOfBMIFiles(std::string &buffer, const std::vector<BMIFile> &files);
     static void writeVectorOfModuleDep(std::string &buffer, const std::vector<ModuleDep> &deps);
     static void writeVectorOfHuDeps(std::string &buffer, const std::vector<HuDep> &deps);
     static void writeVectorOfHeaderFiles(std::string &buffer, const std::vector<HeaderFile> &headerFiles);
 
-    static tl::expected<bool, std::string> readBool(std::string_view message, uint32_t &bytesRead);
-    static tl::expected<uint8_t, std::string> readUInt8(std::string_view message, uint32_t &bytesRead);
-    static tl::expected<uint32_t, std::string> readUInt32(std::string_view message, uint32_t &bytesRead);
-    static tl::expected<std::string_view, std::string> readString(std::string_view message, uint32_t &bytesRead);
+    // Parsing offsets use uint64_t independently of the wire field widths.
+    static Result<bool> readBool(std::string_view message, uint64_t &bytesRead);
+    static Result<uint8_t> readUInt8(std::string_view message, uint64_t &bytesRead);
+    static Result<uint32_t> readUInt32(std::string_view message, uint64_t &bytesRead);
+    static Result<std::string_view> readString(std::string_view message, uint64_t &bytesRead);
 
-    // path is used in system calls. so it is followed by null character while the normal string is not.
-    static tl::expected<std::string_view, std::string> readPath(std::string_view message, uint32_t &bytesRead);
+    // Returned string/path views borrow message. A path's view excludes its NUL,
+    // but the parser consumes and validates that byte before returning.
+    static Result<std::string_view> readPath(std::string_view message, uint64_t &bytesRead);
 };
 
 template <typename T, typename... Args> constexpr T *construct_at(T *p, Args &&...args)
@@ -93,23 +78,6 @@ template <typename T> T &getInitializedObjectFromBuffer(char (&buffer)[320])
     T &t = reinterpret_cast<T &>(buffer);
     construct_at(&t);
     return t;
-}
-
-inline std::string to16charHexString(const uint64_t v)
-{
-    static auto lut = "0123456789abcdef";
-    std::string out;
-    out.resize(16);
-    for (int i = 0; i < 8; ++i)
-    {
-        // extract byte in big-endian order:
-        const auto byte = static_cast<uint8_t>(v >> ((7 - i) * 8));
-        // high nibble:
-        out[2 * i] = lut[byte >> 4];
-        // low nibble:
-        out[2 * i + 1] = lut[byte & 0xF];
-    }
-    return out;
 }
 
 } // namespace P2978

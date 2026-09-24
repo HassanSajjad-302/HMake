@@ -481,25 +481,6 @@ CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModTyp
     }
 }
 
-void CppMod::makeMemoryFileMapping()
-{
-    if (memoryMappingCompleted)
-    {
-        return;
-    }
-
-    P2978::BMIFile file;
-    file.filePath = interfaceNode->filePath;
-    if (const auto &r = IPCManagerBS::createSharedMemoryBMIFile(file); !r)
-    {
-        printErrorMessage(FORMAT("Could not map the shared-memory BMI file.\nTarget: {}\nSource file: {}\n"
-                                 "BMI file: {}\nSystem error: {}",
-                                 target->name, node->filePath, interfaceNode->filePath, r.error()));
-    }
-    interfaceFileSize = file.fileSize;
-    memoryMappingCompleted = true;
-}
-
 void CppMod::populateAllDeps()
 {
     if (isAllDepsPopulated)
@@ -526,15 +507,13 @@ void CppMod::populateAllDeps()
 
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
-    mod.makeMemoryFileMapping();
     mod.populateAllDeps();
 
     STACK_PMR_STRING(toBeSend, 64 * 1024)
 
-    // BTCModule::requested
+    // BTCModule::filePath
     writeStringView(toBeSend, mod.interfaceNode->filePath);
     toBeSend.push_back('\0');
-    writeUint32(toBeSend, mod.interfaceFileSize);
     // BTCModule::isSystem
     writeBool(toBeSend, mod.target->isSystem);
 
@@ -551,15 +530,12 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
             continue;
         }
 
-        modDep->makeMemoryFileMapping();
-
         ++dependencyCount;
         // ModuleDep::isHeaderUnit
         writeBool(toBeSend, modDep->type == CppModType::HEADER_UNIT);
-        // ModuleDep::file
+        // ModuleDep::filePath
         writeStringView(toBeSend, modDep->interfaceNode->filePath);
         toBeSend.push_back('\0');
-        writeUint32(toBeSend, modDep->interfaceFileSize);
         // ModuleDep::isSystem
         writeBool(toBeSend, modDep->target->isSystem);
         // ModuleDep::logicalNames
@@ -572,103 +548,8 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
     run.writeReadExpected(toBeSend);
 }
 
-// For debugging purposes
-P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
-{
-    P2978::BTCNonModule result;
-    const char *ptr = buffer.data();
-    uint64_t bytesRead = 0;
-
-    // BTCNonModule::isHeaderUnit
-    result.isHeaderUnit = readBool(ptr, bytesRead);
-
-    // BTCNonModule::isSystem
-    result.isSystem = readBool(ptr, bytesRead);
-
-    // BTCNonModule::headerFiles
-    uint32_t headerFilesCount = readUint32(ptr, bytesRead);
-    result.headerFiles.reserve(headerFilesCount);
-    for (uint32_t i = 0; i < headerFilesCount; ++i)
-    {
-        P2978::HeaderFile hf;
-
-        // HeaderFile::logicalName
-        std::string_view logicalNameView = readStringView(ptr, bytesRead);
-        hf.logicalName = logicalNameView;
-
-        // HeaderFile::filePath
-        std::string_view filePathView = readStringView(ptr, bytesRead);
-        hf.filePath = filePathView;
-
-        // HeaderFile::isSystem
-        hf.isSystem = readBool(ptr, bytesRead);
-
-        result.headerFiles.emplace_back(hf);
-    }
-
-    // BTCNonModule::filePath
-    std::string_view filePathView = readStringView(ptr, bytesRead);
-    result.filePath = filePathView;
-
-    if (!result.isHeaderUnit)
-    {
-        return result;
-    }
-
-    // BTCNonModule::fileSize
-    result.fileSize = readUint32(ptr, bytesRead);
-
-    // BTCNonModule::logicalNames
-    uint32_t logicalNamesCount = readUint32(ptr, bytesRead);
-    result.logicalNames.reserve(logicalNamesCount);
-    for (uint32_t i = 0; i < logicalNamesCount; ++i)
-    {
-        std::string_view sv = readStringView(ptr, bytesRead);
-        result.logicalNames.emplace_back(sv);
-    }
-
-    // BTCNonModule::huDeps
-    uint32_t huDepsCount = readUint32(ptr, bytesRead);
-    result.huDeps.reserve(huDepsCount);
-    for (uint32_t i = 0; i < huDepsCount; ++i)
-    {
-        P2978::HuDep dep;
-
-        // HuDep::file::filePath
-        dep.file.filePath = readStringView(ptr, bytesRead);
-
-        // HuDep::file::fileSize
-        dep.file.fileSize = readUint32(ptr, bytesRead);
-
-        // HuDep::logicalNames
-        uint32_t depLogicalNamesCount = readUint32(ptr, bytesRead);
-        dep.logicalNames.reserve(depLogicalNamesCount);
-        for (uint32_t j = 0; j < depLogicalNamesCount; ++j)
-        {
-            std::string_view sv = readStringView(ptr, bytesRead);
-            dep.logicalNames.emplace_back(sv);
-        }
-
-        // HuDep::isSystem
-        dep.isSystem = readBool(ptr, bytesRead);
-
-        result.huDeps.emplace_back(std::move(dep));
-    }
-
-    // Sanity check
-    if (bytesRead + strlen(P2978::delimiter) != buffer.size())
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        /*std::cerr << "WARNING: Deserialized " << bytesRead << " bytes but buffer size is " << buffer.size()
-                  << " (difference: " << (int)buffer.size() - (int)bytesRead << ")\n";*/
-    }
-
-    return result;
-}
-
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
-    hu.makeMemoryFileMapping();
     hu.populateAllDeps();
 
     STACK_PMR_STRING(toBeSend, 64 * 1024)
@@ -704,8 +585,6 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     // BTCNonModule::filePath
     writeStringView(toBeSend, hu.interfaceNode->filePath);
     toBeSend.push_back('\0');
-    // BTCNonModule::fileSize
-    writeUint32(toBeSend, hu.interfaceFileSize);
     // BTCNonModule::logicalNames
     writeUint32(toBeSend, hu.composingNames.size() + 1);
     writeStringView(toBeSend, hu.logicalName);
@@ -731,13 +610,10 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 
         assert(count != static_cast<uint32_t>(-1));
         ++count;
-        modDep->makeMemoryFileMapping();
 
-        // HuDep::file::filePath
+        // HuDep::filePath
         writeStringView(toBeSend, modDep->interfaceNode->filePath);
         toBeSend.push_back('\0');
-        // HuDep::file::fileSize
-        writeUint32(toBeSend, modDep->interfaceFileSize);
         // BTCNonModule::isSystem
         writeBool(toBeSend, modDep->target->isSystem);
 
@@ -946,19 +822,6 @@ void CppMod::completeModuleCompilation(const Builder &builder)
         }
     }
 
-    if (type == CppModType::HEADER_UNIT || type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
-    {
-        P2978::BMIFile file{.filePath = interfaceNode->filePath};
-        if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
-        {
-            printErrorMessage(FORMAT("Could not create the shared-memory BMI file.\nTarget: {}\nSource file: {}\n"
-                                     "BMI file: {}\nSystem error: {}",
-                                     target->name, node->filePath, interfaceNode->filePath, r2.error()));
-        }
-        interfaceFileSize = file.fileSize;
-        memoryMappingCompleted = true;
-    }
-
     if (target->useIPC)
     {
         if (target->configuration->evaluate(DuplicationWarning::YES))
@@ -1053,21 +916,13 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
                                  target->name, node->filePath, waitingFor->node->filePath));
     }
 
-    char buffer[320];
+    alignas(P2978::CTBModule) alignas(P2978::CTBNonModule) char buffer[320];
     P2978::CTB requestType;
     if (const auto &r = IPCManagerBS::receiveMessage(buffer, requestType, message); !r)
     {
         printErrorMessage(FORMAT("Could not receive a compiler IPC request.\nTarget: {}\nCompiling file: {}\n"
                                  "IPC error: {}",
                                  target->name, node->filePath, r.error()));
-    }
-
-    if (requestType == P2978::CTB::LAST_MESSAGE)
-    {
-        // TODO: Map compiler-created BMI shared-memory files and acknowledge them with BTC::LAST_MESSAGE.
-        printErrorMessage(FORMAT("Compiler sent CTB::LAST_MESSAGE, but compiler-created BMI shared-memory files "
-                                 "are not yet supported.\nTarget: {}\nCompiling file: {}",
-                                 target->name, node->filePath));
     }
 
     CppMod *found;
@@ -1136,7 +991,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             if (!firstMessageSent)
             {
                 uint32_t count = 0;
-                writeUint32(toBeSend, -1); // placeholder
+                writeUint32(toBeSend, UINT32_MAX); // placeholder
                 firstMessageSent = true;
                 for (const auto &[str, composingNode] : composingHeaders)
                 {
@@ -1152,7 +1007,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
                     writeStringView(toBeSend, str);
                     // HeaderFile::filePath
                     writeStringView(toBeSend, composingNode->filePath);
-                    toBeSend.push_back('\n');
+                    toBeSend.push_back('\0');
                     // HeaderFile::isSystem
                     writeBool(toBeSend, target->isSystem);
                 }
@@ -1165,7 +1020,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
             // BTCNonModule::filePath
             writeStringView(toBeSend, f->data.node->filePath);
-            toBeSend.push_back('\n');
+            toBeSend.push_back('\0');
             toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
             run.writeReadExpected(toBeSend);
@@ -1323,7 +1178,7 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandTy
         compileCommand = target->configuration->assemblyCompileCommand;
     }
 
-    target->setCompileCommand(compileCommand);
+    target->setCompileCommand(compileCommand, commandType == CommandType::CONVENTIONAL);
     compileCommand += "-Wno-experimental-header-units ";
     if (commandType != CommandType::CONVENTIONAL)
     {

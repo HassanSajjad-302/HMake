@@ -195,20 +195,13 @@ target_link_libraries(Tests PRIVATE GTest::gtest hconfigure-b)
 target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${PROJECT_SOURCE_DIR}/")
 add_dependencies(Tests hbuild)
 
-add_executable(copy utils/copy.cpp)
 add_executable(CmdAnalysis utils/cmd-analysis.cpp)
 add_executable(Analysis2 utils/analysis2.cpp)
 add_executable(Dir-Mapping utils/dir-mapping.cpp)
-add_executable(PerfTest utils/perf-test.cpp)
 
 target_link_libraries(CmdAnalysis PRIVATE hconfigure-c)
 target_link_libraries(Analysis2 PRIVATE hconfigure-c)
 target_link_libraries(Dir-Mapping PRIVATE hconfigure-c)
-
-if (WIN32)
-    add_executable(monitor utils/monitor.cpp)
-    target_link_libraries(monitor PRIVATE Psapi)
-endif ()
 
 if (HMAKE_DEFAULT_TOOLCHAIN_STYLE STREQUAL "msvc")
     add_executable(benchmark Examples/benchmark/benchmark.cpp)

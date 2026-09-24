@@ -29,7 +29,9 @@ using std::same_as;
 /// different code for both modes. Some do stuff in one mode and do nothing in the other. While some will error-out in
 /// one mode and do stuff in the other. This last category is generally not meant to be directly used.
 ///
-/// In IsCppMod::YES, Compiler build modules and header-units using IPC. No include-directory is passed to the compiler.
+/// In IsCppMod::YES, C++ modules and header-units use IPC without include directories. C and assembly sources use
+/// conventional compilation with the target's include directories and never consume C++ header-unit BMIs.
+/// Explicit sourceFiles* calls also select conventional compilation for C++ files that require textual headers.
 /// Compiler sends the logical-name to the build-system. For module and hu, module and hu are sent respectively. But for
 /// header-file, build-system can send hu instead. This depends on how the received logical-name is mapped in target and
 /// its deps. So any file that can be a header-file or header-unit need to be specified with its logical-name.
@@ -38,13 +40,13 @@ using std::same_as;
 /// specify header-files and header-units in IsCppMod::YES take a parameter prefix. This is added to the fileName to
 /// specify the logical-name for the header-files and header-units. This is to support case where there is one umbrella
 /// include with every target include-dir inside it. e.g. all libraries in boost include header-files like
-/// "boost/lib-name/header-name". To support this in both modes we use following 2 function calls. First does nothing in
-/// IsCppMod::YES while second does nothing in IsCppMod::NO.
+/// "boost/lib-name/header-name". To support this in both modes we use the following two function calls. The first
+/// records textual include paths for conventional compilation; the second only registers headers in IsCppMod::YES.
 /// \code
 /// publicIncludesSource("boost");
 /// privateHuDirs("boost/lib-name", "boost/lib-name/"); // for every target
 /// \endcode
-/// The first function works only in IsCppMod::NO. It adds the "boost" public-include-dir. While the second function
+/// The first function adds the "boost" public include directory for conventional compilation. The second function
 /// works only in IsCppMod::YES. This adds the header-units with "boost/lib-name/header-name" as the logical-name. The
 /// functions that do not take the prefix add the fileName as the logical-name for header-files and header-units.
 ///
@@ -144,7 +146,7 @@ class CppTarget : public ObjectFileProducer
     static string escapeAndQuoteDefineValue(string_view val);
 
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
-    void setCompileCommand(std::pmr::string &compileCommand);
+    void setCompileCommand(std::pmr::string &compileCommand, bool addIncludeDirectories = true);
 
     /// Used in error diagnostics.
     /// \returns an amalgamated string of names of all CppTarget deps of this (direct + transitive).
@@ -234,6 +236,10 @@ class CppTarget : public ObjectFileProducer
     CppTarget &removeSourceFile(NodeOrStr source);
     /// Removes a previously registered module implementation unit.
     CppTarget &removeModuleFile(NodeOrStr source);
+    /// Converts a registered module implementation to an ordinary source when IsCppMod::YES.
+    CppTarget &makeModuleSourceFile(NodeOrStr source);
+    /// Converts a registered ordinary source to the moduleFiles path when IsCppMod::YES.
+    CppTarget &makeSourceModuleFile(NodeOrStr source);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-files. file-name is used as the logical-name.
@@ -332,14 +338,14 @@ class CppTarget : public ObjectFileProducer
     template <typename... U>
     CppTarget &interfaceIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                   U... includeDirectoryString);
-    /// In IsCppMod::NO, adds public include-dir. Does nothing in IsCppMod::YES.
+    /// Adds a public include directory for conventional compilation, including C and assembly in module targets.
     template <typename... U> CppTarget &publicIncludesSource(NodeOrStr include, U... includeDirectoryString);
     /// As publicIncludesSource(), but emits system/external include flags. This
     /// maps to APIs such as UBT ModuleRules.PublicSystemIncludePaths.
     template <typename... U> CppTarget &publicSystemIncludesSource(NodeOrStr include, U... includeDirectoryString);
-    /// In IsCppMod::NO, adds private include-dir. Does nothing in IsCppMod::YES.
+    /// Adds a private include directory for conventional compilation.
     template <typename... U> CppTarget &privateIncludesSource(NodeOrStr include, U... includeDirectoryString);
-    /// In IsCppMod::NO, adds interface include-dir. Does nothing in IsCppMod::YES.
+    /// Adds an interface include directory for conventional compilation.
     template <typename... U> CppTarget &interfaceIncludesSource(NodeOrStr include, U... includeDirectoryString);
 
     CppTarget &publicCompilerFlags(const string &compilerFlags);
@@ -367,6 +373,18 @@ class CppTarget : public ObjectFileProducer
     CppTarget &privateHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString);
     template <typename... U>
     CppTarget &interfaceHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString);
+    template <typename... U> CppTarget &removePublicHeaderFiles(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &removePrivateHeaderFiles(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &removeInterfaceHeaderFiles(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &removePublicHeaderUnits(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &removePrivateHeaderUnits(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &removeInterfaceHeaderUnits(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makePublicHeaderFileHeaderUnit(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makePrivateHeaderFileHeaderUnit(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makeInterfaceHeaderFileHeaderUnit(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makePublicHeaderUnitHeaderFile(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makePrivateHeaderUnitHeaderFile(const string &includeName, U... includeNames);
+    template <typename... U> CppTarget &makeInterfaceHeaderUnitHeaderFile(const string &includeName, U... includeNames);
     void parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr, bool recursive);
     template <typename... U> CppTarget &sourceFiles(NodeOrStr srcFile, U... sourceFileString);
     template <typename... U> CppTarget &sourceDirs(const string &sourceDirectory, U... dirs);
@@ -1198,6 +1216,258 @@ CppTarget &CppTarget::interfaceHeaderUnits(const string &includeName, NodeOrStr 
     if constexpr (sizeof...(headerUnitsString))
     {
         return interfaceHeaderUnits(headerUnitsString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removePublicHeaderFiles(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderFile(includeName, true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removePublicHeaderFiles(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removePrivateHeaderFiles(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderFile(includeName, true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removePrivateHeaderFiles(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removeInterfaceHeaderFiles(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderFile(includeName, false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removeInterfaceHeaderFiles(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removePublicHeaderUnits(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderUnit(includeName, true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removePublicHeaderUnits(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removePrivateHeaderUnits(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderUnit(includeName, true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removePrivateHeaderUnits(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::removeInterfaceHeaderUnits(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            removeHeaderUnit(includeName, false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return removeInterfaceHeaderUnits(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makePublicHeaderFileHeaderUnit(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderFileHeaderUnit(includeName, true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makePublicHeaderFileHeaderUnit(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makePrivateHeaderFileHeaderUnit(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderFileHeaderUnit(includeName, true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makePrivateHeaderFileHeaderUnit(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makeInterfaceHeaderFileHeaderUnit(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderFileHeaderUnit(includeName, false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makeInterfaceHeaderFileHeaderUnit(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makePublicHeaderUnitHeaderFile(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderUnitHeaderFile(includeName, true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makePublicHeaderUnitHeaderFile(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makePrivateHeaderUnitHeaderFile(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderUnitHeaderFile(includeName, true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makePrivateHeaderUnitHeaderFile(includeNames...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppTarget &CppTarget::makeInterfaceHeaderUnitHeaderFile(const string &includeName, U... includeNames)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            makeHeaderUnitHeaderFile(includeName, false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeNames))
+    {
+        return makeInterfaceHeaderUnitHeaderFile(includeNames...);
     }
     else
     {

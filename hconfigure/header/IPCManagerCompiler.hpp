@@ -3,14 +3,14 @@
 #define IPC_MANAGER_COMPILER_HPP
 
 #include "Manager.hpp"
-#include "expected.hpp"
+
+#include <memory>
+#include <unordered_map>
 
 struct CompilerTest;
 struct BuildSystemTest;
 namespace P2978
 {
-
-inline std::vector<std::string *> allocations;
 
 enum class FileType : uint8_t
 {
@@ -21,80 +21,65 @@ enum class FileType : uint8_t
 
 struct Response
 {
+    // Borrows the manager's message storage; keep the manager alive while using this path.
     std::string_view filePath;
-    Mapping mapping;
+    // Empty for a textual header. BMI views remain mapped until the compiler process exits.
+    std::string_view bmiContents;
     FileType type;
     bool isSystem;
-    Response(std::string_view filePath_, const Mapping &mapping_, FileType type_, bool isSystem_);
 };
 
-// IPC Manager Compiler
+// One dependency session per compiler process. Each request may populate several cached responses.
 class IPCManagerCompiler : Manager
 {
     friend struct ::CompilerTest;
     friend struct ::BuildSystemTest;
 
-    tl::expected<std::string_view, std::string> readInternal(char (&buffer)[4096]) const;
-    tl::expected<void, std::string> writeInternal(std::string_view buffer) const override;
+    Result<std::string_view> readInternal(char (&buffer)[4096]) const;
+    // Send already-framed bytes through the compiler's pipe.
+    Result<void> writeInternal(std::string_view buffer) const;
 
-    struct BMIFileMapping
-    {
-        BMIFile file;
-        Mapping mapping;
-    };
+    // Decode a BMI path, reusing its mapped contents if an earlier response supplied it.
+    Result<Response> readBMIResponse(std::string_view message, uint64_t &bytesRead, FileType type,
+                                     bool isSystem = true);
+    Result<void> readLogicalNames(std::string_view message, uint64_t &bytesRead, const Response &response);
 
-    tl::expected<BMIFileMapping, std::string> readProcessMappingOfBMIFile(std::string_view message,
-                                                                          uint32_t &bytesRead);
-    tl::expected<void, std::string> readLogicalNames(std::string_view message, uint32_t &bytesRead,
-                                                     const BMIFileMapping &mapping, FileType type, bool isSystem);
+    // Resolve a cache miss and retain the requested entry and all accompanying dependencies.
+    [[nodiscard]] Result<void> receiveBTCModule(const CTBModule &moduleName);
+    [[nodiscard]] Result<void> receiveBTCNonModule(const CTBNonModule &nonModule);
 
-    // Called by sendCTBLastMessage. Build-system will send this after it has created the BMI file-mapping.
-    [[nodiscard]] tl::expected<void, std::string> receiveBTCLastMessage() const;
-    // This function is called by findResponse if it did not find the module in the IPCManagerCompiler::responses cache.
-    [[nodiscard]] tl::expected<void, std::string> receiveBTCModule(const CTBModule &moduleName);
-    // This function is called by findResponse if it did not find the header-unit or header-file in the
-    // IPCManagerCompiler::responses cache.
-    [[nodiscard]] tl::expected<void, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
-
-  public:
-    // Internal cache for the possible future requests.
+    // Logical-name keys and response paths borrow the retained message or mock-file storage below.
     std::unordered_map<std::string_view, Response> responses;
 
-    // Holds scan-cache file bytes; keys and paths in responses are views into this buffer.
+    // Each path is mapped once per session. Erasing this cache would not unmap its views.
+    std::unordered_map<std::string, std::string_view> bmiContentsByPath;
+
+    // Initialized once so loading another mock cannot invalidate existing string views.
     std::string scanCacheFileData;
-
-    //  Compiler can use this function to read the BMI file. BMI should be read using this function to conserve memory.
-    static tl::expected<Mapping, std::string> readSharedMemoryBMIFile(const BMIFile &file);
-
-    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(uint32_t fileSize) const;
-
-  public:
-    // Stores the mockFilePath. Needed so compiler could generate argument correctly.
-    std::string mockFilePath;
-
-    // Whether we are mocking or are we doing IPC with the build-system
     bool isMocking = false;
 
-    // This is an IPC mock. This reads all entries from the file
-    tl::expected<void, std::string> readEntriesFromFile(std::string_view filePath);
+    // Successful mappings belong to the process, not to the manager or the returned string_view.
+    static Result<std::string_view> mapBMIFile(std::string_view filePath);
+    // Return cached contents, mapping the completed file only on the first request for its path.
+    Result<std::string_view> loadBMIContents(std::string_view filePath);
 
-    // Compiler process can use this function to close the BMI file-mapping to reduce references to shared memory file.
-    // Not needed as it will be cleared at process exit.
-    static tl::expected<void, std::string> closeBMIFileMapping(const Mapping &processMappingOfBMIFile);
+    // Separate allocations keep string addresses stable as subsequent messages arrive.
+    mutable std::vector<std::unique_ptr<std::string>> allocations;
 
-    // Cache mapping between the file-path and bmi-file-mapping. Only to be queried by the compiler. Passed path must be
-    // lexically normal and lower-case on Windows.
-    std::unordered_map<std::string, Mapping> filePathProcessMapping;
+  public:
+    // Retained for Clang's command-line reproduction after successful mock initialization.
+    std::string mockFilePath;
 
-    // TODO
-    // For FileType:HEADER_FILE, it could also return FileType::MODULE, but Clang currently does not support it.
-    // For FileType::HEADER_FILE, it can return FileType::HEADER_UNIT, otherwise it will return the request
-    // response. Either it will return from the cache or it will fetch it from the build-system
-    [[nodiscard]] tl::expected<Response, std::string> findResponse(std::string_view logicalName, FileType type);
+    // Load mock dependencies once on a fresh manager. A failed attempt also disables live IPC.
+    Result<void> readEntriesFromFile(std::string_view filePath);
 
-    // This function should be called only if the compilation succeeded
-    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const std::string &bmiFile,
-                                                                     const std::string &filePath) const;
+    // Look up a BMI already received from the build system; this does not map files or send requests.
+    // Use the same normalized path supplied in the response (lowercase on Windows).
+    [[nodiscard]] Result<std::string_view> findBMIContents(std::string_view filePath) const;
+
+    // A textual-header request may resolve to a header unit for include translation. Other kinds must match.
+    // Cache misses use one request/reply exchange; mock sessions report a missing entry instead.
+    [[nodiscard]] Result<Response> findResponse(std::string_view logicalName, FileType type);
 };
 
 inline IPCManagerCompiler *managerCompiler;

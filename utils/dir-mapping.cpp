@@ -78,7 +78,7 @@ void replaceFileTextsRecursive(const string &rootPath, const vector<string> &fil
         fileTexts.emplace_back(fileToString(filePath));
     }
 
-    bool fileChanged = false;
+    vector<bool> fileChanged(filePaths.size(), false);
     for (const string &name : fileNames)
     {
         string from = "#include \"" + name + '\"';
@@ -87,28 +87,22 @@ void replaceFileTextsRecursive(const string &rootPath, const vector<string> &fil
 
         for (uint32_t i = 0; i < fileTexts.size(); ++i)
         {
-            if (filePaths[i].ends_with("ELF.h"))
-            {
-                bool breakpoint = true;
-            }
             string &fileText = fileTexts[i];
             while (replace(fileText, from, to))
             {
-                fileChanged = true;
+                fileChanged[i] = true;
                 printMessage(FORMAT("Replaced {} to {} in file {}\n", from, to, filePaths[i]));
             }
         }
     }
 
-    if (!fileChanged)
-    {
-        return;
-    }
-
     fflush(stdout);
     for (uint32_t i = 0; i < filePaths.size(); ++i)
     {
-        std::ofstream(filePaths[i]) << fileTexts[i];
+        if (fileChanged[i])
+        {
+            std::ofstream(filePaths[i]) << fileTexts[i];
+        }
     }
 }
 
@@ -223,19 +217,36 @@ void replaceInSingleFile(const string &relativePath, const string &from, const s
     }
 
     // Replace all occurrences in one pass
+    bool fileChanged = false;
     uint64_t pos = 0;
     while ((pos = fileText.find(from, pos)) != string::npos)
     {
         fileText.replace(pos, from.length(), to);
         pos += to.length(); // Move past the replacement to avoid infinite loop
+        fileChanged = true;
         printMessage(FORMAT("Replaced {} to {} in file {}\n", from, to, filePath));
     }
 
-    std::ofstream(filePath) << fileText;
+    if (fileChanged)
+    {
+        std::ofstream(filePath) << fileText;
+    }
 }
 
 int main()
 {
+    // Accept the LLVM monorepo root or any directory below it, including llvm/.
+    fs::path root = current_path();
+    while (!fs::is_directory(root / "clang/include/clang") || !fs::is_directory(root / "llvm/include/llvm"))
+    {
+        if (root == root.parent_path())
+        {
+            printErrorMessage("Run Dir-Mapping from the llvm-project directory or one of its subdirectories.\n");
+        }
+        root = root.parent_path();
+    }
+    current_path(root);
+
     {
         // For clang/ dirs
         map<string, vector<string>> dirToFileNames;
@@ -272,9 +283,12 @@ int main()
 
         replaceInSingleFile("clang/lib/AST/ByteCode/InterpBuiltin.cpp", "../ExprConstShared.h", "ExprConstShared.h");
         replaceInSingleFile("clang/lib/AST/ByteCode/Interp.h", "../ExprConstShared.h", "ExprConstShared.h");
+        replaceInSingleFile("clang/lib/AST/ByteCode/Compiler.cpp", "../ExprConstShared.h", "ExprConstShared.h");
 
         replaceFileTextsRecursive(current_path() / "clang/lib/AST",
                                   getFileNames(current_path() / "clang/lib/AST/ByteCode"), "ByteCode/", "");
+        replaceInSingleFile("clang/lib/Serialization/ASTReaderDecl.cpp", "../AST/ByteCode/Context.h",
+                            "ByteCode/Context.h");
 
         {
             vector<string> archFileNames = getFileNames(current_path() / "clang/lib/Driver/ToolChains/Arch");
@@ -296,15 +310,23 @@ int main()
             replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/LoongArch.cpp", "../Clang.h",
                                 "ToolChains/Clang.h");
 
-            replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/LoongArch.cpp", "../Clang.h",
-                                "ToolChains/Clang.h");
         }
 
         // NCC is a macro defined in ioctl-types.h
-        replaceInSingleFile(current_path() / "clang/lib/Serialization/ASTWriter.cpp", "NCC", "NCC_");
+        replaceInSingleFile("clang/lib/Serialization/ASTWriter.cpp", "*NCC =", "*NCC_ =");
+        replaceInSingleFile("clang/lib/Serialization/ASTWriter.cpp", "NCC->", "NCC_->");
+        replaceInSingleFile("clang/lib/Serialization/ASTWriter.cpp", "(NCC)", "(NCC_)");
 
         replaceInSingleFile(current_path() / "clang/include/clang/ExtractAPI/Serialization/APISetVisitor.h",
                             "../APIRecords.inc", "clang/ExtractAPI/APIRecords.inc");
+
+        // Map the nested Types.h before the broader Common/Types.h replacement.
+        replaceFileTextsRecursive(current_path() / "llvm/utils/TableGen/Common/GlobalISel/MatchTable",
+                                  getFileNames(current_path() / "llvm/utils/TableGen/Common/GlobalISel/MatchTable"),
+                                  "Common/GlobalISel/MatchTable/", "");
+        replaceInSingleFile("llvm/utils/TableGen/Common/GlobalISel/GlobalISelMatchTableExecutorEmitter.cpp",
+                            "#include \"MatchTable/Matchers.h\"",
+                            "#include \"Common/GlobalISel/MatchTable/Matchers.h\"");
 
         replaceFileTextsRecursive(current_path() / "llvm/utils/TableGen/Common/GlobalISel",
                                   getFileNames(current_path() / "llvm/utils/TableGen/Common/GlobalISel"),
@@ -312,14 +334,18 @@ int main()
         replaceFileTextsRecursive(current_path() / "llvm/utils/TableGen/Common",
                                   getFileNames(current_path() / "llvm/utils/TableGen/Common"), "Common/", "");
         replaceInSingleFile(
-            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Serialization/JSONFormat/JSONFormatImpl.h",
+            current_path() / "clang/lib/ScalableStaticAnalysis/Core/Serialization/JSONFormat/JSONFormatImpl.h",
             "../../ModelStringConversions.h", "ModelStringConversions.h");
 
-        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/EntityLinkage.cpp",
+        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysis/Core/Model/EntityLinkage.cpp",
                             "../ModelStringConversions.h", "ModelStringConversions.h");
 
-        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/BuildNamespace.cpp",
+        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysis/Core/Model/BuildNamespace.cpp",
                             "../ModelStringConversions.h", "ModelStringConversions.h");
+
+        replaceInSingleFile(
+            "clang/lib/ScalableStaticAnalysis/Analyses/TypeConstrainedPointers/TypeConstrainedPointers.cpp",
+            "#include \"../SSAFAnalysesCommon.h\"", "#include \"SSAFAnalysesCommon.h\"");
 
         string from = R"(#if __has_include(<link.h>)
 #include <link.h>
@@ -345,12 +371,16 @@ int main()
     replaceFileTextsRecursive(current_path() / "llvm/include/llvm/BinaryFormat", binaryFormatElfFiles,
                               "llvm/BinaryFormat/", "");
 
-    replaceInSingleFile("llvm/lib/BinaryFormat/ELF.cpp", "ELFRelocs/x86_64.def",
-                        "llvm/BinaryFormat/ELFRelocs/x86_64.def");
+    replaceInSingleFile("llvm/lib/BinaryFormat/ELF.cpp", "\"ELFRelocs/x86_64.def\"",
+                        "\"llvm/BinaryFormat/ELFRelocs/x86_64.def\"");
 
     replaceFileTextsRecursive(current_path() / "llvm/lib/CodeGen",
                               getFileNames(current_path() / "llvm/lib/CodeGen/LiveDebugValues"), "LiveDebugValues/",
                               "");
+
+    replaceFileTextsRecursive(current_path() / "llvm/lib/Transforms/Vectorize/SLPVectorizer",
+                              getFileNames(current_path() / "llvm/lib/Transforms/Vectorize/SLPVectorizer"),
+                              "SLPVectorizer/", "");
 
     replaceFileTextsRecursive(current_path() / "llvm/lib/Target/X86",
                               getFileNames(current_path() / "llvm/lib/Target/X86/MCTargetDesc"), "MCTargetDesc/", "");

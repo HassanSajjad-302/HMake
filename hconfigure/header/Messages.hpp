@@ -2,101 +2,64 @@
 #define MESSAGES_HPP
 
 #include <cstdint>
-#include <signal.h>
 #include <string_view>
 #include <vector>
 
 namespace P2978
 {
-// CTB --> Compiler to Build-System
-// BTC --> Build-System to Compiler
+// CTB: compiler to build system. BTC: build system to compiler.
+// Strings use a uint32_t byte length followed by their bytes. Paths add a NUL
+// outside that length. Vectors use a uint32_t element count followed by elements.
+// Integers are native-endian; bools and request types occupy one byte.
+// Fields are serialized in declaration order, except for BTCNonModule's optional tail.
 
-// string_view is 4 bytes that hold the size of the char array, followed by the array.
-// string_view representing the filePath is followed by null terminator.
-// vector is 4 bytes that hold the size of the array, followed by the array.
-// All fields are sent in declaration order, even if meaningless.
-
-// Compiler to Build System
-// This is the first byte of the compiler to build-system message.
+// A request begins with this tag. Each compiler waits for its response before sending another request.
 enum class CTB : uint8_t
 {
     MODULE = 0,
     NON_MODULE = 1,
-    LAST_MESSAGE = 2,
 };
 
-// This is sent when the compiler needs a module.
+// Resolve a named module or module partition.
 struct CTBModule
 {
     std::string_view moduleName;
 };
 
-// This is sent when the compiler needs something else than a module.
-// isHeaderUnit is set when the compiler knows that it is a header-unit.
+// Resolve an include or a header-unit import. An include may resolve to a header unit.
 struct CTBNonModule
 {
     bool isHeaderUnit = false;
     std::string_view logicalName;
 };
 
-// This is the last message sent by the compiler if the compiler
-// has any exported BMI.
-struct CTBLastMessage
-{
-    // This is communicated because the receiving process has no
-    // way to learn the shared memory file size on both Windows
-    // and Linux without a filesystem call.
-    // Meaningless if the compilation does not produce BMI.
-    uint32_t fileSize = UINT32_MAX;
-};
-
-// Build System to Compiler
-// Unlike CTB, this is not written as the first byte
-// since the compiler knows what message it will receive.
-enum class BTC : uint8_t
-{
-    MODULE = 0,
-    NON_MODULE = 1,
-    LAST_MESSAGE = 2,
-};
-
-struct BMIFile
-{
-    std::string_view filePath;
-    uint32_t fileSize = UINT32_MAX;
-};
-
+// Responses need no type tag: the outstanding request determines which layout to read.
+// A BMI must be complete before publication and remain available to its consumers.
 struct ModuleDep
 {
-    bool isHeaderUnit;
-    BMIFile file;
-    // whether header-unit / module belongs to system (ignore warnings).
+    bool isHeaderUnit = false;
+    std::string_view filePath;
+    // Classify the dependency as system input for compiler diagnostics.
     bool isSystem = true;
-    // if isHeaderUnit == true, then the following might
-    // contain more than one values, as header-unit can be
-    // composed of multiple header-files. And if later,
-    // any of the following logicalNames is included or
-    // imported, this header-unit can be used instead.
+    // A module has one name. A composed header unit may provide several include-name aliases.
     std::vector<std::string_view> logicalNames;
 };
 
-// Reply for CTBModule
+// Reply to CTBModule, including dependencies needed to load the requested BMI.
 struct BTCModule
 {
-    BMIFile requested;
+    std::string_view filePath;
     bool isSystem = true;
+    // Omit dependencies already supplied to this compiler; their cached responses remain valid.
     std::vector<ModuleDep> modDeps;
 };
 
 struct HuDep
 {
-    BMIFile file;
-    // whether header-unit / header-file belongs to system (ignore warnings).
+    std::string_view filePath;
+    // Classify the header unit as system input for compiler diagnostics.
     bool isSystem = true;
-    // A header-unit can be composed of
-    // multiple header-files. And if later,
-    // any of the following logicalNames is included or
-    // imported, this header-unit can be used instead.
+    // Include names that resolve to this same header-unit BMI.
     std::vector<std::string_view> logicalNames;
 };
 
@@ -107,30 +70,19 @@ struct HeaderFile
     bool isSystem = true;
 };
 
-// Reply for CTBNonModule
+// Reply to CTBNonModule. Batch known headers and BMI dependencies to avoid further round trips.
 struct BTCNonModule
 {
     bool isHeaderUnit = false;
     bool isSystem = true;
-    // build-system might send the following on first request, if it knows that a
-    // header-unit is being compiled that compose multiple header-files to reduce
-    // the number of subsequent requests.
+    // Additional textual headers to cache, for example the headers composing the unit being built.
     std::vector<HeaderFile> headerFiles;
     std::string_view filePath;
-    // if isHeaderUnit == false, the following are meaning-less and are not sent.
-    // if isHeaderUnit == true, fileSize of the requested file.
-    uint32_t fileSize;
-    // A header-unit can be composed of
-    // multiple header-files. And if later,
-    // any of the following logicalNames is included or
-    // imported, this header-unit can be used instead.
+    // The remaining fields are sent only for a header-unit response. Otherwise filePath names a textual header.
+    // Additional aliases for the requested BMI; the request's logical name is cached implicitly.
     std::vector<std::string_view> logicalNames;
     std::vector<HuDep> huDeps;
 };
 
-// Reply for CTBLastMessage if the compilation succeeded.
-struct BTCLastMessage
-{
-};
 } // namespace P2978
 #endif // MESSAGES_HPP

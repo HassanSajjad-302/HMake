@@ -6,8 +6,16 @@
 using std::map;
 using std::set;
 
+static bool hasErrors = false;
+
 void checkDirectory(const path &p, set<string> files, const string &endsWith)
 {
+    if (!std::filesystem::exists(p))
+    {
+        printErrorMessageNoReturn(FORMAT("Directory does not exist: {}\n", p.string()));
+        hasErrors = true;
+        return;
+    }
     uint32_t total = files.size();
     vector<string> notFound;
     for (const auto &f : std::filesystem::recursive_directory_iterator(p))
@@ -145,8 +153,7 @@ void writeFlagsCount(const vector<string> &lines)
 
 void matchDirectoryWithOutput(const vector<string> &lines, const string &directory, const string &endsWith)
 {
-    const string dirAbsolute =
-        (std::filesystem::current_path() / "../../llvm-project" / path(directory)).lexically_normal().string();
+    const string dirAbsolute = std::filesystem::absolute(directory).lexically_normal().string();
     vector<string> interestingFiles;
     for (string l : lines)
     {
@@ -178,8 +185,9 @@ void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, 
     {
         if (!hbuildObjectFiles.contains(l))
         {
-            printErrorMessage(
+            printErrorMessageNoReturn(
                 FORMAT("Ninja Object File {} not found in hbuild object files for target {}\n", l, targetName));
+            hasErrors = true;
         }
         hbuildObjectFiles.erase(l);
     }
@@ -193,7 +201,8 @@ void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, 
         }
         else
         {
-            printErrorMessage(FORMAT("hbuild object-file {} not found in target {}\n", s, targetName));
+            printErrorMessageNoReturn(FORMAT("hbuild object-file {} not found in target {}\n", s, targetName));
+            hasErrors = true;
         }
     }
 }
@@ -232,6 +241,9 @@ set<string> getDuplicateObjFiles()
     // following of clangDriver target
     duplicateObjectFiles.emplace("AMDGPU");
 
+    // following of llvm-tblgen target
+    duplicateObjectFiles.emplace("Types");
+
     return duplicateObjectFiles;
 }
 
@@ -258,18 +270,24 @@ void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
             {
                 continue;
             }
-            printErrorMessage(
+            printErrorMessageNoReturn(
                 FORMAT("There are 2 object-files with same name {} in ninjaObjectFileLinex in target {}\n", stemName,
                        targetName));
+            hasErrors = true;
         }
     }
 
     vector<string> hbuildObjectFileLines;
     for (vector<string_view> brokenHbuildCommand = split(hbuildLine, ' '); string_view s : brokenHbuildCommand)
     {
-        if (s.ends_with(".o\""))
+        if (s.ends_with(".o\"") || s.ends_with(".o"))
         {
-            hbuildObjectFileLines.emplace_back(s);
+            string cleanStr(s);
+            if (cleanStr.front() == '"')
+                cleanStr.erase(cleanStr.begin());
+            if (cleanStr.back() == '"')
+                cleanStr.pop_back();
+            hbuildObjectFileLines.emplace_back(std::move(cleanStr));
         }
     }
 
@@ -282,8 +300,9 @@ void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
             {
                 continue;
             }
-            printErrorMessage(FORMAT("There are 2 object-files with same name {} in hbuildObjectFiles in target {}\n",
+            printErrorMessageNoReturn(FORMAT("There are 2 object-files with same name {} in hbuildObjectFiles in target {}\n",
                                      stemName, targetName));
+            hasErrors = true;
         }
     }
 
@@ -298,9 +317,18 @@ void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
     for (string l : ninjaArchiveLines)
     {
         string archiveStringPre = "cmake -E rm -f lib/";
-        const uint32_t pos = l.find(archiveStringPre) + archiveStringPre.size();
-        string str{l.begin() + pos, l.begin() + l.find("&&", pos) - 1};
-        // printMessage(FORMAT("{}", str));
+        const auto pos = l.find(archiveStringPre);
+        if (pos == string::npos)
+        {
+            continue;
+        }
+        const uint32_t nameStart = pos + archiveStringPre.size();
+        const auto endPos = l.find("&&", nameStart);
+        if (endPos == string::npos)
+        {
+            continue;
+        }
+        string str{l.begin() + nameStart, l.begin() + endPos - 1};
         staticLibs.emplace_back(str, l);
     }
 
@@ -313,7 +341,8 @@ void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
             {
                 if (!found.empty())
                 {
-                    printErrorMessage(FORMAT("Library {} found twice in hbuildArchiveLines\n", libName));
+                    printErrorMessageNoReturn(FORMAT("Library {} found twice in hbuildArchiveLines\n", libName));
+                    hasErrors = true;
                 }
                 found = hbuildLine;
             }
@@ -321,7 +350,8 @@ void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
 
         if (found.empty())
         {
-            printErrorMessage(FORMAT("Library {} not found in hbuildArchiveLines\n", libName));
+            printErrorMessageNoReturn(FORMAT("Library {} not found in hbuildArchiveLines\n", libName));
+            hasErrors = true;
         }
         else
         {
@@ -333,31 +363,29 @@ void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
 
 void analyzeStaticLibs(string targetName, string ninjaLine, string hbuildLine)
 {
-    set<string> ninjaStaticLibs;
-    for (vector<string_view> brokenNinjaCommand = split(ninjaLine, ' '); string_view s : brokenNinjaCommand)
-    {
-        if (s.ends_with(".a"))
+    const auto getStaticLibs = [](const string &line) {
+        set<string> libraries;
+        for (string_view s : split(line, ' '))
         {
-            if (string libName = path(s).filename(); !ninjaStaticLibs.emplace(libName).second)
+            if (s.starts_with("-l\""))
             {
-                /*printErrorMessage(
-                    "Emplace failure means that there are 2 object-files of the same name. how to deal with "
-                    "this situation?\n");*/
+                string libName(s.begin() + 3, s.size() - 4);
+                libraries.emplace("lib" + libName + ".a");
+            }
+            else if (s.starts_with("-l"))
+            {
+                string libName(s.begin() + 2, s.end());
+                libraries.emplace("lib" + libName + ".a");
+            }
+            else if (s.ends_with(".a"))
+            {
+                libraries.emplace(path(s).filename());
             }
         }
-    }
+        return libraries;
+    };
 
-    set<string> hbuildStaticLibs;
-    for (vector<string_view> brokenHbuildCommand = split(hbuildLine, ' '); string_view s : brokenHbuildCommand)
-    {
-        if (s.starts_with("-l\""))
-        {
-            string libName(s.begin() + 3, s.size() - 4);
-            hbuildStaticLibs.emplace("lib" + libName + ".a");
-        }
-    }
-
-    compareObjectFiles(targetName, ninjaStaticLibs, hbuildStaticLibs, true);
+    compareObjectFiles(targetName, getStaticLibs(ninjaLine), getStaticLibs(hbuildLine), true);
 }
 
 void analyzeNinjaAndHbuildExecutableLines(const vector<string> &ninjaExeLines, const vector<string> &hbuildExeLines)
@@ -367,22 +395,30 @@ void analyzeNinjaAndHbuildExecutableLines(const vector<string> &ninjaExeLines, c
     for (string l : ninjaExeLines)
     {
         string exeStringPre = " bin/";
-        const uint32_t pos = l.find(exeStringPre) + exeStringPre.size();
-        string str{l.begin() + pos, l.begin() + l.find(' ', pos)};
-        // printMessage(FORMAT("{}", str));
+        const auto pos = l.find(exeStringPre);
+        if (pos == string::npos)
+        {
+            continue;
+        }
+        const uint32_t nameStart = pos + exeStringPre.size();
+        const auto endPos = l.find(' ', nameStart);
+        string str = (endPos == string::npos) ? string(l.begin() + nameStart, l.end())
+                                              : string(l.begin() + nameStart, l.begin() + endPos);
         executables.emplace_back(str, l);
     }
 
     for (auto [libName, ninjaLine] : executables)
     {
         string found;
+        const string searchName = "/" + libName + "\"";
         for (string hbuildLine : hbuildExeLines)
         {
-            if (hbuildLine.contains(libName))
+            if (hbuildLine.contains(searchName))
             {
                 if (!found.empty())
                 {
-                    printErrorMessage(FORMAT("Library {} found twice in hbuildArchiveLines\n", libName));
+                    printErrorMessageNoReturn(FORMAT("Executable {} found twice in hbuildExecutableLines\n", libName));
+                    hasErrors = true;
                 }
                 found = hbuildLine;
             }
@@ -390,7 +426,8 @@ void analyzeNinjaAndHbuildExecutableLines(const vector<string> &ninjaExeLines, c
 
         if (found.empty())
         {
-            printErrorMessage(FORMAT("Library {} not found in hbuildArchiveLines\n", libName));
+            printErrorMessageNoReturn(FORMAT("Executable {} not found in hbuildExecutableLines\n", libName));
+            hasErrors = true;
         }
         else
         {
@@ -414,13 +451,18 @@ int main()
     {
         lines.emplace_back(l);
     }
-    writeFlagsCount(lines);
-    matchDirectoryWithOutput(lines, std::filesystem::current_path() / "clang/lib/CodeGen/", ".cpp");
+    // writeFlagsCount(lines);
+    path llvmDir = std::filesystem::current_path();
+    if (!std::filesystem::exists(llvmDir / "clang/lib/CodeGen"))
+    {
+        llvmDir = llvmDir / "../../llvm-project";
+    }
+    matchDirectoryWithOutput(lines, (llvmDir / "clang/lib/CodeGen/").lexically_normal().string(), ".cpp");
 
     vector<string> ninjaArchiveLines;
     for (string l : lines)
     {
-        if (l.contains("cmake -E rm -f"))
+        if (l.contains("cmake -E rm -f lib/"))
         {
             ninjaArchiveLines.emplace_back(l);
         }
@@ -436,7 +478,7 @@ int main()
     vector<string> hbuildArchiveLines;
     for (string l : hbuildLines)
     {
-        if (l.contains("/usr/bin/ar"))
+        if (l.contains("-ar\"") || l.contains("/ar\"") || l.contains(" rcs ") || l.contains(".a.tmp"))
         {
             hbuildArchiveLines.emplace_back(l);
         }
@@ -461,6 +503,13 @@ int main()
         }
     }
     analyzeNinjaAndHbuildExecutableLines(ninjaExecutableLines, hbuildExecutableLines);
+
+    if (hasErrors)
+    {
+        printErrorMessageNoReturn("CmdAnalysis detected discrepancies between Ninja and HBuild dry-runs.\n");
+        return 1;
+    }
+    return 0;
 }
 
 // -DLLVM_BUILD_STATIC is used for source-files of llvm/utils/TableGen/*, clang/utils/TableGen/* and

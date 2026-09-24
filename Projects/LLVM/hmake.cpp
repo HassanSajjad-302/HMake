@@ -173,52 +173,33 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> *llvmSupportCDscPointer = nullptr;
     Ploat *llvmSupportCPloatPointer = nullptr;
 
-    if (config.name == "hu")
+    DSC<CppTarget> &llvmSupport = config.getCppStaticDSC("LLVMSupport").publicDeps(llvmDemangle, llvmConfig);
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Ploat &llvmSupportCPloat = config.getStaticPloat(
-            "LLVMSupportC",
-            bsMode == BSMode::CONFIGURE
-                ? Node::getNode<PathType::NORMAL_ABSOLUTE>(string(configureNode->filePath) + slashc + "standard" +
-                                                              slashc + "LLVMSupportC",
-                                                          false)
-                : nullptr);
-        llvmSupportCPloatPointer = &llvmSupportCPloat;
-    }
-    else
-    {
-        DSC<CppTarget> &llvmSupportCDsc = config.getCppStaticDSC("LLVMSupportC");
-        if constexpr (bsMode == BSMode::CONFIGURE)
-        {
+        set<string> blakeCNoInclude;
+        blakeCNoInclude.emplace("rpmalloc/rpmalloc.c");
+        blakeCNoInclude.emplace("rpmalloc/malloc.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_sse41.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_avx512.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_sse2.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_avx2.c");
 
-            set<string> blakeCNoInclude;
-            blakeCNoInclude.emplace("rpmalloc/rpmalloc.c");
-            blakeCNoInclude.emplace("rpmalloc/malloc.c");
-            blakeCNoInclude.emplace("BLAKE3/blake3_sse41.c");
-            blakeCNoInclude.emplace("BLAKE3/blake3_avx512.c");
-            blakeCNoInclude.emplace("BLAKE3/blake3_sse2.c");
-            blakeCNoInclude.emplace("BLAKE3/blake3_avx2.c");
+        editOutFilesRecursive(llvmSupport.getSourceTargetPointer(), "llvm/lib/Support", ".c", blakeCNoInclude);
 
-            editOutFilesRecursive(llvmSupportCDsc.getSourceTargetPointer(), "llvm/lib/Support", ".c", blakeCNoInclude);
-
-            set<string> blakeAssemblyNoInclude;
-            blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse2_x86-64_windows_gnu.S");
-            blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx512_x86-64_windows_gnu.S");
-            blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx2_x86-64_windows_gnu.S");
-            blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse41_x86-64_windows_gnu.S");
-            editOutFilesRecursive(llvmSupportCDsc.getSourceTargetPointer(), "llvm/lib/Support", ".S",
-                                  blakeAssemblyNoInclude);
-        }
-        llvmSupportCDscPointer = &llvmSupportCDsc;
+        set<string> blakeAssemblyNoInclude;
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse2_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx512_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx2_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse41_x86-64_windows_gnu.S");
+        editOutFilesRecursive(llvmSupport.getSourceTargetPointer(), "llvm/lib/Support", ".S", blakeAssemblyNoInclude);
     }
 
     // llvm/lib/Support/LSP files not included
-    DSC<CppTarget> &llvmSupport = config.getCppStaticDSC("LLVMSupport").publicDeps(llvmDemangle, llvmConfig);
     addLlvmDirectory(llvmSupport, "Support");
     addLlvmDirectory(llvmSupport, "ADT");
     addLlvmDirectory(llvmSupport, "Support/Unix", "Unix/");
     addLlvmDirectory(llvmSupport, "Support/HTTP", "", false, true);
     llvmSupport.getSourceTarget().privateIncludesSource("llvm/lib/Support");
-    llvmSupport.getSourceTarget().makeHeaderUnitHeaderFile("llvm/Support/UniqueBBID.h", true, true);
 
     llvmSupport.getSourceTarget()
         .privateIncDirsRE("llvm/lib/Support/BLAKE3", "", ".*\\.h")
@@ -233,23 +214,13 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &llvmPlugins = config.getCppStaticDSC("LLVMPlugins").publicDeps(llvmSupport);
     addLlvmDirectory(llvmPlugins, "Plugins");
 
-    void *ptr = config.name == "hu" ? (void *)llvmSupportCPloatPointer : (void *)llvmSupportCDscPointer;
-    if (!ptr)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-    }
-    if (config.name == "hu")
-    {
-        llvmSupport.publicLinkDeps(*llvmSupportCPloatPointer);
-    }
-    else
-    {
-        llvmSupport.publicDeps(*llvmSupportCDscPointer);
-    }
-
     DSC<CppTarget> &llvmTargetParser = config.getCppStaticDSC("LLVMTargetParser").publicDeps(llvmSupport);
     addLlvmDirectory(llvmTargetParser, "TargetParser");
     addLlvmDirectory(llvmTargetParser, "TargetParser/Unix", "Unix/");
+
+    // APFloat uses LLVM libc math headers with per-source macro configuration.
+    llvmSupport.getSourceTarget().privateIncludesSource("libc");
+    llvmSupport.getSourceTarget().makeModuleSourceFile("llvm/lib/Support/APFloat.cpp");
 
     DSC<CppTarget> &llvmFrontendDirective = config.getCppStaticDSC("LLVMFrontendDirective").publicDeps(llvmSupport);
     addLlvmDirectory(llvmFrontendDirective, "Frontend/Directive");
@@ -299,10 +270,10 @@ void configurationSpecification(Configuration &config)
     addLlvmDirectory(llvmCore, "IR");
     llvmCore.getSourceTarget()
         .publicIncDirsRE("llvm/include/llvm", "llvm/", ".*\\.h")
-        .makeHeaderUnitHeaderFile("llvm/IR/DroppedVariableStatsIR.h", true, true);
+        .makePublicHeaderUnitHeaderFile("llvm/IR/DroppedVariableStatsIR.h");
 
     DSC<CppTarget> &llvmTableGenBasic =
-        config.getCppStaticDSC("LLVMTableGenBasic").publicDeps(llvmSupport, llvmTableGen);
+        config.getCppObjectDSC("LLVMTableGenBasic").publicDeps(llvmSupport, llvmTableGen);
     llvmTableGenBasic.getSourceTarget()
         .publicIncludesSource("llvm/utils/TableGen")
         .moduleDirsRE("llvm/utils/TableGen/Basic", ".*cpp");
@@ -314,8 +285,7 @@ void configurationSpecification(Configuration &config)
     addDirectory(llvmTableGenBasic.getSourceTarget(), "llvm/utils/TableGen/Common/GlobalISel", "Common/GlobalISel/");
 
     DSC<CppTarget> &llvmMinTableGen =
-        config.getCppExeDSC("LLVMMinTableGen")
-            .privateDeps(llvmDemangle, llvmSupport, llvmTableGen, llvmTableGenBasic, llvmTargetParser);
+        config.getCppExeDSC("LLVMMinTableGen").privateDeps(llvmDemangle, llvmSupport, llvmTableGen, llvmTableGenBasic);
     llvmMinTableGen.getLoat().setOutputName("llvm-min-tblgen");
     llvmMinTableGen.getSourceTarget().moduleFiles("llvm/utils/TableGen/llvm-min-tblgen.cpp");
 
@@ -395,8 +365,12 @@ void configurationSpecification(Configuration &config)
                         llvmSupport, llvmDemangle, llvmTargetParser);
     addLlvmDirectory(llvmSymbolize, "DebugInfo/Symbolize");
 
+    // Clang only needs the HTTP headers through Debuginfod, not the HTTP implementation.
+    DSC<CppTarget> &llvmHTTP = config.getCppObjectDSC("LLVMHTTP").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmHTTP, "HTTP", "", false, true);
+
     // An incomplete target. We are not compiling its source as it is not being used in Clang compilation.
-    DSC<CppTarget> &llvmDebuginfod = config.getCppObjectDSC("LLVMDebuginfod");
+    DSC<CppTarget> &llvmDebuginfod = config.getCppObjectDSC("LLVMDebuginfod").publicDeps(llvmHTTP);
     addLlvmDirectory(llvmDebuginfod, "Debuginfod", "");
 
     DSC<CppTarget> &llvmProfileData =
@@ -415,7 +389,7 @@ void configurationSpecification(Configuration &config)
                                                    llvmProfileData, llvmSupport, llvmTargetParser);
     addLlvmDirectory(llvmAnalysis, "Analysis");
     addLlvmDirectory(llvmAnalysis, "Analysis/Utils");
-    llvmAnalysis.getSourceTarget().makeHeaderUnitHeaderFile("llvm/Analysis/MustExecute.h", true, true);
+    llvmAnalysis.getSourceTarget().makePublicHeaderUnitHeaderFile("llvm/Analysis/MustExecute.h");
 
     DSC<CppTarget> &llvmIRPrinter =
         config.getCppStaticDSC("LLVMIRPrinter").publicDeps(llvmAnalysis, llvmCore, llvmSupport);
@@ -469,10 +443,11 @@ void configurationSpecification(Configuration &config)
         config.getCppStaticDSC("LLVMVectorize")
             .publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTransformUtils, llvmSandboxIR);
     addLlvmDirectory(llvmVectorize, "Transforms/Vectorize");
+    addLlvmDirectory(llvmVectorize, "Transforms/Vectorize/SLPVectorizer", "SLPVectorizer/");
     addLlvmDirectory(llvmVectorize, "Transforms/Vectorize/SandboxVectorizer");
     addLlvmDirectory(llvmVectorize, "Transforms/Vectorize/SandboxVectorizer/Passes", "Passes/");
-    llvmVectorize.getSourceTarget().makeHeaderUnitHeaderFile("LoopVectorizationPlanner.h", true, false);
-    llvmVectorize.getSourceTarget().makeHeaderUnitHeaderFile("VPRecipeBuilder.h", true, false);
+    llvmVectorize.getSourceTarget().makePrivateHeaderUnitHeaderFile("LoopVectorizationPlanner.h");
+    llvmVectorize.getSourceTarget().makePrivateHeaderUnitHeaderFile("VPRecipeBuilder.h");
 
     DSC<CppTarget> &llvmInstrumentation = config.getCppStaticDSC("LLVMInstrumentation")
                                               .publicDeps(llvmAnalysis, llvmCore, llvmDemangle, llvmMC, llvmSupport,
@@ -509,8 +484,7 @@ void configurationSpecification(Configuration &config)
     addLlvmDirectory(llvmCodeGen, "CodeGen/PBQP");
     addLlvmDirectory(llvmCodeGen, "CodeGen/LiveDebugValues", "LiveDebugValues/");
     llvmCodeGen.getSourceTarget().privateIncludesSource("llvm/lib/CodeGen");
-    llvmCodeGen.getSourceTarget().makeHeaderUnitHeaderFile("llvm/CodeGen/WasmEHFuncInfo.h", true, true);
-    llvmCodeGen.getSourceTarget().makeHeaderUnitHeaderFile("LiveDebugValues/InstrRefBasedImpl.h", true, false);
+    llvmCodeGen.getSourceTarget().makePrivateHeaderUnitHeaderFile("LiveDebugValues/InstrRefBasedImpl.h");
 
     DSC<CppTarget> &llvmSelectionDAG = config.getCppStaticDSC("LLVMSelectionDAG")
                                            .publicDeps(llvmAnalysis, llvmCodeGen, llvmCodeGenTypes, llvmCore, llvmMC,
@@ -522,8 +496,9 @@ void configurationSpecification(Configuration &config)
                                                      llvmSelectionDAG, llvmSupport, llvmTarget, llvmTransformUtils);
     addLlvmDirectory(llvmGlobalISel, "CodeGen/GlobalISel", "");
 
-    DSC<CppTarget> &llvmABI = config.getCppObjectDSC("LLVMABI");
-    addLlvmDirectory(llvmABI, "ABI", "", false, true);
+    DSC<CppTarget> &llvmABI = config.getCppStaticDSC("LLVMABI").publicDeps(llvmCore, llvmSupport);
+    addLlvmDirectory(llvmABI, "ABI");
+    addLlvmDirectory(llvmABI, "ABI/Targets", "Targets/");
 
     DSC<CppTarget> &llvmMirParser = config.getCppObjectDSC("LLVMIRParser");
     addLlvmDirectory(llvmMirParser, "CodeGen/MIRParser", "", true);
@@ -542,7 +517,7 @@ void configurationSpecification(Configuration &config)
                         llvmDebugInfoDWARF, llvmDebugInfoDWARFLowLevel, llvmMC, llvmMCParser, llvmProfileData,
                         llvmRemarks, llvmSupport, llvmTarget, llvmTargetParser);
     addLlvmDirectory(llvmAsmPrinter, "CodeGen/AsmPrinter");
-    llvmAsmPrinter.getSourceTarget().makeHeaderUnitHeaderFile("PseudoProbePrinter.h", true, false);
+    llvmAsmPrinter.getSourceTarget().makePrivateHeaderUnitHeaderFile("PseudoProbePrinter.h");
 
     DSC<CppTarget> &llvmipo = config.getCppStaticDSC("LLVMipo").publicDeps(
         llvmAggressiveInstCombine, llvmAnalysis, llvmBitReader, llvmBitWriter, llvmCore, llvmFrontendOpenMP,
@@ -583,8 +558,8 @@ void configurationSpecification(Configuration &config)
         .publicHUDirsRE("llvm/lib/Target/X86/TargetInfo", "TargetInfo/", ".*\\.h")
         .publicIncDirsRE("llvm/lib/Target/X86/TargetInfo", "TargetInfo/", ".*\\.def")
         .publicHUDirsRE("llvm/lib/Target/X86/GISel", "GISel/", ".*\\.h")
-        .publicIncDirsRE("llvm/lib/Target/X86/GISel", "GISel/", ".*\\.def");
-    dlX86CodeGen.getSourceTarget().makeHeaderUnitHeaderFile("X86AsmPrinter.h", true, true);
+        .publicIncDirsRE("llvm/lib/Target/X86/GISel", "GISel/", ".*\\.def")
+        .makePublicHeaderUnitHeaderFile("X86AsmPrinter.h");
 
     DSC<CppTarget> &llvmX86Info = config.getCppStaticDSC("LLVMX86Info").privateDeps(dlX86CodeGen);
     llvmX86Info.getSourceTarget().moduleDirsRE("llvm/lib/Target/X86/TargetInfo", ".*cpp");
@@ -601,7 +576,7 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppTarget> &llvmX86AsmParser = config.getCppStaticDSC("LLVMX86AsmParser").privateDeps(dlX86CodeGen);
     addLlvmDirectory(llvmX86AsmParser, "Target/X86/AsmParser");
-    llvmX86AsmParser.getSourceTarget().makeHeaderUnitHeaderFile("X86Operand.h", true, false);
+    llvmX86AsmParser.getSourceTarget().makePrivateHeaderUnitHeaderFile("X86Operand.h");
 
     config.assign(TreatHUAsHeaderFile::NO);
 
@@ -647,29 +622,28 @@ void configurationSpecification(Configuration &config)
                                                llvmSupport, llvmTargetParser);
     addClangDirectory(clangAST, "AST");
     addClangDirectory(clangAST, "AST/ByteCode", "ByteCode/");
+    // Source.h relies on Expr being complete in its including translation unit.
+    clangAST.getSourceTarget().makePrivateHeaderUnitHeaderFile("ByteCode/Source.h");
+    // making ByteCode/Context.h a publicHeaderUnit instead as it is referenced in compilation of
+    // clang/lib/Serialization/ASTReaderDecl.cpp
+    clangAST.getSourceTarget().removePrivateHeaderUnits("ByteCode/Context.h");
+    clangAST.getSourceTarget().publicHeaderUnits("ByteCode/Context.h", "clang/lib/AST/ByteCode/Context.h");
     clangAST.getSourceTarget().privateIncludesSource("llvm/my-fork/tools/clang/lib/AST", "clang/lib/AST");
 
     DSC<CppTarget> &clangUnifiedSymbolResolution =
         config.getCppStaticDSC("clangUnifiedSymbolResolution").publicDeps(clangAST, clangBasic, clangLex, llvmSupport);
     addClangDirectory(clangUnifiedSymbolResolution, "UnifiedSymbolResolution", "");
 
-    DSC<CppTarget> &clangScalableStaticAnalysisFrameworkCore =
-        config.getCppStaticDSC("clangScalableStaticAnalysisFrameworkCore")
-            .publicDeps(clangAST, clangUnifiedSymbolResolution, llvmSupport);
-    clangScalableStaticAnalysisFrameworkCore.getSourceTarget().privateIncludesSource(
-        "clang/lib/ScalableStaticAnalysisFramework/Core");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/EntityLinker");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/Model");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/Serialization");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore,
-                      "ScalableStaticAnalysisFramework/Core/Serialization/JSONFormat");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/SummaryData");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/Support");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore, "ScalableStaticAnalysisFramework/Core/TUSummary");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkCore,
-                      "ScalableStaticAnalysisFramework/Core/WholeProgramAnalysis");
+    DSC<CppTarget> &clangScalableStaticAnalysisCore =
+        config.getCppStaticDSC("clangScalableStaticAnalysisCore")
+            .publicDeps(clangAST, clangUnifiedSymbolResolution, llvmSupport, llvmTargetParser);
+    addClangDirectory(clangScalableStaticAnalysisCore, "ScalableStaticAnalysis", "", false, true);
+    for (const string &directory :
+         {"Core", "Core/EntityLinker", "Core/Model", "Core/Serialization", "Core/Serialization/JSONFormat",
+          "Core/SummaryData", "Core/Support", "Core/TUSummary", "Core/WholeProgramAnalysis"})
+    {
+        addClangDirectory(clangScalableStaticAnalysisCore, "ScalableStaticAnalysis/" + directory);
+    }
 
     DSC<CppTarget> &clangRewrite = config.getCppStaticDSC("clangRewrite").publicDeps(llvmSupport);
     addClangDirectory(clangRewrite, "Rewrite");
@@ -704,7 +678,7 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppTarget> &clangSerialization =
         config.getCppStaticDSC("clangSerialization")
-            .publicDeps(llvmBitReader, llvmBitstreamReader, llvmObject, llvmSupport, llvmTargetParser);
+            .publicDeps(llvmBitReader, llvmBitstreamReader, llvmObject, llvmSupport, llvmTargetParser, clangAST);
     addClangDirectory(clangSerialization, "Serialization");
 
     DSC<CppTarget> &clangFrontend = config.getCppStaticDSC("clangFrontend")
@@ -712,26 +686,40 @@ void configurationSpecification(Configuration &config)
                                                     llvmProfileData, llvmSupport, llvmTargetParser);
     addClangDirectory(clangFrontend, "Frontend", "");
 
-    DSC<CppTarget> &clangScalableStaticAnalysisFrameworkAnalyses =
-        config.getCppStaticDSC("clangScalableStaticAnalysisFrameworkAnalyses")
-            .publicDeps(clangAST, clangAnalysis, clangBasic, clangScalableStaticAnalysisFrameworkCore);
-    addClangDirectory(clangScalableStaticAnalysisFrameworkAnalyses,
-                      "ScalableStaticAnalysisFramework/Analyses/CallGraph");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkAnalyses,
-                      "ScalableStaticAnalysisFramework/Analyses/EntityPointerLevel");
-    addClangDirectory(clangScalableStaticAnalysisFrameworkAnalyses,
-                      "ScalableStaticAnalysisFramework/Analyses/UnsafeBufferUsage");
-    DSC<CppTarget> &clangScalableStaticAnalysisFrameworkFrontend =
-        config.getCppStaticDSC("clangScalableStaticAnalysisFrameworkFrontend")
-            .publicDeps(clangAST, clangBasic, clangFrontend, clangScalableStaticAnalysisFrameworkCore,
-                        clangScalableStaticAnalysisFrameworkAnalyses, clangSema, llvmSupport);
-    addClangDirectory(clangScalableStaticAnalysisFrameworkFrontend, "ScalableStaticAnalysisFramework/Frontend");
+    DSC<CppTarget> &clangScalableStaticAnalysisAnalyses =
+        config.getCppStaticDSC("clangScalableStaticAnalysisAnalyses")
+            .publicDeps(clangAST, clangAnalysis, clangBasic, clangScalableStaticAnalysisCore, llvmSupport,
+                        llvmTargetParser);
+    for (const string &directory :
+         {"Analyses", "Analyses/CallGraph", "Analyses/EntityPointerLevel", "Analyses/PointerFlow",
+          "Analyses/SharedLexicalRepresentation", "Analyses/TypeConstrainedPointers", "Analyses/UnsafeBufferUsage"})
+    {
+        addClangDirectory(clangScalableStaticAnalysisAnalyses, "ScalableStaticAnalysis/" + directory);
+    }
+
+    DSC<CppTarget> &clangScalableStaticAnalysisSourceTransformation =
+        config.getCppStaticDSC("clangScalableStaticAnalysisSourceTransformation")
+            .publicDeps(clangAST, clangBasic, clangLex, clangScalableStaticAnalysisCore, llvmSupport);
+    addClangDirectory(clangScalableStaticAnalysisSourceTransformation, "ScalableStaticAnalysis/SourceTransformation");
+    addClangDirectory(clangScalableStaticAnalysisSourceTransformation,
+                      "ScalableStaticAnalysis/SourceTransformation/Transformations");
+
+    DSC<CppTarget> &clangScalableStaticAnalysisFrontend =
+        config.getCppStaticDSC("clangScalableStaticAnalysisFrontend")
+            .publicDeps(clangAST, clangBasic, clangFrontend, clangScalableStaticAnalysisCore,
+                        clangScalableStaticAnalysisAnalyses, clangScalableStaticAnalysisSourceTransformation, clangSema,
+                        llvmSupport, llvmTargetParser);
+    addClangDirectory(clangScalableStaticAnalysisFrontend, "ScalableStaticAnalysis/Frontend");
 
     DSC<CppTarget> &clangDependencyScanning =
         config.getCppStaticDSC("clangDependencyScanning")
             .publicDeps(llvmCore, llvmOption, llvmSupport, llvmTargetParser, clangAST, clangBasic, clangFrontend,
                         clangLex, clangSerialization);
     addClangDirectory(clangDependencyScanning, "DependencyScanning");
+
+    DSC<CppTarget> &clangCodeGenUtils =
+        config.getCppStaticDSC("clangCodeGenUtils").publicDeps(clangAST, clangBasic, llvmSupport);
+    addClangDirectory(clangCodeGenUtils, "CodeGenUtils");
 
     DSC<CppTarget> &clangCodeGen =
         config.getCppStaticDSC("clangCodeGen")
@@ -740,7 +728,7 @@ void configurationSpecification(Configuration &config)
                         llvmFrontendHLSL, llvmFrontendOpenMP, llvmFrontendOffloading, llvmHipStdPar, llvmipo,
                         llvmIRPrinter, llvmIRReader, llvmInstCombine, llvmInstrumentation, llvmLTO, llvmLinker, llvmMC,
                         llvmObjCARCOpts, llvmObject, llvmPasses, llvmPlugins, llvmProfileData, llvmScalarOpts,
-                        llvmSupport, llvmTarget, llvmTargetParser, llvmTransformUtils);
+                        llvmSupport, llvmTarget, llvmTargetParser, llvmTransformUtils, llvmABI, clangCodeGenUtils);
     addClangDirectory(clangCodeGen, "CodeGen");
     addClangDirectory(clangCodeGen, "CodeGen/TargetBuiltins");
     addClangDirectory(clangCodeGen, "CodeGen/Targets");
@@ -755,16 +743,13 @@ void configurationSpecification(Configuration &config)
     DSC<CppTarget> &clangDriver =
         config.getCppStaticDSC("clangDriver")
             .publicDeps(llvmBinaryFormat, llvmMC, llvmObject, llvmOption, llvmProfileData, llvmSupport,
-                        llvmTargetParser, llvmWindowsDriver, clangScalableStaticAnalysisFrameworkCore,
-                        clangScalableStaticAnalysisFrameworkFrontend, clangScalableStaticAnalysisFrameworkAnalyses,
-                        clangDependencyScanning);
+                        llvmTargetParser, llvmWindowsDriver, clangScalableStaticAnalysisCore,
+                        clangScalableStaticAnalysisFrontend, clangScalableStaticAnalysisAnalyses,
+                        clangScalableStaticAnalysisSourceTransformation, clangDependencyScanning);
     addClangDirectory(clangDriver, "Driver", "");
     addClangDirectory(clangDriver, "Driver/ToolChains", "ToolChains/");
     addClangDirectory(clangDriver, "Driver/ToolChains/Arch", "ToolChains/Arch/");
     clangDriver.getSourceTarget().privateIncludesSource("clang/lib/Driver");
-    clangDriver.getSourceTarget().makeHeaderUnitHeaderFile("ToolChains/AMDGPUOpenMP.h", true, false);
-    clangDriver.getSourceTarget().makeHeaderUnitHeaderFile("ToolChains/HIPAMD.h", true, false);
-    clangDriver.getSourceTarget().makeHeaderUnitHeaderFile("ToolChains/AMDGPU.h", true, false);
 
     DSC<CppTarget> &clangCrossTU =
         config.getCppStaticDSC("clangCrossTU").publicDeps(llvmSupport, llvmTargetParser, clangUnifiedSymbolResolution);
@@ -779,6 +764,8 @@ void configurationSpecification(Configuration &config)
         config.getCppStaticDSC("clangToolingCore").publicDeps(clangSupport, clangDependencyScanning);
     addClangDirectory(clangToolingCore, "Tooling/Core");
     addClangDirectory(clangToolingCore, "Tooling", "", false, true);
+    clangScalableStaticAnalysisSourceTransformation.publicDeps(clangToolingCore);
+    clangScalableStaticAnalysisFrontend.publicDeps(clangToolingCore);
 
     DSC<CppTarget> &clangStaticAnalyzerCore =
         config.getCppStaticDSC("clangStaticAnalyzerCore")
@@ -807,8 +794,8 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppTarget> &clangFrontendTool =
         config.getCppStaticDSC("clangFrontendTool")
-            .publicDeps(llvmOption, llvmSupport, clangScalableStaticAnalysisFrameworkCore,
-                        clangScalableStaticAnalysisFrameworkAnalyses);
+            .publicDeps(llvmOption, llvmSupport, clangScalableStaticAnalysisCore, clangScalableStaticAnalysisAnalyses,
+                        clangScalableStaticAnalysisFrontend, clangScalableStaticAnalysisSourceTransformation);
     addClangDirectory(clangFrontendTool, "FrontendTool");
 
     DSC<CppTarget> &clangRewriteFrontend = config.getCppStaticDSC("clangRewriteFrontend").publicDeps(llvmSupport);
@@ -833,7 +820,9 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppTarget> &llvmTableGenExe =
         config.getCppExeDSC("LLVMTableGenExe").privateDeps(llvmCodeGenTypes, llvmDemangle, llvmSupport, llvmTableGen);
-    llvmTableGenExe.getSourceTarget().privateIncludesSource("llvm/utils/TableGen");
+    llvmTableGenExe.getSourceTarget()
+        .privateIncludesSource("llvm/utils/TableGen")
+        .privateHUDirsRE("llvm/utils/TableGen/Common/GlobalISel/MatchTable", "Common/GlobalISel/MatchTable/", ".*\\.h");
     llvmTableGenExe.getLoat().setOutputName("llvm-tblgen");
     if (bsMode == BSMode::CONFIGURE)
     {
@@ -841,6 +830,16 @@ void configurationSpecification(Configuration &config)
         llvmTableGenNoInclude.emplace("llvm-min-tblgen.cpp");
         editOutFilesRecursive(llvmTableGenExe.getSourceTargetPointer(), "llvm/utils/TableGen", ".cpp",
                               llvmTableGenNoInclude);
+    }
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (config.evaluate(IsCppMod::YES))
+        {
+            CppTarget &stdTarget = config.stdCppTarget->getSourceTarget();
+            stdTarget.parseAndAddInComposingHeaders(*stdTarget.reqHeaderNameMapping.at("immintrin.h").data.cppMod,
+                                                    "nmmintrin.h,");
+        }
     }
 
     DSC<CppTarget> &clang = config.getCppExeDSC("clang").privateDeps(
@@ -859,35 +858,31 @@ void configurationSpecification(Configuration &config)
         clangAnalysisLifetimeSafety, clangSema, clangParse, clangSerialization, clangFrontend, clangDriver,
         clangRewriteFrontend, clangCrossTU, clangExtractAPI, clangStaticAnalyzerCore, clangStaticAnalyzerCheckers,
         clangStaticAnalyzerFrontend, clangFrontendTool, clangCodeGen, clangDependencyScanning,
-        clangScalableStaticAnalysisFrameworkCore, clangScalableStaticAnalysisFrameworkAnalyses,
-        clangScalableStaticAnalysisFrameworkFrontend, clangUnifiedSymbolResolution);
-    clang.getLoat().setOutputName("clang-23");
+        clangScalableStaticAnalysisCore, clangScalableStaticAnalysisAnalyses, clangScalableStaticAnalysisFrontend,
+        clangScalableStaticAnalysisSourceTransformation, clangUnifiedSymbolResolution);
+    clang.getLoat().setOutputName("clang-24");
     clang.getSourceTarget()
         .moduleDirsRE("clang/tools/driver", ".*cpp")
         .moduleFiles("llvm/my-fork/tools/clang/tools/driver/clang-driver.cpp")
         .privateIncludes("clang/tools/driver");
 
-    // We are adding following includes for all the targets. And these are added before the by-default includes of the
-    // clang compiler. so system llvm headers do not muddle with these. this should be done with target declaration and
-    // should be more nuanced.
+    // Conventional sources in either configuration need project headers before installed LLVM headers.
+    // IPC compilations use the header mappings instead of these search directories.
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (config.name == "standard")
+        for (CppTarget *t : config.cppTargets)
         {
-            for (CppTarget *t : config.cppTargets)
+            if (t->name == "std-cpp")
             {
-                if (t->name == "std-cpp")
-                {
-                    continue;
-                }
-                vector<InclNode> vec = std::move(t->reqIncls);
-                t->reqIncls.clear();
-                t->privateIncludesSource("llvm/my-fork/include", "llvm/include", "clang/include",
-                                         "llvm/my-fork/tools/clang/include");
-                for (auto &inclNode : vec)
-                {
-                    t->privateIncludesSource(inclNode.node->filePath);
-                }
+                continue;
+            }
+            vector<InclNode> vec = std::move(t->reqIncls);
+            t->reqIncls.clear();
+            t->privateIncludesSource("llvm/my-fork/include", "llvm/include", "clang/include",
+                                     "llvm/my-fork/tools/clang/include");
+            for (const InclNode &inclNode : vec)
+            {
+                t->reqIncls.emplace_back(inclNode);
             }
         }
     }
@@ -895,7 +890,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-   // getConfiguration("standard");
+    // getConfiguration("standard");
     // Compilation does not work with big header-units.
     getConfiguration("standard");
     getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES, Optimization::OFF,

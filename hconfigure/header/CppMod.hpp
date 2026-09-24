@@ -200,9 +200,6 @@ class CppMod : public CppSrc
     /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
 
-    /// Size in bytes of `interfaceNode` after memory-mapping; sent to the compiler in IPC messages.
-    uint32_t interfaceFileSize;
-
     /// Kind of translation unit: source, primary/partition export, header-unit, or primary implementation.
     CppModType type;
 
@@ -215,9 +212,6 @@ class CppMod : public CppSrc
     /// Whether composing headers have already been sent in the first IPC message.
     bool firstMessageSent = false;
 
-    /// True after `makeMemoryFileMapping()` has mapped `interfaceNode` and recorded `interfaceFileSize`.
-    bool memoryMappingCompleted = false;
-
     /// With `realBTargets[0].insertionIndex`, allows one bring-to-front per dependency: while it is already in
     /// `readyBTargets` but `isEventRegistered` has not run and it has not yet been moved to the head (`!isScheduled`).
     bool isScheduled = false;
@@ -226,9 +220,6 @@ class CppMod : public CppSrc
     bool isAllDepsPopulated = false;
 
     CppMod(CppTarget *target_, const Node *node_, CppModType cppModType);
-
-    /// Ensures that a shared-memory BMI exists before it is sent to the compiler.
-    void makeMemoryFileMapping();
 
     void populateAllDeps();
 

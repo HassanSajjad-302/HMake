@@ -277,10 +277,6 @@ class alignas(128) RealBTarget
     /// Which element of BTarget::realBTargets[2] this instance occupies (0 or 1).
     bool round : 1 = 0;
 
-    // TODO
-    //  Following describes the time taken for the completion of this task. Currently unused.
-    // unsigned long timeTaken = 0;
-
     /// Which `Builder::readyBTargets` array cell holds this node (set by `PointerArrayList::emplace`).
     ///
     /// `CppMod` bring-to-front: a consumer that is blocked on this module/hu nulls

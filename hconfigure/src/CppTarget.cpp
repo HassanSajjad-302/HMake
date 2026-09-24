@@ -387,21 +387,18 @@ void CppTarget::populateTransitiveProperties()
             continue;
         }
         auto *cppTarget = static_cast<CppTarget *>(producer);
-        if (configuration->evaluate(IsCppMod::NO) || !useIPC)
+        for (const InclNode &inclNode : cppTarget->useReqIncls)
         {
-            for (const InclNode &inclNode : cppTarget->useReqIncls)
+            const auto existing =
+                std::ranges::find(reqIncls, inclNode.node, [](const InclNode &entry) { return entry.node; });
+            if (existing == reqIncls.end())
             {
-                const auto existing =
-                    std::ranges::find(reqIncls, inclNode.node, [](const InclNode &entry) { return entry.node; });
-                if (existing == reqIncls.end())
-                {
-                    reqIncls.emplace_back(inclNode);
-                }
-                else
-                {
-                    // If either declaration treats the path as project code, retain -I so warnings are not hidden.
-                    existing->isStandard &= inclNode.isStandard;
-                }
+                reqIncls.emplace_back(inclNode);
+            }
+            else
+            {
+                // If either declaration treats the path as project code, retain -I so warnings are not hidden.
+                existing->isStandard &= inclNode.isStandard;
             }
         }
         reqCompilerFlags += cppTarget->useReqCompilerFlags;
@@ -419,13 +416,6 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
         return;
     }
 
-    if (configuration->evaluate(IsCppMod::YES))
-    {
-        printErrorMessage(FORMAT("A regular source was added to a module-enabled target.\nTarget: {}\nSource file: {}\n"
-                                 "Hint: use a moduleFiles* API for module implementation units.",
-                                 name, node->filePath));
-    }
-
     for (const CppSrc *source : srcFileDeps)
     {
         if (source->node == node)
@@ -441,7 +431,9 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
             FORMAT("Source file was added more than once.\nTarget: {}\nSource file: {}", name, node->filePath));
     }
 
-    if (jumboBuild == JumboBuild::YES && sourceTypeOf(node->filePath) == SourceType::CPP)
+    // Explicit textual C++ sources in module targets stay standalone: adaptive units inherit the module mode.
+    if (jumboBuild == JumboBuild::YES && configuration->evaluate(IsCppMod::NO) &&
+        sourceTypeOf(node->filePath) == SourceType::CPP)
     {
         adaptiveSourceNodes.emplace_back(const_cast<Node *>(node));
     }
@@ -498,6 +490,14 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
 {
     if (addCppSource == AddCppSource::NO)
     {
+        return;
+    }
+
+    // C and assembly cannot consume C++ BMIs. Mixed targets compile them through the ordinary source path.
+    if (sourceTypeOf(node->filePath) != SourceType::CPP)
+    {
+        assert(exportName.empty());
+        actuallyAddSourceFileConfigTime(node);
         return;
     }
 
@@ -1162,7 +1162,9 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
             }
         }
 
-        hu = huDeps.emplace_back(new CppMod(this, headerUnit, CppModType::HEADER_UNIT));
+        CppSrc *cppSrc = findExistingCompileUnit(*this, *headerUnit, CppModType::HEADER_UNIT);
+        hu = huDeps.emplace_back(cppSrc != nullptr ? static_cast<CppMod *>(cppSrc)
+                                                   : new CppMod(this, headerUnit, CppModType::HEADER_UNIT));
 
         if (addInReq)
         {
@@ -1515,52 +1517,57 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
 
 void CppTarget::setCommandHashes()
 {
-    uint64_t cppHash = 0, cHash = 0, assemblyHash = 0;
-    bool cppDone = false, cDone = false, assemblyDone = false;
+    uint64_t cppHash = 0, ipcCppHash = 0, cHash = 0, assemblyHash = 0;
+    bool cppDone = false, ipcCppDone = false, cDone = false, assemblyDone = false;
 
-    auto hashCommand = [&](const string &baseCommand, uint64_t &hash, bool &done) -> uint64_t {
+    auto hashCommand = [&](const string &baseCommand, uint64_t &hash, bool &done,
+                           const bool addIncludeDirectories) -> uint64_t {
         if (!done)
         {
             STACK_PMR_STRING(cmd, 64 * 1024);
             cmd = baseCommand;
-            setCompileCommand(cmd);
+            setCompileCommand(cmd, addIncludeDirectories);
             hash = rapidhash(cmd.data(), cmd.size());
             done = true;
         }
         return hash;
     };
 
-    auto getHash = [&](const SourceType sourceType) -> uint64_t {
+    auto getHash = [&](const SourceType sourceType, const bool useIPCForCpp) -> uint64_t {
         if (sourceType == SourceType::CPP)
         {
-            return hashCommand(configuration->cppCompileCommand, cppHash, cppDone);
+            if (useIPCForCpp)
+            {
+                return hashCommand(configuration->cppCompileCommand, ipcCppHash, ipcCppDone, false);
+            }
+            return hashCommand(configuration->cppCompileCommand, cppHash, cppDone, true);
         }
         if (sourceType == SourceType::C)
         {
-            return hashCommand(configuration->cCompileCommand, cHash, cDone);
+            return hashCommand(configuration->cCompileCommand, cHash, cDone, true);
         }
-        return hashCommand(configuration->assemblyCompileCommand, assemblyHash, assemblyDone);
+        return hashCommand(configuration->assemblyCompileCommand, assemblyHash, assemblyDone, true);
     };
 
     for (CppSrc *srcFileDep : srcFileDeps)
     {
         srcFileDep->sourceType = sourceTypeOf(srcFileDep->node->filePath);
-        srcFileDep->commandHash = getHash(srcFileDep->sourceType);
+        srcFileDep->commandHash = getHash(srcFileDep->sourceType, false);
     }
     for (CppMod *modFileDep : modFileDeps)
     {
         modFileDep->sourceType = sourceTypeOf(modFileDep->node->filePath);
-        modFileDep->commandHash = getHash(modFileDep->sourceType);
+        modFileDep->commandHash = getHash(modFileDep->sourceType, useIPC);
     }
     for (CppMod *imodFileDep : imodFileDeps)
     {
         imodFileDep->sourceType = SourceType::CPP;
-        imodFileDep->commandHash = getHash(SourceType::CPP);
+        imodFileDep->commandHash = getHash(SourceType::CPP, useIPC);
     }
     for (CppMod *huDep : huDeps)
     {
         huDep->sourceType = SourceType::CPP;
-        huDep->commandHash = getHash(SourceType::CPP);
+        huDep->commandHash = getHash(SourceType::CPP, useIPC);
     }
 }
 
@@ -1629,11 +1636,9 @@ void CppTarget::writeConfigCacheAtConfigTime(string &buffer)
 
     writeNode(buffer, myBuildDir);
 
-    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
-    {
-        writeIncDirsAtConfigTime(buffer, reqIncls);
-        writeIncDirsAtConfigTime(buffer, useReqIncls);
-    }
+    // Mixed targets still need textual include paths for C and assembly sources.
+    writeIncDirsAtConfigTime(buffer, reqIncls);
+    writeIncDirsAtConfigTime(buffer, useReqIncls);
 
     if (configuration->evaluate(IsCppMod::YES))
     {
@@ -1651,7 +1656,7 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
         const CppMod &cppMod = *cppModPtr;
         if (cppMod.newlyAdded)
         {
-            return;
+            continue;
         }
 
         char *ptr = const_cast<char *>(bTargetCaches[cppMod.cacheIndex].getBuildCache().data());
@@ -1670,16 +1675,16 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
                     if (it->second != FileType::HEADER_FILE)
                     {
                         *ptr = true;
-                        return;
+                        break;
                     }
                 }
                 else
                 {
                     *ptr = true;
-                    return;
+                    break;
                 }
             }
-            return;
+            continue;
         }
 
         for (const DepRecord &header : headers)
@@ -1691,13 +1696,13 @@ void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModV
                 if (it->second != FileType::HEADER_FILE)
                 {
                     *ptr = true;
-                    return;
+                    break;
                 }
             }
             else
             {
                 *ptr = true;
-                return;
+                break;
             }
         }
     }
@@ -1816,11 +1821,8 @@ void CppTarget::readConfigCacheAtBuildTime()
 
     myBuildDir = readHalfNode(ptr, bytesRead);
 
-    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
-    {
-        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls);
-        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls);
-    }
+    readInclDirsAtBuildTime(ptr, bytesRead, reqIncls);
+    readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls);
 
     if (configuration->evaluate(IsCppMod::YES))
     {
@@ -1973,6 +1975,10 @@ CppMod &CppTarget::getCppInterfaceModule(const string &str)
 
 BTarget &CppTarget::getCppModule(const string &str)
 {
+    if (sourceTypeOf(str) != SourceType::CPP)
+    {
+        return getCppSrc(str);
+    }
     Node *node = Node::getNode<PathType::NEITHER>(str, true);
     if (const auto module = std::ranges::find(modFileDeps, node, [](const CppMod *cppMod) { return cppMod->node; });
         module != modFileDeps.end())
@@ -2073,6 +2079,10 @@ CppTarget &CppTarget::removeModuleFile(const NodeOrStr source)
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         Node *node = source.resolve(true);
+        if (sourceTypeOf(node->filePath) != SourceType::CPP)
+        {
+            return removeSourceFile(node);
+        }
         if (const auto it = std::ranges::find(modFileDeps, node, [](const CppMod *unit) { return unit->node; });
             it != modFileDeps.end())
         {
@@ -2099,6 +2109,34 @@ CppTarget &CppTarget::removeModuleFile(const NodeOrStr source)
         }
         printErrorMessage(FORMAT("Module implementation is not registered with the target.\nTarget: {}\nSource: {}",
                                  name, node->filePath));
+    }
+    return *this;
+}
+
+CppTarget &CppTarget::makeModuleSourceFile(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            Node *node = source.resolve(true);
+            removeModuleFile(node);
+            actuallyAddSourceFileConfigTime(node);
+        }
+    }
+    return *this;
+}
+
+CppTarget &CppTarget::makeSourceModuleFile(const NodeOrStr source)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(IsCppMod::YES))
+        {
+            Node *node = source.resolve(true);
+            removeSourceFile(node);
+            actuallyAddModuleFileConfigTime(node, "");
+        }
     }
     return *this;
 }
@@ -2172,7 +2210,7 @@ string CppTarget::escapeAndQuoteDefineValue(string_view val)
     return result;
 }
 
-void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
+void CppTarget::setCompileCommand(std::pmr::string &compileCommand, const bool addIncludeDirectories)
 {
     Compiler &compiler = configuration->compilerFeatures.compiler;
 
@@ -2223,6 +2261,11 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
             compileCommand += i.value;
             compileCommand += ' ';
         }
+    }
+
+    if (!addIncludeDirectories)
+    {
+        return;
     }
 
     // Keep include directories in deterministic specification/propagation order. A set would remove duplicates but
@@ -2404,66 +2447,62 @@ void CppTarget::verifyConfigCache(const string_view configCache) const
                                  cachedMyBuildDir ? cachedMyBuildDir->filePath : "<null>"));
     }
 
-    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
+    const uint32_t cachedReqInclsSize = readUint32(configCache.data(), bytesRead);
+    if (reqIncls.size() != cachedReqInclsSize)
     {
-        const uint32_t cachedReqInclsSize = readUint32(configCache.data(), bytesRead);
-        if (reqIncls.size() != cachedReqInclsSize)
-        {
-            printErrorMessage(FORMAT("Configuration cache verification failed: private include count "
-                                     "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
-                                     getPrintName(), reqIncls.size(), cachedReqInclsSize));
-        }
+        printErrorMessage(FORMAT("Configuration cache verification failed: private include count "
+                                 "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
+                                 getPrintName(), reqIncls.size(), cachedReqInclsSize));
+    }
 
-        for (uint32_t i = 0; i < cachedReqInclsSize; ++i)
+    for (uint32_t i = 0; i < cachedReqInclsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
+        if (i < reqIncls.size() && reqIncls[i].node != cachedNode)
         {
-            const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
-            const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
-            if (i < reqIncls.size() && reqIncls[i].node != cachedNode)
-            {
-                printErrorMessage(
-                    FORMAT("Configuration cache verification failed: private include path mismatch.\nTarget: "
-                           "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
-                           getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
-                           cachedNode ? cachedNode->filePath : "<null>"));
-            }
-            if (i < reqIncls.size() && reqIncls[i].isStandard != cachedIsStandard)
-            {
-                printErrorMessage(
-                    FORMAT("Configuration cache verification failed: private include classification mismatch.\n"
-                           "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
-                           "Cached system classification: {}",
-                           getPrintName(), i, reqIncls[i].isStandard, cachedIsStandard));
-            }
+            printErrorMessage(FORMAT("Configuration cache verification failed: private include path mismatch.\nTarget: "
+                                     "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
+                                     getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
         }
-
-        const uint32_t cachedUseReqInclsSize = readUint32(configCache.data(), bytesRead);
-        if (useReqIncls.size() != cachedUseReqInclsSize)
+        if (i < reqIncls.size() && reqIncls[i].isStandard != cachedIsStandard)
         {
-            printErrorMessage(FORMAT("Configuration cache verification failed: interface include count "
-                                     "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
-                                     getPrintName(), useReqIncls.size(), cachedUseReqInclsSize));
+            printErrorMessage(
+                FORMAT("Configuration cache verification failed: private include classification mismatch.\n"
+                       "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
+                       "Cached system classification: {}",
+                       getPrintName(), i, reqIncls[i].isStandard, cachedIsStandard));
         }
+    }
 
-        for (uint32_t i = 0; i < cachedUseReqInclsSize; ++i)
+    const uint32_t cachedUseReqInclsSize = readUint32(configCache.data(), bytesRead);
+    if (useReqIncls.size() != cachedUseReqInclsSize)
+    {
+        printErrorMessage(FORMAT("Configuration cache verification failed: interface include count "
+                                 "mismatch.\nTarget: {}\nCurrent count: {}\nCached count: {}",
+                                 getPrintName(), useReqIncls.size(), cachedUseReqInclsSize));
+    }
+
+    for (uint32_t i = 0; i < cachedUseReqInclsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
+        if (i < useReqIncls.size() && useReqIncls[i].node != cachedNode)
         {
-            const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
-            const bool cachedIsStandard = readBool(configCache.data(), bytesRead);
-            if (i < useReqIncls.size() && useReqIncls[i].node != cachedNode)
-            {
-                printErrorMessage(
-                    FORMAT("Configuration cache verification failed: interface include path mismatch.\nTarget: "
-                           "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
-                           getPrintName(), i, useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
-                           cachedNode ? cachedNode->filePath : "<null>"));
-            }
-            if (i < useReqIncls.size() && useReqIncls[i].isStandard != cachedIsStandard)
-            {
-                printErrorMessage(
-                    FORMAT("Configuration cache verification failed: interface include classification mismatch.\n"
-                           "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
-                           "Cached system classification: {}",
-                           getPrintName(), i, useReqIncls[i].isStandard, cachedIsStandard));
-            }
+            printErrorMessage(
+                FORMAT("Configuration cache verification failed: interface include path mismatch.\nTarget: "
+                       "{}\nInclude position: {}\nCurrent path: {}\nCached path: {}",
+                       getPrintName(), i, useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
+                       cachedNode ? cachedNode->filePath : "<null>"));
+        }
+        if (i < useReqIncls.size() && useReqIncls[i].isStandard != cachedIsStandard)
+        {
+            printErrorMessage(
+                FORMAT("Configuration cache verification failed: interface include classification mismatch.\n"
+                       "Target: {}\nInclude position: {}\nCurrent system classification: {}\n"
+                       "Cached system classification: {}",
+                       getPrintName(), i, useReqIncls[i].isStandard, cachedIsStandard));
         }
     }
 

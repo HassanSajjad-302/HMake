@@ -92,7 +92,7 @@ void Configuration::initialize()
         printErrorMessage("No project toolchain is selected.");
     }
 
-    const auto &toolchainIt = toolchains.entries.find(projectCache.toolchainName);
+    const auto &toolchainIt = toolchains.entries.find("my-fork");
     if (toolchainIt == toolchains.entries.end())
     {
         printErrorMessage(
@@ -174,9 +174,9 @@ void Configuration::initialize()
             for (const string &str : toolchain->includeDirs)
             {
                 const Node *inclNode = Node::getNode<PathType::NEITHER>(str, false);
-                // In Module compilation mode, we only add include dirs for our own target but not as interface
-                // includes.
-                c->actuallyAddInclude(true, inclNode, true, evaluate(IsCppMod::NO));
+                // C and assembly consumers need the toolchain's textual headers even in module configurations.
+                // IPC C++ commands omit these directories when constructing the compile command.
+                c->actuallyAddInclude(true, inclNode, true, true);
             }
 
             if (evaluate(IsCppMod::YES))
